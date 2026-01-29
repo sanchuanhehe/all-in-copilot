@@ -1,0 +1,80 @@
+{
+  "name": "vscode-all-in-copilot",
+  "publisher": "AllInCopilot",
+  "displayName": "All-In Copilot",
+  "description": "Multi-API LLM provider for VS Code Chat - OpenAI, GLM, Minimax, and more",
+  "icon": "assets/logo.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sanchuanhehe/all-in-copilot"
+  },
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "download-api": "dts dev",
+    "postdownload-api": "dts main",
+    "postinstall": "npm run download-api",
+    "compile": "tsc -p ./",
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "watch": "tsc -watch -p ./",
+    "test": "pnpm run compile && vscode-test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@stylistic/eslint-plugin": "^2.9.0",
+    "@types/node": "^22",
+    "@types/mocha": "^10.0.6",
+    "@vscode/dts": "^0.4.1",
+    "@types/vscode": "^1.103.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.13.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.0"
+  },
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "all-in-copilot",
+        "displayName": "All-In Copilot",
+        "managementCommand": "allInCopilot.manage"
+      }
+    ],
+    "commands": [
+      {
+        "command": "allInCopilot.manage",
+        "title": "Configure All-In Copilot"
+      }
+    ],
+    "configuration": {
+      "title": "All-In Copilot",
+      "properties": {
+        "allInCopilot.provider": {
+          "type": "string",
+          "enum": ["minimax", "glm", "huggingface"],
+          "default": "minimax",
+          "description": "Select the LLM provider to use"
+        },
+        "allInCopilot.apiKey": {
+          "type": "string",
+          "description": "API key for the selected provider"
+        },
+        "allInCopilot.baseUrl": {
+          "type": "string",
+          "description": "Base URL for the API (auto-configured per provider)"
+        }
+      }
+    }
+  }
+}

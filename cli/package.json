@@ -1,0 +1,19 @@
+{
+  "name": "all-in-copilot-cli",
+  "version": "1.0.0",
+  "description": "CLI tool to build VSCode extensions with custom LLM providers",
+  "main": "dist/build.js",
+  "bin": {
+    "all-in-copilot": "./dist/build.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/build.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.9.2"
+  },
+  "keywords": ["vscode", "extension", "llm", "copilot", "cli"],
+  "license": "MIT"
+}

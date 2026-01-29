@@ -1,0 +1,35 @@
+{
+  "name": "@all-in-copilot/sdk",
+  "version": "1.0.0",
+  "description": "Core SDK for LLM providers - Uses official OpenAI and Anthropic SDKs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./providers": {
+      "import": "./dist/providers/index.js",
+      "require": "./dist/providers/index.js",
+      "types": "./dist/providers/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.3",
+    "openai": "^4.104.0"
+  },
+  "keywords": [
+    "llm",
+    "openai",
+    "anthropic",
+    "provider",
+    "sdk"
+  ],
+  "license": "MIT"
+}

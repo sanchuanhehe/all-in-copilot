@@ -1,14 +1,14 @@
 {
-	"name": "huggingface-vscode-chat",
-	"publisher": "HuggingFace",
-	"displayName": "Hugging Face Provider for GitHub Copilot Chat",
-	"description": "An extension that integrates Hugging Face Inference Providers into GitHub Copilot Chat",
+	"name": "all-in-copilot",
+	"publisher": "sanchuanhehe",
+	"displayName": "All-In Copilot",
+	"description": "Multi-API LLM provider framework for VS Code - Build your own Copilot extension",
 	"icon": "assets/logo.png",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/huggingface/huggingface-vscode-chat"
+		"url": "https://github.com/sanchuanhehe/all-in-copilot"
 	},
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"engines": {
 		"vscode": "^1.104.0"
 	},
@@ -16,66 +16,21 @@
 		"AI",
 		"Chat"
 	],
-	"galleryBanner": {
-		"color": "#100f11",
-		"theme": "dark"
-	},
-	"badges": [
-		{
-		"url": "https://img.shields.io/github/stars/huggingface/huggingface-vscode-chat?style=social",
-		"description": "Star huggingface-vscode-chat on Github",
-		"href": "https://github.com/huggingface/huggingface-vscode-chat"
-		},
-		{
-		"url": "https://img.shields.io/twitter/follow/huggingface?style=social",
-		"description": "Follow Hugging Face on Twitter",
-		"href": "https://x.com/huggingface"
-		}
+	"workspaces": [
+		"packages/*"
 	],
-	"homepage": "https://huggingface.co/docs/inference-providers/en/index",
-	"bugs": {
-		"url": "https://github.com/huggingface/huggingface-vscode-chat/issues"
-	},
-	"license": "MIT",
-	"contributes": {
-		"languageModelChatProviders": [
-			{
-				"vendor": "huggingface",
-				"displayName": "Hugging Face",
-				"managementCommand": "huggingface.manage"
-			}
-		],
-		"commands": [
-			{
-				"command": "huggingface.manage",
-				"title": "Manage Hugging Face Provider"
-			}
-		]
-	},
-	"main": "./out/extension.js",
 	"scripts": {
-		"vscode:prepublish": "npm run compile",
-		"download-api": "dts dev",
-		"postdownload-api": "dts main",
-		"postinstall": "npm run download-api",
-		"compile": "tsc -p ./",
-		"lint": "eslint",
-		"format": "prettier --write .",
-		"watch": "tsc -watch -p ./",
-		"test": "pnpm run compile && vscode-test"
+		"build": "pnpm --filter @all-in-copilot/sdk build",
+		"build:vscode": "pnpm --filter vscode-all-in-copilot compile",
+		"build:all": "pnpm build && pnpm build:vscode",
+		"watch": "pnpm --filter @all-in-copilot/sdk watch",
+		"lint": "eslint packages/sdk/src --ext .ts",
+		"format": "prettier --write . --ignore-path .gitignore",
+		"test": "echo 'No tests configured yet'"
 	},
-	"dependencies": {},
 	"devDependencies": {
 		"@eslint/js": "^9.13.0",
 		"@stylistic/eslint-plugin": "^2.9.0",
-		"@types/node": "^22",
-		"@types/mocha": "^10.0.6",
-		"@vscode/dts": "^0.4.1",
-		"@types/vscode": "^1.103.0",
-		"@vscode/test-cli": "^0.0.11",
-		"@vscode/test-electron": "^2.5.2",
-		"eslint": "^9.13.0",
-		"prettier": "^3.1.0",
 		"typescript": "^5.9.2",
 		"typescript-eslint": "^8.39.0"
 	},
