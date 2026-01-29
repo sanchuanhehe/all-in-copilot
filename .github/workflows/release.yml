@@ -130,7 +130,12 @@ jobs:
       - name: Package VSIX
         run: |
           cd templates/${{ matrix.template }}
-          npx @vscode/vsce package --no-dependencies -o ${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}.vsix
+          PRE_RELEASE_FLAG=""
+          if [[ "${{ needs.determine-templates.outputs.pre_release }}" == "true" ]]; then
+            PRE_RELEASE_FLAG="--pre-release"
+            echo "Packaging as pre-release..."
+          fi
+          npx @vscode/vsce package --no-dependencies $PRE_RELEASE_FLAG -o ${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}.vsix
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
