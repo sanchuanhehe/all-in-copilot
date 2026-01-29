@@ -14,7 +14,6 @@ import type {
   LanguageModelResponsePart,
 } from 'vscode';
 import {
-  type ProviderConfig,
   type ModelConfig,
   type VsCodeMessage,
   convertToOpenAI,

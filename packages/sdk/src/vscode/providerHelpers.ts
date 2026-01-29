@@ -199,7 +199,9 @@ export function convertToOpenAI(messages: readonly VsCodeMessage[]): OpenAIMessa
     if (toolResults.length > 0) {
       for (const tr of toolResults) {
         const contentStr = tr.content.map(c => {
-          if (isTextPart(c)) return c.value;
+          if (isTextPart(c)) {
+            return c.value;
+          }
           return JSON.stringify(c);
         }).join('\n');
         result.push({
@@ -280,7 +282,9 @@ export function convertToAnthropic(messages: readonly VsCodeMessage[]): { system
         });
       } else if (isToolResultPart(part)) {
         const resultText = part.content.map(c => {
-          if (isTextPart(c)) return c.value;
+          if (isTextPart(c)) {
+            return c.value;
+          }
           return JSON.stringify(c);
         }).join('\n');
         content.push({
@@ -314,7 +318,9 @@ function sanitizeFunctionName(name: string): string {
  * Convert VS Code tools to OpenAI format
  */
 export function convertToolsToOpenAI(tools: readonly unknown[] | undefined): OpenAITool[] | undefined {
-  if (!tools || tools.length === 0) return undefined;
+  if (!tools || tools.length === 0) {
+    return undefined;
+  }
 
   return tools.map((tool: unknown) => {
     const t = tool as { name: string; description?: string; inputSchema?: Record<string, unknown> };
@@ -333,7 +339,9 @@ export function convertToolsToOpenAI(tools: readonly unknown[] | undefined): Ope
  * Convert VS Code tools to Anthropic format
  */
 export function convertToolsToAnthropic(tools: readonly unknown[] | undefined): AnthropicTool[] | undefined {
-  if (!tools || tools.length === 0) return undefined;
+  if (!tools || tools.length === 0) {
+    return undefined;
+  }
 
   return tools.map((tool: unknown) => {
     const t = tool as { name: string; description?: string; inputSchema?: Record<string, unknown> };
@@ -419,19 +427,21 @@ export async function processOpenAIStream(
   signal?: AbortSignal
 ): Promise<void> {
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('No response body');
+  if (!reader) {
+    throw new Error('No response body');
+  }
 
   const decoder = new TextDecoder();
   let buffer = '';
-  const toolCallBuffers: Map<number, ToolCallBuffer> = new Map();
+  const toolCallBuffers = new Map<number, ToolCallBuffer>();
 
   const flushToolCalls = () => {
     for (const [, tc] of toolCallBuffers) {
       try {
         const args = tc.arguments ? JSON.parse(tc.arguments) : {};
         onToolCall(tc.id, tc.name, args);
-      } catch (e) {
-        console.warn('Failed to parse tool arguments:', e);
+      } catch {
+        console.warn('Failed to parse tool arguments');
         onToolCall(tc.id, tc.name, {});
       }
     }
@@ -440,7 +450,9 @@ export async function processOpenAIStream(
 
   try {
     while (true) {
-      if (signal?.aborted) break;
+      if (signal?.aborted) {
+        break;
+      }
 
       const { done, value } = await reader.read();
       if (done) {
@@ -454,7 +466,9 @@ export async function processOpenAIStream(
 
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
+        if (!trimmed || !trimmed.startsWith('data:')) {
+          continue;
+        }
 
         const data = trimmed.slice(5).trim();
         if (data === '[DONE]') {
@@ -481,12 +495,18 @@ export async function processOpenAIStream(
                 });
               }
               const buf = toolCallBuffers.get(index)!;
-              if (tc.id) buf.id = tc.id;
-              if (tc.function?.name) buf.name = tc.function.name;
-              if (tc.function?.arguments) buf.arguments += tc.function.arguments;
+              if (tc.id) {
+                buf.id = tc.id;
+              }
+              if (tc.function?.name) {
+                buf.name = tc.function.name;
+              }
+              if (tc.function?.arguments) {
+                buf.arguments += tc.function.arguments;
+              }
             }
           }
-        } catch (e) {
+        } catch {
           // Skip invalid JSON
         }
       }
@@ -506,7 +526,9 @@ export async function processAnthropicStream(
   signal?: AbortSignal
 ): Promise<void> {
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('No response body');
+  if (!reader) {
+    throw new Error('No response body');
+  }
 
   const decoder = new TextDecoder();
   let buffer = '';
@@ -519,8 +541,8 @@ export async function processAnthropicStream(
       try {
         const args = currentToolArgs ? JSON.parse(currentToolArgs) : {};
         onToolCall(currentToolId, currentToolName, args);
-      } catch (e) {
-        console.warn('Failed to parse tool arguments:', e);
+      } catch {
+        console.warn('Failed to parse tool arguments');
         onToolCall(currentToolId, currentToolName, {});
       }
       currentToolId = '';
@@ -531,7 +553,9 @@ export async function processAnthropicStream(
 
   try {
     while (true) {
-      if (signal?.aborted) break;
+      if (signal?.aborted) {
+        break;
+      }
 
       const { done, value } = await reader.read();
       if (done) {
@@ -545,7 +569,9 @@ export async function processAnthropicStream(
 
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed) continue;
+        if (!trimmed) {
+          continue;
+        }
 
         if (trimmed.startsWith('event:')) {
           const event = trimmed.slice(6).trim();
@@ -555,7 +581,9 @@ export async function processAnthropicStream(
           continue;
         }
 
-        if (!trimmed.startsWith('data:')) continue;
+        if (!trimmed.startsWith('data:')) {
+          continue;
+        }
         const data = trimmed.slice(5).trim();
 
         try {
@@ -575,7 +603,7 @@ export async function processAnthropicStream(
               currentToolArgs += delta.partial_json;
             }
           }
-        } catch (e) {
+        } catch {
           // Skip invalid JSON
         }
       }
