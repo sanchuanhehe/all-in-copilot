@@ -5,7 +5,7 @@
   "description": "Kimi K2 (Moonshot) provider for VS Code Chat",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sanchuanhehe/kimi-copilot"
+    "url": "https://github.com/sanchuanhehe/all-in-copilot"
   },
   "version": "0.1.0",
   "engines": {

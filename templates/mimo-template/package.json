@@ -5,7 +5,7 @@
   "description": "Xiaomi MiMo provider for VS Code Chat",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sanchuanhehe/mimo-copilot"
+    "url": "https://github.com/sanchuanhehe/all-in-copilot"
   },
   "version": "0.1.0",
   "engines": {
