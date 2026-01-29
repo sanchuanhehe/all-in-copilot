@@ -41,6 +41,32 @@ interface RemoteModel {
 }
 
 /**
+ * OpenAI-compatible message format
+ */
+interface OpenAIMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content?: string | ContentPart[];
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+  name?: string;
+}
+
+interface ContentPart {
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: { url: string };
+}
+
+interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+/**
  * Extension Provider with Dynamic Model Fetching
  */
 export class ExtensionProvider implements LanguageModelChatProvider {
@@ -137,14 +163,11 @@ export class ExtensionProvider implements LanguageModelChatProvider {
       throw new Error('API key not configured');
     }
 
-    // Convert messages
-    const convertedMessages = messages.map(msg => ({
-      role: this.mapRole(msg.role),
-      content: this.extractContent(msg.content),
-    }));
+    // Convert messages to OpenAI format
+    const convertedMessages = this.convertMessages(messages);
 
-    // Convert tools
-    const tools = options.tools?.map((tool: unknown) => this.convertTool(tool));
+    // Convert tools to OpenAI format
+    const tools = this.convertTools(options.tools);
 
     // Build request
     const requestBody = {
@@ -175,6 +198,228 @@ export class ExtensionProvider implements LanguageModelChatProvider {
     }
 
     await this.processStreamingResponse(response, progress);
+  }
+
+  /**
+   * Convert VS Code messages to OpenAI-compatible format
+   * Handles: TextPart, DataPart (images), ToolCallPart, ToolResultPart
+   */
+  private convertMessages(messages: readonly LanguageModelChatRequestMessage[]): OpenAIMessage[] {
+    const result: OpenAIMessage[] = [];
+
+    for (const msg of messages) {
+      const role = this.mapRole(msg.role);
+
+      // Collect different part types
+      const textParts: string[] = [];
+      const imageParts: Array<{ mimeType: string; data: Uint8Array }> = [];
+      const toolCalls: ToolCall[] = [];
+      const toolResults: Array<{ callId: string; content: string }> = [];
+
+      for (const part of msg.content ?? []) {
+        if (part instanceof vscode.LanguageModelTextPart) {
+          // Text content
+          textParts.push(part.value);
+        } else if (part instanceof vscode.LanguageModelDataPart) {
+          // Image content
+          if (this.isImageMimeType(part.mimeType)) {
+            imageParts.push({ mimeType: part.mimeType, data: part.data });
+          }
+        } else if (part instanceof vscode.LanguageModelToolCallPart) {
+          // Tool call from assistant
+          const id = part.callId || `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          let args = '{}';
+          try {
+            args = typeof part.input === 'string' ? part.input : JSON.stringify(part.input ?? {});
+          } catch {
+            args = '{}';
+          }
+          toolCalls.push({
+            id,
+            type: 'function',
+            function: { name: part.name, arguments: args },
+          });
+        } else if (this.isToolResultPart(part)) {
+          // Tool result
+          const toolResult = part as { callId?: string; content?: readonly unknown[] };
+          const callId = toolResult.callId ?? '';
+          const content = this.collectToolResultText(toolResult.content);
+          toolResults.push({ callId, content });
+        }
+      }
+
+      const joinedText = textParts.join('').trim();
+
+      // Process based on role
+      if (role === 'assistant') {
+        const assistantMessage: OpenAIMessage = { role: 'assistant' };
+
+        if (joinedText) {
+          assistantMessage.content = joinedText;
+        }
+
+        if (toolCalls.length > 0) {
+          assistantMessage.tool_calls = toolCalls;
+        }
+
+        if (assistantMessage.content || assistantMessage.tool_calls) {
+          result.push(assistantMessage);
+        }
+      }
+
+      // Tool results become separate tool messages
+      for (const tr of toolResults) {
+        result.push({
+          role: 'tool',
+          tool_call_id: tr.callId,
+          content: tr.content || '',
+        });
+      }
+
+      // User messages (with optional images)
+      if (role === 'user') {
+        if (imageParts.length > 0) {
+          // Multi-modal message with images
+          const contentArray: ContentPart[] = [];
+
+          if (joinedText) {
+            contentArray.push({ type: 'text', text: joinedText });
+          }
+
+          for (const img of imageParts) {
+            const dataUrl = this.createDataUrl(img.mimeType, img.data);
+            contentArray.push({
+              type: 'image_url',
+              image_url: { url: dataUrl },
+            });
+          }
+
+          result.push({ role: 'user', content: contentArray });
+        } else if (joinedText) {
+          // Text-only user message
+          result.push({ role: 'user', content: joinedText });
+        }
+      }
+
+      // System messages
+      if (role === 'system' && joinedText) {
+        result.push({ role: 'system', content: joinedText });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Convert VS Code tools to OpenAI format
+   */
+  private convertTools(tools: readonly unknown[] | undefined): Array<Record<string, unknown>> | undefined {
+    if (!tools || tools.length === 0) {
+      return undefined;
+    }
+
+    return tools.map(tool => {
+      const t = tool as Record<string, unknown>;
+
+      // Handle LanguageModelChatTool format
+      if ('name' in t && 'description' in t) {
+        return {
+          type: 'function',
+          function: {
+            name: this.sanitizeFunctionName(t.name as string),
+            description: t.description,
+            parameters: t.inputSchema ?? { type: 'object', properties: {} },
+          },
+        };
+      }
+
+      // Handle already OpenAI format
+      if (t.type === 'function' && t.function) {
+        const func = t.function as Record<string, unknown>;
+        return {
+          type: 'function',
+          function: {
+            name: this.sanitizeFunctionName(func.name as string),
+            description: func.description,
+            parameters: func.parameters ?? { type: 'object', properties: {} },
+          },
+        };
+      }
+
+      return tool as Record<string, unknown>;
+    });
+  }
+
+  /**
+   * Sanitize function name to be valid identifier
+   */
+  private sanitizeFunctionName(name: string): string {
+    if (!name) {
+      return 'tool';
+    }
+    // Replace invalid chars, ensure starts with letter
+    let sanitized = name.replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (!/^[a-zA-Z]/.test(sanitized)) {
+      sanitized = `fn_${sanitized}`;
+    }
+    return sanitized.slice(0, 64);
+  }
+
+  /**
+   * Check if mime type is an image
+   */
+  private isImageMimeType(mimeType: string): boolean {
+    return mimeType.startsWith('image/');
+  }
+
+  /**
+   * Check if part is a tool result
+   */
+  private isToolResultPart(part: unknown): boolean {
+    return part instanceof vscode.LanguageModelToolResultPart;
+  }
+
+  /**
+   * Collect text from tool result content
+   */
+  private collectToolResultText(content: readonly unknown[] | undefined): string {
+    if (!content) {
+      return '';
+    }
+
+    const texts: string[] = [];
+    for (const item of content) {
+      if (item instanceof vscode.LanguageModelTextPart) {
+        texts.push(item.value);
+      } else if (item && typeof item === 'object') {
+        const obj = item as Record<string, unknown>;
+        if (typeof obj.value === 'string') {
+          texts.push(obj.value);
+        } else if (typeof obj.text === 'string') {
+          texts.push(obj.text);
+        }
+      }
+    }
+    return texts.join('\n');
+  }
+
+  /**
+   * Create data URL from binary data
+   */
+  private createDataUrl(mimeType: string, data: Uint8Array): string {
+    const base64 = this.uint8ArrayToBase64(data);
+    return `data:${mimeType};base64,${base64}`;
+  }
+
+  /**
+   * Convert Uint8Array to base64 string
+   */
+  private uint8ArrayToBase64(data: Uint8Array): string {
+    let binary = '';
+    for (let i = 0; i < data.length; i++) {
+      binary += String.fromCharCode(data[i]);
+    }
+    return btoa(binary);
   }
 
   /**
@@ -392,6 +637,7 @@ export class ExtensionProvider implements LanguageModelChatProvider {
    * Map VS Code role to API role
    */
   private mapRole(role: number): 'system' | 'user' | 'assistant' | 'tool' {
+    // LanguageModelChatMessageRole: System = 1, User = 2, Assistant = 3
     switch (role) {
       case 1:
         return 'system';
@@ -400,43 +646,6 @@ export class ExtensionProvider implements LanguageModelChatProvider {
       default:
         return 'user';
     }
-  }
-
-  /**
-   * Extract text content from message parts
-   */
-  private extractContent(content: readonly unknown[]): string {
-    const parts: string[] = [];
-    for (const part of content) {
-      if (part && typeof part === 'object') {
-        const p = part as Record<string, unknown>;
-        if (typeof p.value === 'string') {
-          parts.push(p.value);
-        } else if (typeof p.text === 'string') {
-          parts.push(p.text);
-        }
-      }
-    }
-    return parts.join('');
-  }
-
-  /**
-   * Convert VS Code tool to OpenAI format
-   */
-  private convertTool(tool: unknown): Record<string, unknown> {
-    const t = tool as Record<string, unknown>;
-    if (t.type === 'function') {
-      const func = t.function as Record<string, unknown>;
-      return {
-        type: 'function',
-        function: {
-          name: func.name,
-          description: func.description,
-          parameters: func.parameters,
-        },
-      };
-    }
-    return tool as Record<string, unknown>;
   }
 
   /**

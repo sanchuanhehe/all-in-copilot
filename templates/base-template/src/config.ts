@@ -4,6 +4,15 @@
  */
 
 /**
+ * API mode types
+ * - openai: OpenAI Chat Completions API format
+ * - anthropic: Anthropic Messages API format
+ * - gemini: Google Gemini API format
+ * - ollama: Ollama native API format
+ */
+export type ApiMode = 'openai' | 'anthropic' | 'gemini' | 'ollama';
+
+/**
  * Provider configuration interface
  */
 export interface ProviderConfig {
@@ -15,8 +24,16 @@ export interface ProviderConfig {
   baseUrl: string;
   /** Secret storage key for API key */
   apiKeySecret: string;
-  /** Model family for capability detection */
+  /**
+   * Model family for VS Code model picker grouping
+   * Examples: 'gpt', 'claude', 'gemini', 'minimax', 'glm', 'qwen'
+   */
   family: string;
+  /**
+   * API mode - determines message format and request structure
+   * @default 'openai'
+   */
+  apiMode: ApiMode;
   /** Whether this provider supports tool calling */
   supportsTools: boolean;
   /** Whether this provider supports vision/image input */
@@ -29,6 +46,8 @@ export interface ProviderConfig {
   dynamicModels: boolean;
   /** Cache TTL for dynamic models in milliseconds */
   modelsCacheTTL?: number;
+  /** Custom headers for API requests */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -58,6 +77,8 @@ export const PROVIDER_CONFIG: ProviderConfig = {
   baseUrl: 'https://api.example.com/v1/chat/completions',
   apiKeySecret: 'extension-name.provider.apiKey',
   family: 'provider-family',
+  // API format: 'openai' | 'anthropic' | 'gemini' | 'ollama'
+  apiMode: 'openai',
   supportsTools: true,
   supportsVision: false,
   defaultMaxOutputTokens: 4096,
