@@ -1,6 +1,6 @@
 {
 	"name": "all-in-copilot",
-	"publisher": "sanchuanhehe",
+	"publisher": "sanchuan",
 	"displayName": "All-In Copilot",
 	"description": "Multi-API LLM provider framework for VS Code - Build your own Copilot extension",
 	"icon": "assets/logo.png",
