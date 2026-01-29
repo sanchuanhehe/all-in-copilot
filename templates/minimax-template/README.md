@@ -23,9 +23,12 @@ MiniMax Copilot is a VS Code extension that integrates MiniMax large language mo
 
 1. Install this extension in VS Code
 2. Get your API key from [MiniMax Open Platform](https://www.minimax.chat/)
-3. Run command: `MiniMax: Set API Key`
-4. Enter your API key when prompted
-5. Open Copilot Chat and select MiniMax as the model provider
+3. Open **GitHub Copilot Chat** panel (`Ctrl+Alt+I` / `Cmd+Alt+I`)
+4. Click the **model selector** dropdown at the bottom of the chat panel
+5. Select a **MiniMax** model from the list
+6. Enter your API key when prompted (first time only)
+
+> 📖 See [GitHub Copilot Docs: Adding models](https://docs.github.com/en/copilot/how-tos/use-ai-models/change-the-chat-model?tool=vscode#adding-models) for more details.
 
 ### Supported Models
 
@@ -56,9 +59,12 @@ MiniMax Copilot 是一个 VS Code 扩展，将 MiniMax 大语言模型集成到 
 
 1. 在 VS Code 中安装此扩展
 2. 从 [MiniMax 开放平台](https://www.minimax.chat/) 获取 API 密钥
-3. 运行命令：`MiniMax: Set API Key`
-4. 在提示时输入你的 API 密钥
-5. 打开 Copilot Chat 并选择 MiniMax 作为模型提供者
+3. 打开 **GitHub Copilot Chat** 面板（`Ctrl+Alt+I` / `Cmd+Alt+I`）
+4. 点击聊天面板底部的**模型选择器**下拉菜单
+5. 从列表中选择一个 **MiniMax** 模型
+6. 首次使用时输入你的 API 密钥
+
+> 📖 详见 [GitHub Copilot 文档：添加模型](https://docs.github.com/en/copilot/how-tos/use-ai-models/change-the-chat-model?tool=vscode#adding-models)
 
 ### 支持的模型
 

@@ -23,9 +23,12 @@ Kimi Copilot is a VS Code extension that integrates Moonshot AI's Kimi K2 large 
 
 1. Install this extension in VS Code
 2. Get your API key from [Moonshot Open Platform](https://platform.moonshot.cn/)
-3. Run command: `Kimi: Set API Key`
-4. Enter your API key when prompted
-5. Open Copilot Chat and select Kimi as the model provider
+3. Open **GitHub Copilot Chat** panel (`Ctrl+Alt+I` / `Cmd+Alt+I`)
+4. Click the **model selector** dropdown at the bottom of the chat panel
+5. Select a **Kimi** model from the list
+6. Enter your API key when prompted (first time only)
+
+> 📖 See [GitHub Copilot Docs: Adding models](https://docs.github.com/en/copilot/how-tos/use-ai-models/change-the-chat-model?tool=vscode#adding-models) for more details.
 
 ### Supported Models
 
@@ -57,9 +60,12 @@ Kimi Copilot 是一个 VS Code 扩展，将月之暗面的 Kimi K2 大语言模�
 
 1. 在 VS Code 中安装此扩展
 2. 从[月之暗面开放平台](https://platform.moonshot.cn/)获取 API 密钥
-3. 运行命令：`Kimi: Set API Key`
-4. 在提示时输入你的 API 密钥
-5. 打开 Copilot Chat 并选择 Kimi 作为模型提供者
+3. 打开 **GitHub Copilot Chat** 面板（`Ctrl+Alt+I` / `Cmd+Alt+I`）
+4. 点击聊天面板底部的**模型选择器**下拉菜单
+5. 从列表中选择一个 **Kimi** 模型
+6. 首次使用时输入你的 API 密钥
+
+> 📖 详见 [GitHub Copilot 文档：添加模型](https://docs.github.com/en/copilot/how-tos/use-ai-models/change-the-chat-model?tool=vscode#adding-models)
 
 ### 支持的模型
 
