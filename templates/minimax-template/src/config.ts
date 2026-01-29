@@ -12,27 +12,27 @@ import type { ProviderConfig, ModelConfig } from '@all-in-copilot/sdk';
  * Edit these values to customize your provider
  */
 export const PROVIDER_CONFIG: ProviderConfig = {
-  // Provider identity
-  id: 'minimax',
-  name: 'MiniMax',
-  family: 'minimax',
+	// Provider identity
+	id: "minimax",
+	name: "MiniMax",
+	family: "minimax",
 
-  // API configuration
-  baseUrl: 'https://api.minimax.chat/v1/text/chatcompletion_v2',
-  apiKeySecret: 'minimax-copilot.apiKey',
-  apiMode: 'openai', // MiniMax uses OpenAI-compatible API format
+	// API configuration
+	baseUrl: "https://api.minimaxi.com/anthropic",
+	apiKeySecret: "minimax-copilot.apiKey",
+	apiMode: "anthropic", // MiniMax uses OpenAI-compatible API format
 
-  // Capabilities
-  supportsTools: true,
-  supportsVision: false,
+	// Capabilities
+	supportsTools: true,
+	supportsVision: false,
 
-  // Token limits
-  defaultMaxOutputTokens: 8192,
-  defaultContextLength: 100000,
+	// Token limits
+	defaultMaxOutputTokens: 8192,
+	defaultContextLength: 100000,
 
-  // Dynamic model fetching
-  dynamicModels: true,
-  modelsCacheTTL: 5 * 60 * 1000, // 5 minutes
+	// Dynamic model fetching
+	dynamicModels: true,
+	modelsCacheTTL: 5 * 60 * 1000, // 5 minutes
 };
 
 /**
