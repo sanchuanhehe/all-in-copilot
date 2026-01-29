@@ -181,6 +181,51 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
       { id: 'claude-3-opus-latest', name: 'Claude 3 Opus', maxInputTokens: 200000, maxOutputTokens: 4096, supportsTools: true, supportsVision: true },
     ],
   },
+  kimi: {
+    provider: {
+      id: 'kimi',
+      name: 'Kimi (Moonshot)',
+      // Kimi K2 Anthropic-compatible API
+      // https://platform.moonshot.cn/docs/guide/agent-support
+      baseUrl: 'https://api.moonshot.cn/anthropic',
+      apiKeySecret: '',
+      family: 'kimi',
+      apiMode: 'anthropic',
+      supportsTools: true,
+      supportsVision: false,
+      defaultMaxOutputTokens: 32768,
+      defaultContextLength: 256000,
+      dynamicModels: false,
+      modelsCacheTTL: 300000,
+    },
+    models: [
+      { id: 'kimi-k2-thinking-turbo', name: 'Kimi K2 Thinking Turbo', maxInputTokens: 256000, maxOutputTokens: 32768, supportsTools: true, supportsVision: false },
+      { id: 'kimi-k2-thinking', name: 'Kimi K2 Thinking', maxInputTokens: 256000, maxOutputTokens: 32768, supportsTools: true, supportsVision: false },
+      { id: 'kimi-k2-turbo-preview', name: 'Kimi K2 Turbo', maxInputTokens: 256000, maxOutputTokens: 32768, supportsTools: true, supportsVision: false },
+      { id: 'kimi-k2-0905-preview', name: 'Kimi K2 (0905)', maxInputTokens: 256000, maxOutputTokens: 32768, supportsTools: true, supportsVision: false },
+    ],
+  },
+  mimo: {
+    provider: {
+      id: 'mimo',
+      name: 'Xiaomi MiMo',
+      // MiMo Anthropic-compatible API
+      // https://platform.xiaomimimo.com/#/docs/api/text-generation/anthropic-api
+      baseUrl: 'https://api.xiaomimimo.com/anthropic/v1/messages',
+      apiKeySecret: '',
+      family: 'mimo',
+      apiMode: 'anthropic',
+      supportsTools: true,
+      supportsVision: false,
+      defaultMaxOutputTokens: 65536,
+      defaultContextLength: 131072,
+      dynamicModels: false,
+      modelsCacheTTL: 300000,
+    },
+    models: [
+      { id: 'mimo-v2-flash', name: 'MiMo V2 Flash', maxInputTokens: 131072, maxOutputTokens: 65536, supportsTools: true, supportsVision: false },
+    ],
+  },
   custom: {
     provider: {
       id: 'custom',

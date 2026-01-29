@@ -77,6 +77,8 @@ all-in-copilot help         # Show help
 |-----------|----------------|------------|
 | glm       | GLM (智谱AI)   | OpenAI     |
 | minimax   | MiniMax        | Anthropic  |
+| kimi      | Kimi (Moonshot)| Anthropic  |
+| mimo      | Xiaomi MiMo    | Anthropic  |
 | deepseek  | DeepSeek       | OpenAI     |
 | qwen      | Qwen (通义千问) | OpenAI     |
 | openai    | OpenAI         | OpenAI     |
@@ -189,10 +191,23 @@ cd packages/vscode && npm run watch
 - **Dynamic Models**: ❌ Disabled (使用预定义模型列表)
 - **Fallback Models**: MiniMax-M2.1, MiniMax-M2.1-lightning, MiniMax-M2
 
+### Kimi Template (Moonshot)
+- **Base URL**: `https://api.moonshot.cn/anthropic`
+- **API Mode**: Anthropic (Kimi K2 系列)
+- **Dynamic Models**: ❌ Disabled
+- **Models**: kimi-k2-thinking-turbo, kimi-k2-thinking, kimi-k2-turbo-preview, kimi-k2-0905-preview
+
+### MiMo Template (Xiaomi)
+- **Base URL**: `https://api.xiaomimimo.com/anthropic/v1/messages`
+- **API Mode**: Anthropic
+- **Dynamic Models**: ❌ Disabled
+- **Models**: mimo-v2-flash
+
 ### GLM Template (智谱AI)
 - **Base URL**: `https://open.bigmodel.cn/api/paas/v4/chat/completions`
-- **API Mode**: OpenAI
-- **Dynamic Models**: ✅ Enabled
+- **API Mode**: OpenAI (也支持 Anthropic 模式用于 GLM Coding Plan)
+- **Anthropic URL**: `https://open.bigmodel.cn/api/anthropic`
+- **Dynamic Models**: ✅ Enabled (OpenAI 模式)
 - **Fallback Models**: GLM-4 Plus, GLM-4, GLM-4V, GLM-3 Turbo
 
 ### Base Template
