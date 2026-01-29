@@ -127,25 +127,6 @@ class ExtensionProvider implements LanguageModelChatProvider {
     // Build request based on API mode
     const requestBody = this.buildRequest(model, messages, options) as Record<string, unknown>;
 
-    // Debug: log COMPLETE request body (including full messages)
-    console.log(`[${PROVIDER_CONFIG.name}] ========== REQUEST START ==========`);
-    console.log(`[${PROVIDER_CONFIG.name}] URL:`, PROVIDER_CONFIG.baseUrl);
-    console.log(`[${PROVIDER_CONFIG.name}] Model:`, requestBody.model);
-    console.log(`[${PROVIDER_CONFIG.name}] System:`, requestBody.system ? String(requestBody.system).substring(0, 200) + '...' : '(none)');
-    console.log(`[${PROVIDER_CONFIG.name}] Messages count:`, (requestBody.messages as Array<unknown>)?.length);
-    console.log(`[${PROVIDER_CONFIG.name}] Tools count:`, (requestBody.tools as Array<unknown>)?.length || 0);
-    console.log(`[${PROVIDER_CONFIG.name}] Max tokens:`, requestBody.max_tokens);
-    // Log each message in detail
-    const msgs = requestBody.messages as Array<{role: string; content: unknown}>;
-    if (msgs) {
-      for (let i = 0; i < msgs.length; i++) {
-        const msg = msgs[i];
-        console.log(`[${PROVIDER_CONFIG.name}] Message[${i}] role:`, msg.role);
-        console.log(`[${PROVIDER_CONFIG.name}] Message[${i}] content:`, JSON.stringify(msg.content, null, 2));
-      }
-    }
-    console.log(`[${PROVIDER_CONFIG.name}] ========== REQUEST END ==========`);
-
     // Make streaming request
     const controller = new AbortController();
     token.onCancellationRequested(() => controller.abort());
