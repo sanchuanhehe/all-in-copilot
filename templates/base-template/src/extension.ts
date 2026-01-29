@@ -135,7 +135,13 @@ class ExtensionProvider implements LanguageModelChatProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        // Use appropriate auth header based on API mode
+        ...(PROVIDER_CONFIG.apiMode === 'anthropic'
+          ? {
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+            }
+          : { 'Authorization': `Bearer ${apiKey}` }),
         ...PROVIDER_CONFIG.headers,
       },
       body: JSON.stringify(requestBody),
@@ -175,24 +181,88 @@ class ExtensionProvider implements LanguageModelChatProvider {
 
     if (PROVIDER_CONFIG.apiMode === 'anthropic') {
       const { system, messages: anthropicMessages } = convertToAnthropic(vsMessages);
-      return {
+      const tools = convertToolsToAnthropic(options.tools);
+
+      // Filter out messages with empty content (some providers don't accept them)
+      const validMessages = anthropicMessages.filter(msg => {
+        if (Array.isArray(msg.content)) {
+          return msg.content.length > 0;
+        }
+        return true;
+      });
+
+      // Ensure alternating user/assistant pattern and starts with user
+      // This is required by Anthropic API
+      const finalMessages = this.ensureValidMessageOrder(validMessages);
+
+      // Build base request - only include fields that have values
+      const request: Record<string, unknown> = {
         model: model.id,
-        system,
-        messages: anthropicMessages,
-        tools: convertToolsToAnthropic(options.tools),
+        messages: finalMessages,
         max_tokens: model.maxOutputTokens,
         stream: true,
       };
+
+      // Only add system if not empty
+      if (system) {
+        request.system = system;
+      }
+
+      // Only add tools if there are any
+      if (tools && tools.length > 0) {
+        request.tools = tools;
+      }
+
+      return request;
     } else {
       // OpenAI format
-      return {
+      const tools = convertToolsToOpenAI(options.tools);
+      const request: Record<string, unknown> = {
         model: model.id,
         messages: convertToOpenAI(vsMessages),
-        tools: convertToolsToOpenAI(options.tools),
         max_tokens: model.maxOutputTokens,
         stream: true,
       };
+
+      if (tools && tools.length > 0) {
+        request.tools = tools;
+      }
+
+      return request;
     }
+  }
+
+  /**
+   * Ensure message order is valid for Anthropic API:
+   * 1. Must start with user message
+   * 2. Must alternate between user and assistant
+   */
+  private ensureValidMessageOrder(messages: Array<{role: string; content: unknown[]}>): Array<{role: string; content: unknown[]}> {
+    if (messages.length === 0) {
+      return [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }];
+    }
+
+    const result: Array<{role: string; content: unknown[]}> = [];
+
+    // Ensure first message is user
+    if (messages[0].role !== 'user') {
+      result.push({ role: 'user', content: [{ type: 'text', text: '(continue)' }] });
+    }
+
+    for (const msg of messages) {
+      // If the last message in result has the same role, merge or skip
+      if (result.length > 0 && result[result.length - 1].role === msg.role) {
+        // Merge content
+        const lastMsg = result[result.length - 1];
+        if (Array.isArray(lastMsg.content) && Array.isArray(msg.content)) {
+          lastMsg.content.push(...msg.content);
+        }
+      } else {
+        result.push({ ...msg, content: [...(msg.content as unknown[])] });
+      }
+    }
+
+    return result;
   }
 
   /**

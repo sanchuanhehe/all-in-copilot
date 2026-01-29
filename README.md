@@ -76,7 +76,7 @@ all-in-copilot help         # Show help
 | Preset    | Provider       | API Format |
 |-----------|----------------|------------|
 | glm       | GLM (智谱AI)   | OpenAI     |
-| minimax   | MiniMax        | OpenAI     |
+| minimax   | MiniMax        | Anthropic  |
 | deepseek  | DeepSeek       | OpenAI     |
 | qwen      | Qwen (通义千问) | OpenAI     |
 | openai    | OpenAI         | OpenAI     |
@@ -184,17 +184,20 @@ cd packages/vscode && npm run watch
 ## Templates
 
 ### MiniMax Template
-- **Base URL**: `https://api.minimax.chat/v1/text/chatcompletion_v2`
-- **Dynamic Models**: ✅ Enabled
-- **Fallback Models**: abab6.5s-chat, abab6.5-chat, abab5.5-chat
+- **Base URL**: `https://api.minimaxi.com/anthropic/v1/messages`
+- **API Mode**: Anthropic (使用 Anthropic 兼容接口)
+- **Dynamic Models**: ❌ Disabled (使用预定义模型列表)
+- **Fallback Models**: MiniMax-M2.1, MiniMax-M2.1-lightning, MiniMax-M2
 
 ### GLM Template (智谱AI)
 - **Base URL**: `https://open.bigmodel.cn/api/paas/v4/chat/completions`
+- **API Mode**: OpenAI
 - **Dynamic Models**: ✅ Enabled
 - **Fallback Models**: GLM-4 Plus, GLM-4, GLM-4V, GLM-3 Turbo
 
 ### Base Template
 - **Purpose**: Blank template for custom providers
+- **API Mode**: Supports both OpenAI and Anthropic formats
 - **Dynamic Models**: ✅ Enabled (set `dynamicModels: true` in config)
 - **Edit**: `src/config.ts` to configure your provider
 

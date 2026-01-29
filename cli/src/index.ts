@@ -77,10 +77,12 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
     provider: {
       id: 'minimax',
       name: 'MiniMax',
-      baseUrl: 'https://api.minimax.chat/v1/text/chatcompletion_v2',
+      // MiniMax Anthropic-compatible API
+      // https://platform.minimaxi.com/docs/api-reference/text-anthropic-api
+      baseUrl: 'https://api.minimaxi.com/anthropic/v1/messages',
       apiKeySecret: '',
       family: 'minimax',
-      apiMode: 'openai',
+      apiMode: 'anthropic',  // Uses Anthropic-compatible API
       supportsTools: true,
       supportsVision: false,
       defaultMaxOutputTokens: 8192,
@@ -89,9 +91,9 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
       modelsCacheTTL: 300000,
     },
     models: [
-      { id: 'MiniMax-Text-01', name: 'MiniMax Text 01', maxInputTokens: 1000000, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
-      { id: 'abab6.5s-chat', name: 'abab6.5s-chat', maxInputTokens: 90000, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
-      { id: 'abab6.5-chat', name: 'abab6.5-chat', maxInputTokens: 100000, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
+      { id: 'MiniMax-M2.1', name: 'MiniMax M2.1', maxInputTokens: 100000, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
+      { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', maxInputTokens: 100000, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
+      { id: 'MiniMax-M2', name: 'MiniMax M2', maxInputTokens: 100000, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
     ],
   },
   deepseek: {
