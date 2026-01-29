@@ -51,11 +51,39 @@ export interface AnthropicMessage {
   content: AnthropicContentBlock[];
 }
 
+/** Text block for Anthropic API */
+export interface AnthropicTextBlock {
+  type: 'text';
+  text: string;
+}
+
+/** Image block for Anthropic API */
+export interface AnthropicImageBlock {
+  type: 'image';
+  source: { type: 'base64'; media_type: string; data: string };
+}
+
+/** Tool use block for Anthropic API (assistant messages) */
+export interface AnthropicToolUseBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+/** Tool result block for Anthropic API (user messages) */
+export interface AnthropicToolResultBlock {
+  type: 'tool_result';
+  tool_use_id: string;
+  /** Content can be a string or array of text/image blocks */
+  content: string | (AnthropicTextBlock | AnthropicImageBlock)[];
+}
+
 export type AnthropicContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
-  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
-  | { type: 'tool_result'; tool_use_id: string; content: string };
+  | AnthropicTextBlock
+  | AnthropicImageBlock
+  | AnthropicToolUseBlock
+  | AnthropicToolResultBlock;
 
 export interface AnthropicTool {
   name: string;
@@ -92,10 +120,17 @@ export interface RemoteModel {
 // VS Code Message Part Types (simplified for SDK)
 // ============================================================================
 
+/**
+ * VS Code LanguageModelChatMessageRole enum values
+ * These match the actual vscode.LanguageModelChatMessageRole values:
+ * - User = 1 (stable API)
+ * - Assistant = 2 (stable API)
+ * - System = 3 (proposed API via languageModelSystem proposal)
+ */
 export const ROLE = {
-  System: 1,
-  User: 2,
-  Assistant: 3,
+  User: 1,
+  Assistant: 2,
+  System: 3,
 } as const;
 
 export interface VsCodeTextPart {
@@ -157,17 +192,36 @@ export function isDataPart(part: unknown): part is VsCodeDataPart {
   return part !== null && typeof part === 'object' && 'mimeType' in part && 'data' in part;
 }
 
+/**
+ * Check if part is a cache control marker (VS Code Copilot internal)
+ * These are special markers that should be converted to Anthropic cache_control
+ */
+export function isCacheControlPart(part: unknown): boolean {
+  return isDataPart(part) && (part as VsCodeDataPart).mimeType === 'cache_control';
+}
+
+/**
+ * Check if part is a real image (not a cache control marker)
+ */
+export function isImagePart(part: unknown): part is VsCodeDataPart {
+  return isDataPart(part) && (part as VsCodeDataPart).mimeType !== 'cache_control' &&
+    (part as VsCodeDataPart).mimeType.startsWith('image/');
+}
+
 // ============================================================================
 // Message Conversion Functions
 // ============================================================================
 
 /**
  * Convert VS Code messages to OpenAI format
+ * VS Code LanguageModelChatMessageRole values:
+ * - User = 1, Assistant = 2, System = 3 (proposed API)
  */
 export function convertToOpenAI(messages: readonly VsCodeMessage[]): OpenAIMessage[] {
   const result: OpenAIMessage[] = [];
 
   for (const msg of messages) {
+    // Map VS Code role to OpenAI role
     const role = msg.role === ROLE.System ? 'system' :
                  msg.role === ROLE.User ? 'user' : 'assistant';
 
@@ -202,8 +256,12 @@ export function convertToOpenAI(messages: readonly VsCodeMessage[]): OpenAIMessa
           if (isTextPart(c)) {
             return c.value;
           }
+          if (isCacheControlPart(c)) {
+            // Skip cache_control markers
+            return '';
+          }
           return JSON.stringify(c);
-        }).join('\n');
+        }).filter(s => s).join('\n');
         result.push({
           role: 'tool',
           tool_call_id: tr.callId,
@@ -218,7 +276,11 @@ export function convertToOpenAI(messages: readonly VsCodeMessage[]): OpenAIMessa
     for (const part of msg.content) {
       if (isTextPart(part)) {
         parts.push({ type: 'text', text: part.value });
-      } else if (isDataPart(part)) {
+      } else if (isCacheControlPart(part)) {
+        // Skip cache_control markers in OpenAI format
+        continue;
+      } else if (isImagePart(part)) {
+        // Only process real images
         const base64 = Buffer.from(part.data).toString('base64');
         const dataUrl = `data:${part.mimeType};base64,${base64}`;
         parts.push({ type: 'image_url', image_url: { url: dataUrl } });
@@ -236,98 +298,190 @@ export function convertToOpenAI(messages: readonly VsCodeMessage[]): OpenAIMessa
 }
 
 /**
- * Convert VS Code messages to Anthropic format
+ * Convert VS Code content parts to Anthropic content blocks for ASSISTANT messages
+ * Only includes: text and tool_use blocks
  */
-export function convertToAnthropic(messages: readonly VsCodeMessage[]): { system?: string; messages: AnthropicMessage[] } {
-  const result: AnthropicMessage[] = [];
-  let systemPrompt: string | undefined;
+function apiContentToAnthropicContentForAssistant(content: ReadonlyArray<VsCodeContentPart>): AnthropicContentBlock[] {
+  const convertedContent: AnthropicContentBlock[] = [];
 
-  for (const msg of messages) {
-    // Extract system message
-    if (msg.role === ROLE.System) {
-      const textParts = (msg.content || []).filter(isTextPart);
-      if (textParts.length > 0) {
-        systemPrompt = textParts.map(p => p.value).join('\n');
-      }
-      continue;
-    }
-
-    if (!msg.content || msg.content.length === 0) {
-      continue;
-    }
-
-    // Separate tool results from other content
-    // Tool results MUST be in user messages for Anthropic API
-    const toolResultParts = msg.content.filter(isToolResultPart);
-    const otherParts = msg.content.filter(p => !isToolResultPart(p));
-
-    // Process tool results - always add as user message
-    if (toolResultParts.length > 0) {
-      const toolResultContent: AnthropicContentBlock[] = toolResultParts.map(part => {
-        const resultText = part.content.map(c => {
-          if (isTextPart(c)) {
-            return c.value;
-          }
-          return JSON.stringify(c);
-        }).join('\n');
-        return {
-          type: 'tool_result' as const,
-          tool_use_id: part.callId,
-          content: resultText || '(empty result)',
-        };
+  for (const part of content) {
+    if (isToolCallPart(part)) {
+      // tool_use is valid in assistant messages
+      convertedContent.push({
+        type: 'tool_use',
+        id: part.callId,
+        input: part.input,
+        name: part.name,
       });
-      result.push({ role: 'user', content: toolResultContent });
+    } else if (isTextPart(part)) {
+      // Anthropic errors if we have text parts with empty string text content
+      if (part.value === '') {
+        continue;
+      }
+      convertedContent.push({
+        type: 'text',
+        text: part.value
+      });
     }
+    // Ignore tool_result and images in assistant messages (shouldn't happen but be safe)
+  }
+  return convertedContent;
+}
 
-    // Process other content with original role
-    if (otherParts.length > 0) {
-      const role = msg.role === ROLE.User ? 'user' : 'assistant';
-      const content: AnthropicContentBlock[] = [];
+/**
+ * Convert VS Code content parts to Anthropic content blocks for USER messages
+ * Only includes: text, image, and tool_result blocks
+ * tool_use blocks are NOT valid in user messages!
+ */
+function apiContentToAnthropicContentForUser(content: ReadonlyArray<VsCodeContentPart>): AnthropicContentBlock[] {
+  const convertedContent: AnthropicContentBlock[] = [];
 
-      for (const part of otherParts) {
-        if (isTextPart(part)) {
-          // Skip empty text parts
-          if (part.value && part.value.trim()) {
-            content.push({ type: 'text', text: part.value });
+  for (const part of content) {
+    if (isImagePart(part)) {
+      // Only process real images, not cache_control markers
+      convertedContent.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          data: Buffer.from(part.data).toString('base64'),
+          media_type: part.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+        }
+      });
+    } else if (isCacheControlPart(part)) {
+      // Skip cache_control markers - they are VS Code internal and not real content
+      // Some providers like MiniMax don't support cache_control
+      continue;
+    } else if (isToolResultPart(part)) {
+      // Convert tool result content to text/image blocks
+      const resultBlocks: (AnthropicTextBlock | AnthropicImageBlock)[] = [];
+      for (const c of part.content || []) {
+        if (isTextPart(c)) {
+          // Skip empty text blocks
+          if (c.value && c.value.trim() !== '') {
+            resultBlocks.push({ type: 'text', text: c.value });
           }
-        } else if (isDataPart(part)) {
-          const base64 = Buffer.from(part.data).toString('base64');
-          content.push({
+        } else if (isCacheControlPart(c)) {
+          // Skip cache_control markers in tool results
+          continue;
+        } else if (isImagePart(c)) {
+          // Only process real images, not cache_control markers
+          resultBlocks.push({
             type: 'image',
             source: {
               type: 'base64',
-              media_type: part.mimeType,
-              data: base64,
-            },
-          });
-        } else if (isToolCallPart(part)) {
-          content.push({
-            type: 'tool_use',
-            id: part.callId,
-            name: part.name,
-            input: part.input,
+              media_type: (c as VsCodeDataPart).mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+              data: Buffer.from((c as VsCodeDataPart).data).toString('base64')
+            }
           });
         }
       }
+      // Use string format for empty or simple text results (more compatible with some providers)
+      if (resultBlocks.length === 0) {
+        convertedContent.push({
+          type: 'tool_result',
+          tool_use_id: part.callId,
+          content: '',
+        });
+      } else if (resultBlocks.length === 1 && resultBlocks[0].type === 'text') {
+        convertedContent.push({
+          type: 'tool_result',
+          tool_use_id: part.callId,
+          content: resultBlocks[0].text,
+        });
+      } else {
+        convertedContent.push({
+          type: 'tool_result',
+          tool_use_id: part.callId,
+          content: resultBlocks,
+        });
+      }
+    } else if (isTextPart(part)) {
+      // Anthropic errors if we have text parts with empty string text content
+      if (part.value === '') {
+        continue;
+      }
+      convertedContent.push({
+        type: 'text',
+        text: part.value
+      });
+    }
+    // IMPORTANT: Ignore tool_use (isToolCallPart) in user messages - they are invalid!
+  }
+  return convertedContent;
+}
 
+/**
+ * Convert VS Code messages to Anthropic format
+ * Based on official VS Code Copilot Chat BYOK implementation.
+ *
+ * IMPORTANT: Anthropic API has strict rules about content types per role:
+ * - assistant messages: can contain text and tool_use
+ * - user messages: can contain text, image, and tool_result (but NOT tool_use!)
+ *
+ * VS Code LanguageModelChatMessageRole values:
+ * - User = 1, Assistant = 2, System = 3 (proposed API)
+ */
+export function convertToAnthropic(messages: readonly VsCodeMessage[]): { system?: string; messages: AnthropicMessage[] } {
+  const unmergedMessages: AnthropicMessage[] = [];
+  let systemText = '';
+
+  for (const message of messages) {
+    if (message.role === ROLE.Assistant) {
+      const content = apiContentToAnthropicContentForAssistant(message.content || []);
+      // Only add message if it has content
       if (content.length > 0) {
-        result.push({ role, content });
+        unmergedMessages.push({
+          role: 'assistant',
+          content,
+        });
+      }
+    } else if (message.role === ROLE.User) {
+      const content = apiContentToAnthropicContentForUser(message.content || []);
+      // Only add message if it has content
+      if (content.length > 0) {
+        unmergedMessages.push({
+          role: 'user',
+          content,
+        });
+      }
+    } else if (message.role === ROLE.System) {
+      // System message (role = 3) - extract text content
+      // This is from the proposed languageModelSystem API
+      systemText += (message.content || []).map(p => {
+        if (isTextPart(p)) {
+          return p.value;
+        }
+        return '';
+      }).join('');
+    }
+  }
+
+  // Merge messages of the same type that are adjacent together, this is what anthropic expects
+  const mergedMessages: AnthropicMessage[] = [];
+  for (const message of unmergedMessages) {
+    if (mergedMessages.length === 0 || mergedMessages[mergedMessages.length - 1].role !== message.role) {
+      mergedMessages.push(message);
+    } else {
+      // Merge with the previous message of the same role
+      const prevMessage = mergedMessages[mergedMessages.length - 1];
+      // Concat the content arrays if they're both arrays
+      if (Array.isArray(prevMessage.content) && Array.isArray(message.content)) {
+        (prevMessage.content as AnthropicContentBlock[]).push(...(message.content as AnthropicContentBlock[]));
       }
     }
   }
 
   // Anthropic API requires messages to start with 'user' role
-  // If first message is 'assistant', prepend a placeholder user message
-  if (result.length > 0 && result[0].role === 'assistant') {
-    result.unshift({ role: 'user', content: [{ type: 'text', text: '(continue)' }] });
+  if (mergedMessages.length > 0 && mergedMessages[0].role === 'assistant') {
+    mergedMessages.unshift({ role: 'user', content: [{ type: 'text', text: '(continue)' }] });
   }
 
   // Ensure we have at least one message
-  if (result.length === 0) {
-    result.push({ role: 'user', content: [{ type: 'text', text: '(start)' }] });
+  if (mergedMessages.length === 0) {
+    mergedMessages.push({ role: 'user', content: [{ type: 'text', text: '(start)' }] });
   }
 
-  return { system: systemPrompt, messages: result };
+  return { system: systemText || undefined, messages: mergedMessages };
 }
 
 // ============================================================================

@@ -127,19 +127,24 @@ class ExtensionProvider implements LanguageModelChatProvider {
     // Build request based on API mode
     const requestBody = this.buildRequest(model, messages, options) as Record<string, unknown>;
 
-    // Debug: log request summary
-    const msgArray = requestBody.messages as Array<{role: string; content: unknown}>;
-    const toolsArray = requestBody.tools as Array<unknown> | undefined;
-    console.log(`[${PROVIDER_CONFIG.name}] Request summary:`, {
-      model: requestBody.model,
-      system: typeof requestBody.system === 'string' ? requestBody.system.substring(0, 100) + '...' : requestBody.system,
-      messagesCount: msgArray?.length,
-      firstMsgRole: msgArray?.[0]?.role,
-      firstMsgContentType: typeof msgArray?.[0]?.content,
-      toolsCount: toolsArray?.length,
-      max_tokens: requestBody.max_tokens,
-      stream: requestBody.stream,
-    });
+    // Debug: log COMPLETE request body (including full messages)
+    console.log(`[${PROVIDER_CONFIG.name}] ========== REQUEST START ==========`);
+    console.log(`[${PROVIDER_CONFIG.name}] URL:`, PROVIDER_CONFIG.baseUrl);
+    console.log(`[${PROVIDER_CONFIG.name}] Model:`, requestBody.model);
+    console.log(`[${PROVIDER_CONFIG.name}] System:`, requestBody.system ? String(requestBody.system).substring(0, 200) + '...' : '(none)');
+    console.log(`[${PROVIDER_CONFIG.name}] Messages count:`, (requestBody.messages as Array<unknown>)?.length);
+    console.log(`[${PROVIDER_CONFIG.name}] Tools count:`, (requestBody.tools as Array<unknown>)?.length || 0);
+    console.log(`[${PROVIDER_CONFIG.name}] Max tokens:`, requestBody.max_tokens);
+    // Log each message in detail
+    const msgs = requestBody.messages as Array<{role: string; content: unknown}>;
+    if (msgs) {
+      for (let i = 0; i < msgs.length; i++) {
+        const msg = msgs[i];
+        console.log(`[${PROVIDER_CONFIG.name}] Message[${i}] role:`, msg.role);
+        console.log(`[${PROVIDER_CONFIG.name}] Message[${i}] content:`, JSON.stringify(msg.content, null, 2));
+      }
+    }
+    console.log(`[${PROVIDER_CONFIG.name}] ========== REQUEST END ==========`);
 
     // Make streaming request
     const controller = new AbortController();
@@ -197,10 +202,22 @@ class ExtensionProvider implements LanguageModelChatProvider {
       const { system, messages: anthropicMessages } = convertToAnthropic(vsMessages);
       const tools = convertToolsToAnthropic(options.tools);
 
+      // Filter out messages with empty content (some providers don't accept them)
+      const validMessages = anthropicMessages.filter(msg => {
+        if (Array.isArray(msg.content)) {
+          return msg.content.length > 0;
+        }
+        return true;
+      });
+
+      // Ensure alternating user/assistant pattern and starts with user
+      // This is required by Anthropic API
+      const finalMessages = this.ensureValidMessageOrder(validMessages);
+
       // Build base request - only include fields that have values
       const request: Record<string, unknown> = {
         model: model.id,
-        messages: anthropicMessages,
+        messages: finalMessages,
         max_tokens: model.maxOutputTokens,
         stream: true,
       };
@@ -232,6 +249,39 @@ class ExtensionProvider implements LanguageModelChatProvider {
 
       return request;
     }
+  }
+
+  /**
+   * Ensure message order is valid for Anthropic API:
+   * 1. Must start with user message
+   * 2. Must alternate between user and assistant
+   */
+  private ensureValidMessageOrder(messages: Array<{role: string; content: unknown[]}>): Array<{role: string; content: unknown[]}> {
+    if (messages.length === 0) {
+      return [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }];
+    }
+
+    const result: Array<{role: string; content: unknown[]}> = [];
+
+    // Ensure first message is user
+    if (messages[0].role !== 'user') {
+      result.push({ role: 'user', content: [{ type: 'text', text: '(continue)' }] });
+    }
+
+    for (const msg of messages) {
+      // If the last message in result has the same role, merge or skip
+      if (result.length > 0 && result[result.length - 1].role === msg.role) {
+        // Merge content
+        const lastMsg = result[result.length - 1];
+        if (Array.isArray(lastMsg.content) && Array.isArray(msg.content)) {
+          lastMsg.content.push(...msg.content);
+        }
+      } else {
+        result.push({ ...msg, content: [...(msg.content as unknown[])] });
+      }
+    }
+
+    return result;
   }
 
   /**
