@@ -20,18 +20,18 @@
 		"packages/*"
 	],
 	"scripts": {
-		"build": "pnpm --filter @all-in-copilot/sdk build",
-		"build:vscode": "pnpm --filter vscode-all-in-copilot compile",
-		"build:all": "pnpm build && pnpm build:vscode",
+		"build": "pnpm --filter @all-in-copilot/sdk build && pnpm --filter @all-in-copilot/cli build",
+		"build:sdk": "pnpm --filter @all-in-copilot/sdk build",
+		"build:cli": "pnpm --filter @all-in-copilot/cli build",
 		"build:templates": "cd templates/base-template && pnpm compile && cd ../glm-template && pnpm compile && cd ../minimax-template && pnpm compile",
-		"build:everything": "pnpm build:all && pnpm build:templates",
+		"build:all": "pnpm build && pnpm build:templates",
 		"watch": "pnpm --filter @all-in-copilot/sdk watch",
+		"watch:cli": "pnpm --filter @all-in-copilot/cli watch",
 		"lint": "eslint packages/sdk/src --ext .ts",
 		"format": "prettier --write . --ignore-path .gitignore",
-		"test": "pnpm test:sdk",
-		"test:sdk": "echo 'SDK tests not configured yet'",
-		"test:vscode": "pnpm --filter vscode-all-in-copilot test",
-		"clean": "rm -rf packages/sdk/dist packages/vscode/out templates/*/out"
+		"test": "echo 'SDK tests not configured yet'",
+		"clean": "rm -rf packages/sdk/dist cli/dist templates/*/out",
+		"create": "node cli/dist/index.js"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.13.0",

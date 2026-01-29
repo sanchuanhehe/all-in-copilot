@@ -1,46 +1,55 @@
 # All-In Copilot
 
-Multi-API LLM VSCode extension framework with SDK and CLI build tools.
+🚀 SDK & CLI for building VS Code Chat extensions with custom LLM providers.
 
 ## ✨ Features
 
-- **动态模型获取**: 自动从 LLM 提供商 API 获取可用模型列表
-- **多提供商支持**: 内置 MiniMax、GLM（智谱）、OpenAI、Anthropic 支持
+- **CLI 一键生成**: 交互式创建扩展项目
+- **多供应商预设**: 内置 GLM、DeepSeek、Qwen、MiniMax、OpenAI、Anthropic 配置
+- **动态模型获取**: 自动从 API 获取可用模型列表
 - **即用型模板**: 复制模板即可快速创建自定义 Copilot 扩展
-- **SDK 分离**: 核心 SDK 无 VSCode 依赖，可在任何 Node.js 环境使用
+- **轻量 SDK**: 核心 SDK 无 VS Code 依赖，可在任何 Node.js 环境使用
 
 ## Architecture
 
 ```
 all-in-copilot/
 ├── packages/
-│   ├── sdk/              # Core SDK (no VSCode dependencies)
-│   │   └── src/
-│   │       ├── core/     # Types, model fetcher
-│   │       ├── providers/ # OpenAI, Anthropic providers
-│   │       └── utils/    # Token counter, message converter
-│   │
-│   └── vscode/           # VSCode plugin wrapper
+│   └── sdk/              # Core SDK
 │       └── src/
+│           ├── core/     # Types, model fetcher
+│           └── vscode/   # VS Code provider helpers
 │
-├── templates/            # Extension templates (dynamic models)
-│   ├── minimax-template/ # MiniMax API
-│   ├── glm-template/     # GLM (智谱AI) API
-│   └── base-template/    # Custom provider base
+├── templates/            # Extension templates
+│   ├── base-template/    # Base template for custom providers
+│   ├── glm-template/     # GLM (智谱AI) example
+│   └── minimax-template/ # MiniMax example
 │
-└── cli/                  # Build CLI tool
-    └── build.ts          # One-click extension builder
+└── cli/                  # Project generator CLI
+    └── src/
+        └── index.ts
 ```
 
 ## Quick Start
 
-### 1. Use Pre-built Templates
+### Method 1: Use CLI (Recommended)
 
-Copy a template and modify `src/config.ts`:
+```bash
+# Install CLI globally
+npm install -g @all-in-copilot/cli
+
+# Create a new project interactively
+all-in-copilot
+
+# Or with short command
+aic create my-copilot
+```
+
+### Method 2: Copy Template
 
 ```bash
 # Copy template
-cp -r templates/minimax-template my-copilot
+cp -r templates/glm-template my-copilot
 cd my-copilot
 
 # Edit configuration
@@ -49,13 +58,32 @@ vim src/config.ts
 # Install dependencies
 npm install
 
-# Compile
+# Compile and test (F5 in VS Code)
 npm run compile
-
-# Test in VSCode (F5)
 ```
 
-### 2. Provider Configuration
+## CLI Commands
+
+```bash
+all-in-copilot              # Interactive mode
+all-in-copilot create NAME  # Create project with prompts
+all-in-copilot list         # List available presets
+all-in-copilot help         # Show help
+```
+
+### Available Presets
+
+| Preset    | Provider       | API Format |
+|-----------|----------------|------------|
+| glm       | GLM (智谱AI)   | OpenAI     |
+| minimax   | MiniMax        | OpenAI     |
+| deepseek  | DeepSeek       | OpenAI     |
+| qwen      | Qwen (通义千问) | OpenAI     |
+| openai    | OpenAI         | OpenAI     |
+| anthropic | Anthropic      | Anthropic  |
+| custom    | Custom         | OpenAI     |
+
+## Provider Configuration
 
 Edit `src/config.ts` to customize your provider:
 
@@ -66,16 +94,15 @@ export const PROVIDER_CONFIG: ProviderConfig = {
   baseUrl: 'https://api.example.com/v1/chat/completions',
   apiKeySecret: 'extension-name.apiKey',
   family: 'provider-family',
+  apiMode: 'openai',  // 'openai' | 'anthropic' | 'gemini' | 'ollama'
   supportsTools: true,
   supportsVision: false,
   defaultMaxOutputTokens: 4096,
   defaultContextLength: 32768,
-  // 🆕 Enable dynamic model fetching
   dynamicModels: true,
-  modelsCacheTTL: 5 * 60 * 1000, // Cache for 5 minutes
+  modelsCacheTTL: 5 * 60 * 1000,
 };
 
-// Fallback models (used when dynamic fetch fails)
 export const FALLBACK_MODELS: ModelConfig[] = [
   {
     id: 'model-1',
@@ -93,10 +120,17 @@ export function filterModels(models: ModelConfig[]): ModelConfig[] {
 }
 ```
 
-### 3. Use SDK Directly
+## SDK Usage
 
 ```typescript
-import { OpenAIProvider, fetchModels, type ProviderConfig } from '@all-in-copilot/sdk';
+import {
+  convertToOpenAI,
+  convertToolsToOpenAI,
+  processOpenAIStream,
+  fetchModelsFromAPI,
+  estimateTokens,
+} from '@all-in-copilot/sdk';
+```
 
 // Dynamic model fetching
 const providerConfig: ProviderConfig = {

@@ -1,19 +1,39 @@
 {
-  "name": "all-in-copilot-cli",
+  "name": "@all-in-copilot/cli",
   "version": "1.0.0",
-  "description": "CLI tool to build VSCode extensions with custom LLM providers",
-  "main": "dist/build.js",
+  "description": "CLI tool to create VS Code Chat extensions with custom LLM providers",
+  "main": "dist/index.js",
   "bin": {
-    "all-in-copilot": "./dist/build.js"
+    "all-in-copilot": "./dist/index.js",
+    "aic": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "../templates"
+  ],
   "scripts": {
     "build": "tsc",
-    "start": "node dist/build.js"
+    "watch": "tsc --watch",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
   },
   "devDependencies": {
     "@types/node": "^22",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   },
-  "keywords": ["vscode", "extension", "llm", "copilot", "cli"],
+  "keywords": [
+    "vscode",
+    "extension",
+    "llm",
+    "copilot",
+    "cli",
+    "ai",
+    "chat"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sanchuanhehe/all-in-copilot"
+  },
   "license": "MIT"
 }
