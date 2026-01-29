@@ -135,7 +135,13 @@ class ExtensionProvider implements LanguageModelChatProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        // Use appropriate auth header based on API mode
+        ...(PROVIDER_CONFIG.apiMode === 'anthropic'
+          ? {
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+            }
+          : { 'Authorization': `Bearer ${apiKey}` }),
         ...PROVIDER_CONFIG.headers,
       },
       body: JSON.stringify(requestBody),

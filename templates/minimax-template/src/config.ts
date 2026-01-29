@@ -19,6 +19,7 @@ export const PROVIDER_CONFIG: ProviderConfig = {
 
 	// API configuration - Anthropic compatible endpoint
 	// https://platform.minimaxi.com/docs/api-reference/text-anthropic-api
+	// Full URL to messages endpoint (SDK will NOT append any path)
 	baseUrl: "https://api.minimaxi.com/anthropic/v1/messages",
 	apiKeySecret: "minimax-copilot.apiKey",
 	apiMode: "anthropic", // MiniMax Anthropic-compatible API
