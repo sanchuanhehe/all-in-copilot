@@ -1,5 +1,6 @@
 /**
  * VSCode Extension Entry Point
+ * Supports dynamic model fetching from provider API
  */
 
 import * as vscode from 'vscode';
@@ -10,22 +11,63 @@ import type {
   ProvideLanguageModelChatResponseOptions,
   LanguageModelResponsePart,
 } from 'vscode';
-import { PROVIDER_CONFIG, STATIC_MODELS } from './config';
+import { PROVIDER_CONFIG, FALLBACK_MODELS, filterModels, type ModelConfig } from './config';
 
+/**
+ * Response from /models endpoint
+ */
+interface ModelsResponse {
+  object?: string;
+  data: RemoteModel[];
+}
+
+/**
+ * Remote model from API
+ */
+interface RemoteModel {
+  id: string;
+  object?: string;
+  created?: number;
+  owned_by?: string;
+  context_length?: number;
+  max_tokens?: number;
+  max_completion_tokens?: number;
+  capabilities?: {
+    vision?: boolean;
+    function_calling?: boolean;
+    tool_use?: boolean;
+  };
+  [key: string]: unknown;
+}
+
+/**
+ * Extension Provider with Dynamic Model Fetching
+ */
 export class ExtensionProvider implements LanguageModelChatProvider {
   private secrets: vscode.SecretStorage;
   private statusBar: vscode.StatusBarItem;
+
+  // Model cache
+  private modelCache: ModelConfig[] | null = null;
+  private lastFetchTime = 0;
 
   constructor(secrets: vscode.SecretStorage) {
     this.secrets = secrets;
 
     // Create status bar
-    this.statusBar = vscode.window.createStatusBarItem('extensionname', vscode.StatusBarAlignment.Right, 100);
+    this.statusBar = vscode.window.createStatusBarItem(
+      PROVIDER_CONFIG.id,
+      vscode.StatusBarAlignment.Right,
+      100
+    );
     this.statusBar.text = `$(ai) ${PROVIDER_CONFIG.name}`;
-    this.statusBar.command = 'vendorid.manage';
+    this.statusBar.command = `${PROVIDER_CONFIG.id}.manage`;
     this.statusBar.show();
   }
 
+  /**
+   * Provide available models to VS Code
+   */
   async provideLanguageModelChatInformation(
     options: { silent: boolean },
     _token: vscode.CancellationToken
@@ -35,7 +77,24 @@ export class ExtensionProvider implements LanguageModelChatProvider {
       return [];
     }
 
-    return STATIC_MODELS.map(model => ({
+    // Get models (dynamic or fallback)
+    let models: ModelConfig[];
+
+    if (PROVIDER_CONFIG.dynamicModels && apiKey) {
+      try {
+        models = await this.fetchModels(apiKey);
+      } catch (error) {
+        console.warn(`[${PROVIDER_CONFIG.name}] Failed to fetch models:`, error);
+        models = FALLBACK_MODELS;
+      }
+    } else {
+      models = FALLBACK_MODELS;
+    }
+
+    // Apply filter
+    models = filterModels(models);
+
+    return models.map(model => ({
       id: model.id,
       name: model.name,
       family: PROVIDER_CONFIG.family,
@@ -49,6 +108,9 @@ export class ExtensionProvider implements LanguageModelChatProvider {
     }));
   }
 
+  /**
+   * Estimate token count
+   */
   async provideTokenCount(
     _model: LanguageModelChatInformation,
     text: string | LanguageModelChatRequestMessage,
@@ -60,6 +122,9 @@ export class ExtensionProvider implements LanguageModelChatProvider {
     return Math.ceil(JSON.stringify(text).length / 4);
   }
 
+  /**
+   * Handle chat response with streaming
+   */
   async provideLanguageModelChatResponse(
     model: LanguageModelChatInformation,
     messages: readonly LanguageModelChatRequestMessage[],
@@ -85,7 +150,7 @@ export class ExtensionProvider implements LanguageModelChatProvider {
     const requestBody = {
       model: model.id,
       messages: convertedMessages,
-      tools,
+      tools: tools?.length ? tools : undefined,
       max_tokens: model.maxOutputTokens,
       stream: true,
     };
@@ -105,16 +170,28 @@ export class ExtensionProvider implements LanguageModelChatProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      const text = await response.text().catch(() => '');
+      throw new Error(`API request failed: ${response.status} ${response.statusText}${text ? `\n${text}` : ''}`);
     }
 
+    await this.processStreamingResponse(response, progress);
+  }
+
+  /**
+   * Process SSE streaming response
+   */
+  private async processStreamingResponse(
+    response: Response,
+    progress: vscode.Progress<LanguageModelResponsePart>
+  ): Promise<void> {
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error('Failed to read response');
+      throw new Error('Failed to read response stream');
     }
 
     const decoder = new TextDecoder();
     let buffer = '';
+    const toolCallBuffers = new Map<number, { id: string; name: string; arguments: string }>();
 
     while (true) {
       const { done, value } = await reader.read();
@@ -127,48 +204,180 @@ export class ExtensionProvider implements LanguageModelChatProvider {
       buffer = lines.pop() ?? '';
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') {
-            return;
+        if (!line.startsWith('data: ')) {
+          continue;
+        }
+
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') {
+          // Flush any remaining tool calls
+          this.flushToolCalls(toolCallBuffers, progress);
+          return;
+        }
+
+        try {
+          const chunk = JSON.parse(data);
+          const delta = chunk.choices?.[0]?.delta;
+
+          // Handle text content
+          if (delta?.content) {
+            progress.report(new vscode.LanguageModelTextPart(delta.content));
           }
 
-          try {
-            const chunk = JSON.parse(data);
-            const delta = chunk.choices?.[0]?.delta;
+          // Handle tool calls (with buffering for streaming)
+          if (delta?.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const index = tc.index ?? 0;
 
-            if (delta?.content) {
-              progress.report(new vscode.LanguageModelTextPart(delta.content));
-            }
-
-            if (delta?.tool_calls) {
-              for (const tc of delta.tool_calls) {
-                if (tc.id && tc.function?.name) {
-                  progress.report(
-                    new vscode.LanguageModelToolCallPart(
-                      tc.id,
-                      tc.function.name,
-                      tc.function.arguments ?? ''
-                    )
-                  );
+              if (!toolCallBuffers.has(index)) {
+                toolCallBuffers.set(index, {
+                  id: tc.id ?? '',
+                  name: tc.function?.name ?? '',
+                  arguments: tc.function?.arguments ?? '',
+                });
+              } else {
+                const existing = toolCallBuffers.get(index)!;
+                if (tc.id) {
+                  existing.id = tc.id;
+                }
+                if (tc.function?.name) {
+                  existing.name = tc.function.name;
+                }
+                if (tc.function?.arguments) {
+                  existing.arguments += tc.function.arguments;
                 }
               }
             }
-          } catch {
-            // Skip invalid chunks
           }
+
+          // Check finish reason for tool call completion
+          const finishReason = chunk.choices?.[0]?.finish_reason;
+          if (finishReason === 'tool_calls' || finishReason === 'stop') {
+            this.flushToolCalls(toolCallBuffers, progress);
+          }
+        } catch {
+          // Skip invalid JSON chunks
         }
       }
     }
   }
 
+  /**
+   * Flush buffered tool calls to progress
+   */
+  private flushToolCalls(
+    buffers: Map<number, { id: string; name: string; arguments: string }>,
+    progress: vscode.Progress<LanguageModelResponsePart>
+  ): void {
+    for (const [, tc] of buffers) {
+      if (tc.id && tc.name) {
+        progress.report(
+          new vscode.LanguageModelToolCallPart(tc.id, tc.name, tc.arguments)
+        );
+      }
+    }
+    buffers.clear();
+  }
+
+  /**
+   * Fetch models from provider API
+   */
+  private async fetchModels(apiKey: string): Promise<ModelConfig[]> {
+    const now = Date.now();
+    const cacheTTL = PROVIDER_CONFIG.modelsCacheTTL ?? 5 * 60 * 1000;
+
+    // Return cached if valid
+    if (this.modelCache && (now - this.lastFetchTime) < cacheTTL) {
+      return this.modelCache;
+    }
+
+    // Build models URL
+    const modelsUrl = this.buildModelsUrl(PROVIDER_CONFIG.baseUrl);
+
+    const response = await fetch(modelsUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch models: ${response.status}`);
+    }
+
+    const data = await response.json() as ModelsResponse;
+    const remoteModels = data.data || [];
+
+    // Convert to ModelConfig
+    const models = remoteModels.map(m => this.convertRemoteModel(m));
+
+    // Update cache
+    this.modelCache = models;
+    this.lastFetchTime = now;
+
+    return models;
+  }
+
+  /**
+   * Build models endpoint URL from base URL
+   */
+  private buildModelsUrl(baseUrl: string): string {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+
+    if (cleanUrl.endsWith('/chat/completions')) {
+      return cleanUrl.replace('/chat/completions', '/models');
+    }
+
+    if (cleanUrl.endsWith('/v1')) {
+      return `${cleanUrl}/models`;
+    }
+
+    // Try to find /v1 or similar and append /models
+    const v1Match = cleanUrl.match(/(.+\/v\d+)/);
+    if (v1Match) {
+      return `${v1Match[1]}/models`;
+    }
+
+    return `${cleanUrl}/models`;
+  }
+
+  /**
+   * Convert remote model to ModelConfig
+   */
+  private convertRemoteModel(remote: RemoteModel): ModelConfig {
+    const contextLength = remote.context_length ?? PROVIDER_CONFIG.defaultContextLength;
+    const maxOutput = remote.max_completion_tokens ?? remote.max_tokens ?? PROVIDER_CONFIG.defaultMaxOutputTokens;
+    const maxInput = Math.max(1, contextLength - maxOutput);
+
+    const supportsVision = remote.capabilities?.vision ?? PROVIDER_CONFIG.supportsVision;
+    const supportsTools =
+      remote.capabilities?.function_calling ??
+      remote.capabilities?.tool_use ??
+      PROVIDER_CONFIG.supportsTools;
+
+    return {
+      id: remote.id,
+      name: remote.id,
+      maxInputTokens: maxInput,
+      maxOutputTokens: maxOutput,
+      supportsTools,
+      supportsVision,
+    };
+  }
+
+  /**
+   * Ensure API key exists
+   */
   private async ensureApiKey(silent: boolean): Promise<string | undefined> {
     let apiKey = await this.secrets.get(PROVIDER_CONFIG.apiKeySecret);
 
     if (!apiKey && !silent) {
       apiKey = await vscode.window.showInputBox({
-        prompt: `Enter ${PROVIDER_CONFIG.name} API Key`,
+        title: `${PROVIDER_CONFIG.name} API Key`,
+        prompt: `Enter your ${PROVIDER_CONFIG.name} API key`,
         password: true,
+        ignoreFocusOut: true,
       });
 
       if (apiKey) {
@@ -179,24 +388,31 @@ export class ExtensionProvider implements LanguageModelChatProvider {
     return apiKey;
   }
 
+  /**
+   * Map VS Code role to API role
+   */
   private mapRole(role: number): 'system' | 'user' | 'assistant' | 'tool' {
-    if (role === 1) {
-      return 'system';
+    switch (role) {
+      case 1:
+        return 'system';
+      case 3:
+        return 'assistant';
+      default:
+        return 'user';
     }
-    if (role === 3) {
-      return 'assistant';
-    }
-    return 'user';
   }
 
+  /**
+   * Extract text content from message parts
+   */
   private extractContent(content: readonly unknown[]): string {
     const parts: string[] = [];
     for (const part of content) {
       if (part && typeof part === 'object') {
         const p = part as Record<string, unknown>;
-        if (p.value && typeof p.value === 'string') {
+        if (typeof p.value === 'string') {
           parts.push(p.value);
-        } else if (p.text && typeof p.text === 'string') {
+        } else if (typeof p.text === 'string') {
           parts.push(p.text);
         }
       }
@@ -204,6 +420,9 @@ export class ExtensionProvider implements LanguageModelChatProvider {
     return parts.join('');
   }
 
+  /**
+   * Convert VS Code tool to OpenAI format
+   */
   private convertTool(tool: unknown): Record<string, unknown> {
     const t = tool as Record<string, unknown>;
     if (t.type === 'function') {
@@ -219,17 +438,63 @@ export class ExtensionProvider implements LanguageModelChatProvider {
     }
     return tool as Record<string, unknown>;
   }
+
+  /**
+   * Dispose resources
+   */
+  dispose(): void {
+    this.statusBar.dispose();
+  }
 }
 
+/**
+ * Extension activation
+ */
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new ExtensionProvider(context.secrets);
 
   context.subscriptions.push(
-    vscode.lm.registerLanguageModelChatProvider('vendorid', provider),
-    vscode.commands.registerCommand('vendorid.manage', async () => {
-      await vscode.window.showInformationMessage(`${PROVIDER_CONFIG.name} Copilot configured`);
-    })
+    // Register language model provider
+    vscode.lm.registerLanguageModelChatProvider(PROVIDER_CONFIG.id, provider),
+
+    // Register management command
+    vscode.commands.registerCommand(`${PROVIDER_CONFIG.id}.manage`, async () => {
+      const options = ['Set API Key', 'Refresh Models', 'View Status'];
+      const selected = await vscode.window.showQuickPick(options, {
+        placeHolder: `${PROVIDER_CONFIG.name} Options`,
+      });
+
+      if (selected === 'Set API Key') {
+        const apiKey = await vscode.window.showInputBox({
+          title: `${PROVIDER_CONFIG.name} API Key`,
+          prompt: 'Enter your API key',
+          password: true,
+          ignoreFocusOut: true,
+        });
+        if (apiKey) {
+          await context.secrets.store(PROVIDER_CONFIG.apiKeySecret, apiKey);
+          vscode.window.showInformationMessage(`${PROVIDER_CONFIG.name} API key saved`);
+        }
+      } else if (selected === 'Refresh Models') {
+        vscode.window.showInformationMessage(`${PROVIDER_CONFIG.name}: Models will be refreshed on next use`);
+      } else if (selected === 'View Status') {
+        const apiKey = await context.secrets.get(PROVIDER_CONFIG.apiKeySecret);
+        vscode.window.showInformationMessage(
+          `${PROVIDER_CONFIG.name}: ${apiKey ? 'API key configured' : 'No API key set'}`
+        );
+      }
+    }),
+
+    // Dispose provider
+    { dispose: () => provider.dispose() }
   );
+
+  console.log(`[${PROVIDER_CONFIG.name}] Extension activated`);
 }
 
-export function deactivate(): void {}
+/**
+ * Extension deactivation
+ */
+export function deactivate(): void {
+  console.log(`[${PROVIDER_CONFIG.name}] Extension deactivated`);
+}

@@ -12,6 +12,10 @@ export interface ProviderConfig {
   supportsVision: boolean;
   defaultMaxOutputTokens: number;
   defaultContextLength: number;
+  /** Whether to fetch models dynamically from API */
+  dynamicModels: boolean;
+  /** Cache TTL for dynamic models in milliseconds */
+  modelsCacheTTL?: number;
 }
 
 export interface ModelConfig {
@@ -37,12 +41,15 @@ export const PROVIDER_CONFIG: ProviderConfig = {
   supportsVision: false,
   defaultMaxOutputTokens: 8192,
   defaultContextLength: 100000,
+  // MiniMax API supports dynamic model listing
+  dynamicModels: true,
+  modelsCacheTTL: 5 * 60 * 1000,
 };
 
 /**
- * MiniMax Models
+ * Fallback MiniMax Models (used when dynamic fetch fails)
  */
-export const STATIC_MODELS: ModelConfig[] = [
+export const FALLBACK_MODELS: ModelConfig[] = [
   {
     id: 'minimax-abab6.5s-chat',
     name: 'MiniMax abab6.5s-chat',
@@ -68,3 +75,11 @@ export const STATIC_MODELS: ModelConfig[] = [
     supportsVision: false,
   },
 ];
+
+/**
+ * Filter models (customize which models to show)
+ */
+export function filterModels(models: ModelConfig[]): ModelConfig[] {
+  // Show all MiniMax chat models
+  return models.filter(m => m.id.includes('chat') || m.id.includes('abab'));
+}

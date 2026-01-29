@@ -12,6 +12,10 @@ export interface ProviderConfig {
   supportsVision: boolean;
   defaultMaxOutputTokens: number;
   defaultContextLength: number;
+  /** Whether to fetch models dynamically from API */
+  dynamicModels: boolean;
+  /** Cache TTL for dynamic models in milliseconds */
+  modelsCacheTTL?: number;
 }
 
 export interface ModelConfig {
@@ -37,12 +41,15 @@ export const PROVIDER_CONFIG: ProviderConfig = {
   supportsVision: true,
   defaultMaxOutputTokens: 8192,
   defaultContextLength: 128000,
+  // GLM API supports dynamic model listing
+  dynamicModels: true,
+  modelsCacheTTL: 5 * 60 * 1000,
 };
 
 /**
- * GLM Models
+ * Fallback GLM Models (used when dynamic fetch fails)
  */
-export const STATIC_MODELS: ModelConfig[] = [
+export const FALLBACK_MODELS: ModelConfig[] = [
   {
     id: 'glm-4-plus',
     name: 'GLM-4 Plus',
@@ -76,3 +83,11 @@ export const STATIC_MODELS: ModelConfig[] = [
     supportsVision: false,
   },
 ];
+
+/**
+ * Filter models (customize which models to show)
+ */
+export function filterModels(models: ModelConfig[]): ModelConfig[] {
+  // Show all GLM models
+  return models.filter(m => m.id.startsWith('glm'));
+}
