@@ -11,8 +11,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type {
 	MessageParam,
-	ContentBlock,
-	TextBlock,
 	Tool
 } from "@anthropic-ai/sdk/resources/messages";
 import type {

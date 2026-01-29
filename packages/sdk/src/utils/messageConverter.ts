@@ -3,7 +3,7 @@
  * Convert between different message formats
  */
 
-import type { ChatMessage, ToolCall, ToolDefinition } from '../core/types';
+import type { ChatMessage } from '../core/types';
 
 /**
  * Role string constants

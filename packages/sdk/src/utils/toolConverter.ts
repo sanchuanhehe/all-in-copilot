@@ -3,7 +3,7 @@
  * Convert between different tool formats
  */
 
-import type { ToolDefinition, ToolCall } from '../core/types';
+import type { ToolDefinition } from '../core/types';
 
 /**
  * Sanitize function name to be valid identifier
@@ -31,7 +31,9 @@ export function sanitizeFunctionName(name: unknown): string {
  * Check if a property name suggests it should be an integer
  */
 export function isIntegerLikePropertyName(propertyName: string | undefined): boolean {
-  if (!propertyName) return false;
+  if (!propertyName) {
+    return false;
+  }
 
   const lowered = propertyName.toLowerCase();
   const integerMarkers = [
