@@ -6,4 +6,5 @@ src/**
 .gitignore
 tsconfig.json
 vscode.d.ts
+esbuild.js
 *.vsix

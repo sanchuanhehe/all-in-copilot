@@ -17,49 +17,55 @@ export const PROVIDER_CONFIG: ProviderConfig = {
 	name: "MiniMax",
 	family: "minimax",
 
-	// API configuration
-	baseUrl: "https://api.minimaxi.com/anthropic",
+	// API configuration - Anthropic compatible endpoint
+	// https://platform.minimaxi.com/docs/api-reference/text-anthropic-api
+	baseUrl: "https://api.minimaxi.com/anthropic/v1/messages",
 	apiKeySecret: "minimax-copilot.apiKey",
-	apiMode: "anthropic", // MiniMax uses OpenAI-compatible API format
+	apiMode: "anthropic", // MiniMax Anthropic-compatible API
 
 	// Capabilities
 	supportsTools: true,
-	supportsVision: false,
+	supportsVision: false, // MiniMax Anthropic API 不支持图像
 
 	// Token limits
 	defaultMaxOutputTokens: 8192,
 	defaultContextLength: 100000,
 
-	// Dynamic model fetching
-	dynamicModels: true,
-	modelsCacheTTL: 5 * 60 * 1000, // 5 minutes
+	// Dynamic model fetching - DISABLED (MiniMax doesn't have /models endpoint)
+	dynamicModels: false,
 };
 
 /**
- * Fallback MiniMax Models (used when dynamic fetch fails)
+ * MiniMax Models (Anthropic API compatible)
+ * https://platform.minimaxi.com/docs/api-reference/text-anthropic-api
+ *
+ * Supported models:
+ * - MiniMax-M2.1: 旗舰模型，支持复杂推理和创意任务
+ * - MiniMax-M2.1-lightning: 高速版本，100 tokens/s 输出速度
+ * - MiniMax-M2: 上一代模型，性价比高
  */
 export const FALLBACK_MODELS: ModelConfig[] = [
   {
-    id: 'minimax-abab6.5s-chat',
-    name: 'MiniMax abab6.5s-chat',
-    maxInputTokens: 90000,
-    maxOutputTokens: 8192,
-    supportsTools: true,
-    supportsVision: false,
-  },
-  {
-    id: 'minimax-abab6.5-chat',
-    name: 'MiniMax abab6.5-chat',
+    id: 'MiniMax-M2.1',
+    name: 'MiniMax M2.1',
     maxInputTokens: 100000,
     maxOutputTokens: 8192,
     supportsTools: true,
     supportsVision: false,
   },
   {
-    id: 'minimax-abab5.5-chat',
-    name: 'MiniMax abab5.5-chat',
-    maxInputTokens: 16000,
-    maxOutputTokens: 4096,
+    id: 'MiniMax-M2.1-lightning',
+    name: 'MiniMax M2.1 Lightning',
+    maxInputTokens: 100000,
+    maxOutputTokens: 8192,
+    supportsTools: true,
+    supportsVision: false,
+  },
+  {
+    id: 'MiniMax-M2',
+    name: 'MiniMax M2',
+    maxInputTokens: 100000,
+    maxOutputTokens: 8192,
     supportsTools: true,
     supportsVision: false,
   },
@@ -67,9 +73,7 @@ export const FALLBACK_MODELS: ModelConfig[] = [
 
 /**
  * Filter models (customize which models to show)
- * This allows you to filter the dynamic model list
  */
 export function filterModels(models: ModelConfig[]): ModelConfig[] {
-  // Show all MiniMax chat models
-  return models.filter(m => m.id.includes('chat') || m.id.includes('abab'));
+  return models;
 }
