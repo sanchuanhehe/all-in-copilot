@@ -252,52 +252,79 @@ export function convertToAnthropic(messages: readonly VsCodeMessage[]): { system
       continue;
     }
 
-    const role = msg.role === ROLE.User ? 'user' : 'assistant';
-
     if (!msg.content || msg.content.length === 0) {
       continue;
     }
 
-    const content: AnthropicContentBlock[] = [];
+    // Separate tool results from other content
+    // Tool results MUST be in user messages for Anthropic API
+    const toolResultParts = msg.content.filter(isToolResultPart);
+    const otherParts = msg.content.filter(p => !isToolResultPart(p));
 
-    for (const part of msg.content) {
-      if (isTextPart(part)) {
-        content.push({ type: 'text', text: part.value });
-      } else if (isDataPart(part)) {
-        const base64 = Buffer.from(part.data).toString('base64');
-        content.push({
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: part.mimeType,
-            data: base64,
-          },
-        });
-      } else if (isToolCallPart(part)) {
-        content.push({
-          type: 'tool_use',
-          id: part.callId,
-          name: part.name,
-          input: part.input,
-        });
-      } else if (isToolResultPart(part)) {
+    // Process tool results - always add as user message
+    if (toolResultParts.length > 0) {
+      const toolResultContent: AnthropicContentBlock[] = toolResultParts.map(part => {
         const resultText = part.content.map(c => {
           if (isTextPart(c)) {
             return c.value;
           }
           return JSON.stringify(c);
         }).join('\n');
-        content.push({
-          type: 'tool_result',
+        return {
+          type: 'tool_result' as const,
           tool_use_id: part.callId,
-          content: resultText,
-        });
-      }
+          content: resultText || '(empty result)',
+        };
+      });
+      result.push({ role: 'user', content: toolResultContent });
     }
 
-    if (content.length > 0) {
-      result.push({ role, content });
+    // Process other content with original role
+    if (otherParts.length > 0) {
+      const role = msg.role === ROLE.User ? 'user' : 'assistant';
+      const content: AnthropicContentBlock[] = [];
+
+      for (const part of otherParts) {
+        if (isTextPart(part)) {
+          // Skip empty text parts
+          if (part.value && part.value.trim()) {
+            content.push({ type: 'text', text: part.value });
+          }
+        } else if (isDataPart(part)) {
+          const base64 = Buffer.from(part.data).toString('base64');
+          content.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: part.mimeType,
+              data: base64,
+            },
+          });
+        } else if (isToolCallPart(part)) {
+          content.push({
+            type: 'tool_use',
+            id: part.callId,
+            name: part.name,
+            input: part.input,
+          });
+        }
+      }
+
+      if (content.length > 0) {
+        result.push({ role, content });
+      }
     }
+  }
+
+  // Anthropic API requires messages to start with 'user' role
+  // If first message is 'assistant', prepend a placeholder user message
+  if (result.length > 0 && result[0].role === 'assistant') {
+    result.unshift({ role: 'user', content: [{ type: 'text', text: '(continue)' }] });
+  }
+
+  // Ensure we have at least one message
+  if (result.length === 0) {
+    result.push({ role: 'user', content: [{ type: 'text', text: '(start)' }] });
   }
 
   return { system: systemPrompt, messages: result };
@@ -345,11 +372,15 @@ export function convertToolsToAnthropic(tools: readonly unknown[] | undefined): 
 
   return tools.map((tool: unknown) => {
     const t = tool as { name: string; description?: string; inputSchema?: Record<string, unknown> };
-    return {
+    const result: AnthropicTool = {
       name: sanitizeFunctionName(t.name),
-      description: t.description,
       input_schema: t.inputSchema || { type: 'object', properties: {} },
     };
+    // Only add description if it exists and is non-empty
+    if (t.description && t.description.trim()) {
+      result.description = t.description;
+    }
+    return result;
   });
 }
 

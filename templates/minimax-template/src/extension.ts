@@ -125,7 +125,21 @@ class ExtensionProvider implements LanguageModelChatProvider {
     }
 
     // Build request based on API mode
-    const requestBody = this.buildRequest(model, messages, options);
+    const requestBody = this.buildRequest(model, messages, options) as Record<string, unknown>;
+
+    // Debug: log request summary
+    const msgArray = requestBody.messages as Array<{role: string; content: unknown}>;
+    const toolsArray = requestBody.tools as Array<unknown> | undefined;
+    console.log(`[${PROVIDER_CONFIG.name}] Request summary:`, {
+      model: requestBody.model,
+      system: typeof requestBody.system === 'string' ? requestBody.system.substring(0, 100) + '...' : requestBody.system,
+      messagesCount: msgArray?.length,
+      firstMsgRole: msgArray?.[0]?.role,
+      firstMsgContentType: typeof msgArray?.[0]?.content,
+      toolsCount: toolsArray?.length,
+      max_tokens: requestBody.max_tokens,
+      stream: requestBody.stream,
+    });
 
     // Make streaming request
     const controller = new AbortController();
@@ -181,23 +195,42 @@ class ExtensionProvider implements LanguageModelChatProvider {
 
     if (PROVIDER_CONFIG.apiMode === 'anthropic') {
       const { system, messages: anthropicMessages } = convertToAnthropic(vsMessages);
-      return {
+      const tools = convertToolsToAnthropic(options.tools);
+
+      // Build base request - only include fields that have values
+      const request: Record<string, unknown> = {
         model: model.id,
-        system,
         messages: anthropicMessages,
-        tools: convertToolsToAnthropic(options.tools),
         max_tokens: model.maxOutputTokens,
         stream: true,
       };
+
+      // Only add system if not empty
+      if (system) {
+        request.system = system;
+      }
+
+      // Only add tools if there are any
+      if (tools && tools.length > 0) {
+        request.tools = tools;
+      }
+
+      return request;
     } else {
       // OpenAI format
-      return {
+      const tools = convertToolsToOpenAI(options.tools);
+      const request: Record<string, unknown> = {
         model: model.id,
         messages: convertToOpenAI(vsMessages),
-        tools: convertToolsToOpenAI(options.tools),
         max_tokens: model.maxOutputTokens,
         stream: true,
       };
+
+      if (tools && tools.length > 0) {
+        request.tools = tools;
+      }
+
+      return request;
     }
   }
 
