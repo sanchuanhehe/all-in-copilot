@@ -183,6 +183,80 @@ cd packages/sdk && npm run watch
 cd packages/vscode && npm run watch
 ```
 
+## CI/CD & Publishing
+
+### GitHub Secrets Required
+
+在仓库设置中添加以下 Secrets：
+
+| Secret | Description |
+|--------|-------------|
+| `VSCE_PAT` | VS Code Marketplace Personal Access Token |
+| `OVSX_PAT` | Open VSX Registry Token (可选) |
+
+### Workflows
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| **CI** | Push/PR to `main` | 构建 SDK、CLI 和所有模板，运行测试 |
+| **Release** | Tag push (`v*`) / Manual | 发布正式版或预发布版到插件市场 |
+| **Pre-release** | Push to `pre-release/*` / Manual | 发布预发布版本 |
+| **Publish Single** | Manual only | 手动发布单个插件 |
+
+### Release Process
+
+#### 正式发布 (Stable Release)
+
+```bash
+# 1. 更新版本号
+cd templates/glm-template
+npm version patch  # or minor / major
+
+# 2. 提交并创建 tag
+git add .
+git commit -m "chore: bump glm-template to v0.2.0"
+git tag glm-template-v0.2.0
+git push origin main --tags
+```
+
+#### 预发布 (Pre-release)
+
+**方法 1: 使用 Tag**
+```bash
+git tag glm-template-v0.2.0-beta.1
+git push origin --tags
+```
+
+**方法 2: 使用分支**
+```bash
+git checkout -b pre-release/glm-template
+git push origin pre-release/glm-template
+```
+
+**方法 3: 手动触发**
+1. 打开 GitHub Actions
+2. 选择 "Pre-release" workflow
+3. 点击 "Run workflow"
+4. 选择模板和选项
+
+#### 全部发布
+
+```bash
+# 发布所有模板的正式版
+git tag v1.0.0
+git push origin --tags
+
+# 或通过 workflow_dispatch 手动触发
+```
+
+### Tag 命名规范
+
+| Pattern | 触发 | 示例 |
+|---------|------|------|
+| `v*` | 发布所有模板 | `v1.0.0` |
+| `<template>-v*` | 发布指定模板 | `glm-template-v0.2.0` |
+| `*-pre*`, `*-alpha*`, `*-beta*`, `*-rc*` | 预发布 | `v1.0.0-beta.1` |
+
 ## Templates
 
 ### MiniMax Template

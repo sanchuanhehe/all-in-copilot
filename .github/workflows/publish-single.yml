@@ -1,0 +1,100 @@
+name: Publish Single Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      template:
+        description: 'Template to publish'
+        required: true
+        type: choice
+        options:
+          - glm-template
+          - minimax-template
+          - kimi-template
+          - mimo-template
+      version:
+        description: 'Version to publish (leave empty to use package.json version)'
+        required: false
+        type: string
+      pre_release:
+        description: 'Publish as pre-release'
+        required: false
+        default: false
+        type: boolean
+      publish_ovsx:
+        description: 'Also publish to Open VSX Registry'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - run: pnpm install
+      - run: pnpm --filter @all-in-copilot/sdk build
+
+      - name: Update version if specified
+        if: inputs.version != ''
+        run: |
+          cd templates/${{ inputs.template }}
+          npm version ${{ inputs.version }} --no-git-tag-version
+
+      - name: Get package info
+        id: pkg
+        run: |
+          cd templates/${{ inputs.template }}
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package VSIX
+        run: |
+          cd templates/${{ inputs.template }}
+          if [[ "${{ inputs.pre_release }}" == "true" ]]; then
+            npx @vscode/vsce package --no-dependencies --pre-release -o ${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}-pre.vsix
+          else
+            npx @vscode/vsce package --no-dependencies -o ${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}.vsix
+          fi
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.template }}-vsix
+          path: templates/${{ inputs.template }}/*.vsix
+
+      - name: Publish to VS Code Marketplace
+        run: |
+          cd templates/${{ inputs.template }}
+          VSIX_FILE=$(ls *.vsix | head -n 1)
+          echo "Publishing: $VSIX_FILE"
+          if [[ "${{ inputs.pre_release }}" == "true" ]]; then
+            npx @vscode/vsce publish --pat ${{ secrets.VSCE_PAT }} --packagePath "$VSIX_FILE" --pre-release
+          else
+            npx @vscode/vsce publish --pat ${{ secrets.VSCE_PAT }} --packagePath "$VSIX_FILE"
+          fi
+
+      - name: Publish to Open VSX Registry
+        if: inputs.publish_ovsx
+        run: |
+          cd templates/${{ inputs.template }}
+          VSIX_FILE=$(ls *.vsix | head -n 1)
+          if [[ "${{ inputs.pre_release }}" == "true" ]]; then
+            npx ovsx publish "$VSIX_FILE" -p ${{ secrets.OVSX_PAT }} --pre-release
+          else
+            npx ovsx publish "$VSIX_FILE" -p ${{ secrets.OVSX_PAT }}
+          fi
+        continue-on-error: true
