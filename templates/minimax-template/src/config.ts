@@ -1,49 +1,38 @@
 /**
  * MiniMax Provider Configuration
+ * ===========================
+ * This is the only file you need to edit to create a new provider!
+ * All types and functionality are imported from @all-in-copilot/sdk
  */
 
-export interface ProviderConfig {
-  id: string;
-  name: string;
-  baseUrl: string;
-  apiKeySecret: string;
-  family: string;
-  supportsTools: boolean;
-  supportsVision: boolean;
-  defaultMaxOutputTokens: number;
-  defaultContextLength: number;
-  /** Whether to fetch models dynamically from API */
-  dynamicModels: boolean;
-  /** Cache TTL for dynamic models in milliseconds */
-  modelsCacheTTL?: number;
-}
-
-export interface ModelConfig {
-  id: string;
-  name: string;
-  maxInputTokens: number;
-  maxOutputTokens: number;
-  supportsTools: boolean;
-  supportsVision: boolean;
-}
+import type { ProviderConfig, ModelConfig } from '@all-in-copilot/sdk';
 
 /**
  * MiniMax Provider Configuration
- * Edit this file to customize your provider
+ * Edit these values to customize your provider
  */
 export const PROVIDER_CONFIG: ProviderConfig = {
+  // Provider identity
   id: 'minimax',
   name: 'MiniMax',
+  family: 'minimax',
+
+  // API configuration
   baseUrl: 'https://api.minimax.chat/v1/text/chatcompletion_v2',
   apiKeySecret: 'minimax-copilot.apiKey',
-  family: 'minimax',
+  apiMode: 'openai', // MiniMax uses OpenAI-compatible API format
+
+  // Capabilities
   supportsTools: true,
   supportsVision: false,
+
+  // Token limits
   defaultMaxOutputTokens: 8192,
   defaultContextLength: 100000,
-  // MiniMax API supports dynamic model listing
+
+  // Dynamic model fetching
   dynamicModels: true,
-  modelsCacheTTL: 5 * 60 * 1000,
+  modelsCacheTTL: 5 * 60 * 1000, // 5 minutes
 };
 
 /**
@@ -78,6 +67,7 @@ export const FALLBACK_MODELS: ModelConfig[] = [
 
 /**
  * Filter models (customize which models to show)
+ * This allows you to filter the dynamic model list
  */
 export function filterModels(models: ModelConfig[]): ModelConfig[] {
   // Show all MiniMax chat models

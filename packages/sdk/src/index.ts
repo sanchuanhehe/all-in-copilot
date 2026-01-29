@@ -2,8 +2,20 @@
  * SDK Main Entry Point
  */
 
-// Core types and model fetcher
-export * from './core/types';
+// Core types
+export {
+  ApiMode,
+  ProviderConfig,
+  ModelConfig,
+  MessageRole,
+  TextContent,
+  ImageContent,
+  MessageContent,
+  ChatMessage,
+  ToolCall,
+} from './core/types';
+
+// Model fetcher
 export {
   fetchModels,
   createCachedModelFetcher,
@@ -13,7 +25,49 @@ export {
   type ModelFetchOptions,
 } from './core/modelFetcher';
 
-// Providers (using official SDKs)
+// VS Code Provider Helpers (the main export for templates)
+export {
+  // Message types
+  ROLE,
+  type VsCodeMessage,
+  type VsCodeTextPart,
+  type VsCodeToolCallPart,
+  type VsCodeToolResultPart,
+  type VsCodeDataPart,
+  type VsCodeContentPart,
+  // OpenAI types
+  type OpenAIMessage,
+  type OpenAIContentPart,
+  type OpenAIToolCall,
+  type OpenAITool,
+  // Anthropic types
+  type AnthropicMessage,
+  type AnthropicContentBlock,
+  type AnthropicTool,
+  // Type guards
+  isTextPart,
+  isToolCallPart,
+  isToolResultPart,
+  isDataPart,
+  // Message conversion
+  convertToOpenAI,
+  convertToAnthropic,
+  // Tool conversion
+  convertToolsToOpenAI,
+  convertToolsToAnthropic,
+  // Model fetching
+  fetchModelsFromAPI,
+  // Streaming processors
+  processOpenAIStream,
+  processAnthropicStream,
+  // Request building
+  buildRequestBody,
+  // Token estimation
+  estimateTokens,
+  estimateMessageTokens,
+} from './vscode/providerHelpers';
+
+// Providers (using official SDKs - for advanced use cases)
 export { OpenAIProvider } from './providers/openaiProvider';
 export { AnthropicProvider } from './providers/anthropicProvider';
 
@@ -22,5 +76,5 @@ export {
   mapVsCodeRole,
   convertVsCodeContent,
 } from './utils/messageConverter';
-export { estimateTokens, estimateMessagesTokens } from './utils/tokenCounter';
+export { estimateTokens as estimateTokensUtil, estimateMessagesTokens } from './utils/tokenCounter';
 export { sanitizeFunctionName, pruneUnknownSchemaKeywords } from './utils/toolConverter';

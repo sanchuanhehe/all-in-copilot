@@ -4,6 +4,15 @@
  */
 
 /**
+ * API mode types - determines message format and request structure
+ * - openai: OpenAI Chat Completions API format
+ * - anthropic: Anthropic Messages API format
+ * - gemini: Google Gemini API format
+ * - ollama: Ollama native API format
+ */
+export type ApiMode = 'openai' | 'anthropic' | 'gemini' | 'ollama';
+
+/**
  * Provider configuration for a specific LLM service
  */
 export interface ProviderConfig {
@@ -17,6 +26,11 @@ export interface ProviderConfig {
   apiKeySecret: string;
   /** Model family for capability detection */
   family: string;
+  /**
+   * API mode - determines message format and request structure
+   * @default 'openai'
+   */
+  apiMode: ApiMode;
   /** Whether this provider supports tool calling */
   supportsTools: boolean;
   /** Whether this provider supports vision/image input */
@@ -25,6 +39,10 @@ export interface ProviderConfig {
   defaultMaxOutputTokens: number;
   /** Default context length */
   defaultContextLength: number;
+  /** Whether to fetch models dynamically from API */
+  dynamicModels?: boolean;
+  /** Cache TTL for dynamic models in milliseconds */
+  modelsCacheTTL?: number;
   /** Request delay in milliseconds (rate limiting) */
   requestDelay?: number;
   /** Custom headers to include in requests */
@@ -39,8 +57,6 @@ export interface ModelConfig {
   id: string;
   /** Human-readable model name */
   name: string;
-  /** Provider ID this model belongs to */
-  providerId: string;
   /** Maximum input tokens */
   maxInputTokens: number;
   /** Maximum output tokens */
@@ -49,6 +65,8 @@ export interface ModelConfig {
   supportsTools: boolean;
   /** Whether model supports vision */
   supportsVision: boolean;
+  /** Provider ID this model belongs to (optional) */
+  providerId?: string;
   /** Additional model metadata */
   metadata?: Record<string, unknown>;
 }

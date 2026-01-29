@@ -1,92 +1,37 @@
 /**
  * Provider Configuration
- * Edit this file to customize your LLM provider
+ * ===========================
+ * This is the only file you need to edit to create a new provider!
+ * All types and functionality are imported from @all-in-copilot/sdk
  */
 
-/**
- * API mode types
- * - openai: OpenAI Chat Completions API format
- * - anthropic: Anthropic Messages API format
- * - gemini: Google Gemini API format
- * - ollama: Ollama native API format
- */
-export type ApiMode = 'openai' | 'anthropic' | 'gemini' | 'ollama';
-
-/**
- * Provider configuration interface
- */
-export interface ProviderConfig {
-  /** Unique identifier for the provider */
-  id: string;
-  /** Human-readable name displayed to users */
-  name: string;
-  /** Base URL for API requests */
-  baseUrl: string;
-  /** Secret storage key for API key */
-  apiKeySecret: string;
-  /**
-   * Model family for VS Code model picker grouping
-   * Examples: 'gpt', 'claude', 'gemini', 'minimax', 'glm', 'qwen'
-   */
-  family: string;
-  /**
-   * API mode - determines message format and request structure
-   * @default 'openai'
-   */
-  apiMode: ApiMode;
-  /** Whether this provider supports tool calling */
-  supportsTools: boolean;
-  /** Whether this provider supports vision/image input */
-  supportsVision: boolean;
-  /** Default maximum output tokens */
-  defaultMaxOutputTokens: number;
-  /** Default context length */
-  defaultContextLength: number;
-  /** Whether to fetch models dynamically from API */
-  dynamicModels: boolean;
-  /** Cache TTL for dynamic models in milliseconds */
-  modelsCacheTTL?: number;
-  /** Custom headers for API requests */
-  headers?: Record<string, string>;
-}
-
-/**
- * Model configuration interface
- */
-export interface ModelConfig {
-  /** Model ID */
-  id: string;
-  /** Human-readable model name */
-  name: string;
-  /** Maximum input tokens */
-  maxInputTokens: number;
-  /** Maximum output tokens */
-  maxOutputTokens: number;
-  /** Whether model supports tool calling */
-  supportsTools: boolean;
-  /** Whether model supports vision */
-  supportsVision: boolean;
-}
+import type { ProviderConfig, ModelConfig } from '@all-in-copilot/sdk';
 
 /**
  * Provider configuration - EDIT THIS TO CHANGE PROVIDER
  */
 export const PROVIDER_CONFIG: ProviderConfig = {
-  id: 'provider-id',
-  name: 'Provider Name',
-  baseUrl: 'https://api.example.com/v1/chat/completions',
-  apiKeySecret: 'extension-name.provider.apiKey',
-  family: 'provider-family',
-  // API format: 'openai' | 'anthropic' | 'gemini' | 'ollama'
-  apiMode: 'openai',
-  supportsTools: true,
-  supportsVision: false,
+  // Provider identity
+  id: 'provider-id',           // Unique identifier (used in VS Code)
+  name: 'Provider Name',       // Display name shown to users
+  family: 'provider-family',   // Model family for grouping
+
+  // API configuration
+  baseUrl: 'https://api.example.com/v1/chat/completions',  // API endpoint
+  apiKeySecret: 'extension-name.provider.apiKey',           // Secret storage key
+  apiMode: 'openai',           // API format: 'openai' | 'anthropic' | 'gemini' | 'ollama'
+
+  // Capabilities
+  supportsTools: true,         // Tool/function calling support
+  supportsVision: false,       // Image/vision input support
+
+  // Token limits
   defaultMaxOutputTokens: 4096,
   defaultContextLength: 32768,
-  // Enable dynamic model fetching from API
-  dynamicModels: true,
-  // Cache models for 5 minutes
-  modelsCacheTTL: 5 * 60 * 1000,
+
+  // Dynamic model fetching
+  dynamicModels: true,         // Fetch models from API
+  modelsCacheTTL: 5 * 60 * 1000, // Cache for 5 minutes
 };
 
 /**

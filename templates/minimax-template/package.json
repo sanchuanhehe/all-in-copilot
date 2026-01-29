@@ -28,13 +28,15 @@
     "watch": "tsc -watch -p ./",
     "test": "pnpm run compile && vscode-test"
   },
+  "dependencies": {
+    "@all-in-copilot/sdk": "workspace:*"
+  },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
     "@stylistic/eslint-plugin": "^2.9.0",
     "@types/node": "^22",
     "@types/mocha": "^10.0.6",
     "@vscode/dts": "^0.4.1",
-    "@types/vscode": "^1.103.0",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.13.0",

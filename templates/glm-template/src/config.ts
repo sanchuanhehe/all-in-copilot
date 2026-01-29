@@ -1,49 +1,38 @@
 /**
  * GLM Provider Configuration
+ * ===========================
+ * This is the only file you need to edit to create a new provider!
+ * All types and functionality are imported from @all-in-copilot/sdk
  */
 
-export interface ProviderConfig {
-  id: string;
-  name: string;
-  baseUrl: string;
-  apiKeySecret: string;
-  family: string;
-  supportsTools: boolean;
-  supportsVision: boolean;
-  defaultMaxOutputTokens: number;
-  defaultContextLength: number;
-  /** Whether to fetch models dynamically from API */
-  dynamicModels: boolean;
-  /** Cache TTL for dynamic models in milliseconds */
-  modelsCacheTTL?: number;
-}
-
-export interface ModelConfig {
-  id: string;
-  name: string;
-  maxInputTokens: number;
-  maxOutputTokens: number;
-  supportsTools: boolean;
-  supportsVision: boolean;
-}
+import type { ProviderConfig, ModelConfig } from '@all-in-copilot/sdk';
 
 /**
  * GLM Provider Configuration
- * Edit this file to customize your provider
+ * Edit these values to customize your provider
  */
 export const PROVIDER_CONFIG: ProviderConfig = {
+  // Provider identity
   id: 'glm',
   name: 'GLM (智谱AI)',
+  family: 'glm',
+
+  // API configuration
   baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
   apiKeySecret: 'glm-copilot.apiKey',
-  family: 'glm',
+  apiMode: 'openai', // GLM uses OpenAI-compatible API format
+
+  // Capabilities
   supportsTools: true,
   supportsVision: true,
+
+  // Token limits
   defaultMaxOutputTokens: 8192,
   defaultContextLength: 128000,
-  // GLM API supports dynamic model listing
+
+  // Dynamic model fetching
   dynamicModels: true,
-  modelsCacheTTL: 5 * 60 * 1000,
+  modelsCacheTTL: 5 * 60 * 1000, // 5 minutes
 };
 
 /**
@@ -86,6 +75,7 @@ export const FALLBACK_MODELS: ModelConfig[] = [
 
 /**
  * Filter models (customize which models to show)
+ * This allows you to filter the dynamic model list
  */
 export function filterModels(models: ModelConfig[]): ModelConfig[] {
   // Show all GLM models

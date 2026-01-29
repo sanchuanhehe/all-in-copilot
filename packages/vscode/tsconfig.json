@@ -11,8 +11,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "paths": {
+      "vscode": ["./vscode.d.ts"]
+    }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "vscode.d.ts"],
   "exclude": ["node_modules", "out"]
 }

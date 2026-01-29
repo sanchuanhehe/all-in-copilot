@@ -23,10 +23,15 @@
 		"build": "pnpm --filter @all-in-copilot/sdk build",
 		"build:vscode": "pnpm --filter vscode-all-in-copilot compile",
 		"build:all": "pnpm build && pnpm build:vscode",
+		"build:templates": "cd templates/base-template && pnpm compile && cd ../glm-template && pnpm compile && cd ../minimax-template && pnpm compile",
+		"build:everything": "pnpm build:all && pnpm build:templates",
 		"watch": "pnpm --filter @all-in-copilot/sdk watch",
 		"lint": "eslint packages/sdk/src --ext .ts",
 		"format": "prettier --write . --ignore-path .gitignore",
-		"test": "echo 'No tests configured yet'"
+		"test": "pnpm test:sdk",
+		"test:sdk": "echo 'SDK tests not configured yet'",
+		"test:vscode": "pnpm --filter vscode-all-in-copilot test",
+		"clean": "rm -rf packages/sdk/dist packages/vscode/out templates/*/out"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.13.0",
