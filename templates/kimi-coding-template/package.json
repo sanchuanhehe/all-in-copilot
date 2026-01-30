@@ -65,15 +65,15 @@
 	"contributes": {
 		"languageModelChatProviders": [
 			{
-				"vendor": "kimi",
-				"displayName": "Kimi",
-				"managementCommand": "kimi.manage"
+				"vendor": "kimi-coding",
+				"displayName": "Kimi Coding",
+				"managementCommand": "kimi-coding.manage"
 			}
 		],
 		"commands": [
 			{
-				"command": "kimi.manage",
-				"title": "Configure Kimi"
+				"command": "kimi-coding.manage",
+				"title": "Configure Kimi Coding"
 			}
 		]
 	}
