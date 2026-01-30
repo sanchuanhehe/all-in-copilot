@@ -265,6 +265,25 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 					break;
 				}
 
+				case "available_commands_update": {
+					// Available commands have been updated
+					const commands = (updateData as any).commands;
+					if (commands && Array.isArray(commands)) {
+						const commandsList = commands.map((c: any) => `  - ${c}`).join("\n");
+						progress.report(new vscode.LanguageModelTextPart(`\n[Available commands updated:\n${commandsList}]\n`));
+					}
+					break;
+				}
+
+				case "current_mode_update": {
+					// Mode has changed - show the new mode
+					const mode = (updateData as any).mode;
+					if (mode) {
+						progress.report(new vscode.LanguageModelTextPart(`\n[Mode: ${mode}]\n`));
+					}
+					break;
+				}
+
 				default:
 					// Unknown update type, ignore or log
 					break;

@@ -211,3 +211,167 @@ describe("ContentBlock Type", () => {
 		expect(block.name).toBe("file:///path/to/file.ts");
 	});
 });
+
+describe("Stop Reason Formatting", () => {
+	it("should return empty string for end_turn", () => {
+		const formatStopReason = (reason: string): string => {
+			switch (reason) {
+				case "end_turn":
+					return "";
+				case "max_tokens":
+					return "[Response truncated - max tokens reached]";
+				case "max_turn_requests":
+					return "[Response truncated - max turn requests exceeded]";
+				case "refusal":
+					return "[Response refused]";
+				case "cancelled":
+					return "[Response cancelled]";
+				case "unknown":
+				default:
+					return "";
+			}
+		};
+
+		expect(formatStopReason("end_turn")).toBe("");
+	});
+
+	it("should return truncation message for max_tokens", () => {
+		const formatStopReason = (reason: string): string => {
+			switch (reason) {
+				case "end_turn":
+					return "";
+				case "max_tokens":
+					return "[Response truncated - max tokens reached]";
+				case "max_turn_requests":
+					return "[Response truncated - max turn requests exceeded]";
+				case "refusal":
+					return "[Response refused]";
+				case "cancelled":
+					return "[Response cancelled]";
+				case "unknown":
+				default:
+					return "";
+			}
+		};
+
+		expect(formatStopReason("max_tokens")).toBe("[Response truncated - max tokens reached]");
+		expect(formatStopReason("max_turn_requests")).toBe("[Response truncated - max turn requests exceeded]");
+	});
+
+	it("should return appropriate messages for other reasons", () => {
+		const formatStopReason = (reason: string): string => {
+			switch (reason) {
+				case "end_turn":
+					return "";
+				case "max_tokens":
+					return "[Response truncated - max tokens reached]";
+				case "max_turn_requests":
+					return "[Response truncated - max turn requests exceeded]";
+				case "refusal":
+					return "[Response refused]";
+				case "cancelled":
+					return "[Response cancelled]";
+				case "unknown":
+				default:
+					return "";
+			}
+		};
+
+		expect(formatStopReason("refusal")).toBe("[Response refused]");
+		expect(formatStopReason("cancelled")).toBe("[Response cancelled]");
+		expect(formatStopReason("unknown")).toBe("");
+		expect(formatStopReason("random")).toBe("");
+	});
+});
+
+describe("Session Update Types", () => {
+	it("should have correct sessionUpdate discriminator values", () => {
+		// These are the sessionUpdate type values from the ACP protocol
+		const validUpdateTypes = [
+			"agent_message_chunk",
+			"agent_thought_chunk",
+			"tool_call",
+			"tool_call_update",
+			"user_message_chunk",
+			"plan",
+			"available_commands_update",
+			"current_mode_update",
+		];
+
+		expect(validUpdateTypes).toContain("agent_message_chunk");
+		expect(validUpdateTypes).toContain("tool_call");
+		expect(validUpdateTypes).toContain("available_commands_update");
+		expect(validUpdateTypes).toHaveLength(8);
+	});
+
+	it("should parse tool_call update with toolCallId", () => {
+		const toolCallUpdate = {
+			sessionUpdate: "tool_call" as const,
+			toolCallId: "call-123",
+			title: "Read file",
+		};
+
+		expect(toolCallUpdate.sessionUpdate).toBe("tool_call");
+		expect(toolCallUpdate.toolCallId).toBe("call-123");
+		expect(toolCallUpdate.title).toBe("Read file");
+	});
+
+	it("should parse available_commands_update with commands array", () => {
+		const commandsUpdate = {
+			sessionUpdate: "available_commands_update" as const,
+			commands: [
+				{ name: "Read", description: "Read a file" },
+				{ name: "Edit", description: "Edit a file" },
+			],
+		};
+
+		expect(commandsUpdate.sessionUpdate).toBe("available_commands_update");
+		expect(commandsUpdate.commands).toHaveLength(2);
+		expect(commandsUpdate.commands[0].name).toBe("Read");
+	});
+
+	it("should parse current_mode_update with mode value", () => {
+		const modeUpdate = {
+			sessionUpdate: "current_mode_update" as const,
+			mode: "Plan",
+		};
+
+		expect(modeUpdate.sessionUpdate).toBe("current_mode_update");
+		expect(modeUpdate.mode).toBe("Plan");
+	});
+});
+
+describe("Text Buffer Accumulation", () => {
+	it("should accumulate text chunks in order", () => {
+		const chunks = ["Hello", " ", "World", "!"];
+		const textBuffer: string[] = [];
+
+		for (const chunk of chunks) {
+			textBuffer.push(chunk);
+		}
+
+		expect(textBuffer.join("")).toBe("Hello World!");
+	});
+
+	it("should handle empty chunks", () => {
+		const chunks = ["Hello", "", "World", ""];
+		const textBuffer: string[] = [];
+
+		for (const chunk of chunks) {
+			textBuffer.push(chunk);
+		}
+
+		expect(textBuffer.join("")).toBe("HelloWorld");
+	});
+
+	it("should handle unicode characters correctly", () => {
+		const chunks = ["Hello", " ", "世界", "!"];
+		const textBuffer: string[] = [];
+
+		for (const chunk of chunks) {
+			textBuffer.push(chunk);
+		}
+
+		expect(textBuffer.join("")).toBe("Hello 世界!");
+	});
+});

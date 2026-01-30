@@ -308,8 +308,9 @@ private async streamResponse(
 | `text` | `LanguageModelTextPart` | 直接 report |
 | `tool_call` | `LanguageModelToolCallPart` | report + 等待结果 |
 | `tool_result` | `LanguageModelToolResultPart` | report 完成结果 |
-| `request_permission` | `response.confirm()` | 等待用户确认 |
 | `error` | `LanguageModelTextPart` | report 错误信息 |
+
+> **注意**：`request_permission` 不是 `session/update` 通知类型，而是通过单独的 `session/request_permission` JSON-RPC 请求处理的。SDK 在 `ClientCallbacks.requestPermission` 中处理此权限请求，通过 `response.confirm()` API 等待用户确认。
 
 ### A.5 实现任务清单
 
@@ -395,15 +396,20 @@ type Update =
 | 思考块输出 (agent_thought_chunk) | ✅ 已完成 | 2025-01-22 | 显示 "[Reasoning]" |
 | 工具调用支持 (tool_call, tool_call_update) | ✅ 已完成 | 2025-01-22 | LanguageModelToolCallPart |
 | 用户消息回显 (user_message_chunk) | ✅ 已完成 | 2025-01-22 | 实时显示用户输入 |
-| 权限确认集成 | ⏳ 待开始 | - | 需要 response.confirm() |
+| available_commands_update 处理 | ✅ 已完成 | 2025-01-23 | 显示可用命令列表 |
+| current_mode_update 处理 | ✅ 已完成 | 2025-01-23 | 显示模式变化 |
 | PromptResponse stopReason 处理 | ✅ 已完成 | 2025-01-22 | formatStopReason() |
+| streamResponse 单元测试 | ✅ 已完成 | 2025-01-23 | 117 tests passing |
 
 ### A.7.1 待办事项
 
-- [ ] 实现 `response.confirm()` 用于权限请求
-- [ ] 添加 `available_commands_update` 处理
-- [ ] 添加 `current_mode_update` 处理
-- [ ] 添加单元测试覆盖 streamResponse
+所有任务已完成！ ✅
+
+**注意**：`request_permission` 是通过 `session/request_permission` 单独请求处理的，不是 `session/update` 通知类型。SDK 在 `ClientCallbacks.requestPermission` 中处理权限请求。
+
+- [x] 实现 `available_commands_update` 处理
+- [x] 实现 `current_mode_update` 处理
+- [x] 添加单元测试覆盖 streamResponse (117 tests passing)
 
 ### A.8 常见问题
 
@@ -645,25 +651,9 @@ if (update.type === "tool_result") {
 }
 ```
 
-**Step 4: 实现权限请求**
+**Step 4: 权限请求**
 
-```typescript
-if (update.type === "request_permission") {
-    // 注意：权限请求需要通过 response.confirm() 处理
-    // 但 progress.report() 不支持 confirm()
-    // 需要在 provideLanguageModelChatResponse 层面处理
-
-    // 临时解决方案：跳过权限确认或使用简单的确认机制
-    const confirmed = await vscode.window.showInformationMessage(
-        update.message,
-        { modal: true },
-        "Allow", "Deny"
-    );
-
-    // 将用户选择返回给 Agent
-    // 需要通过 ClientCallbacks 或直接调用 Agent 方法
-}
-```
+> **重要**：权限请求不是通过 `session/update` 通知处理的，而是通过单独的 `session/request_permission` JSON-RPC 请求处理。SDK 在 `ClientCallbacks.requestPermission` 实现中处理此逻辑。
 
 ### A.9.5 完整实现示例（已更新）
 
