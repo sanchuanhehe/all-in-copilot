@@ -194,10 +194,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 
 	/**
 	 * Streams the response from the agent to the progress reporter.
-	 * This properly handles:
-	 * - Streaming text output via sessionUpdate notifications
-	 * - Tool calls and tool results
-	 * - Agent thinking/reasoning
+	 * Uses typewriter effect for smooth text display.
 	 */
 	private async streamResponse(
 		session: ACPSession,
@@ -205,8 +202,51 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		progress: vscode.Progress<vscode.LanguageModelResponsePart>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		// Track accumulated text chunks for streaming
-		const textBuffer: string[] = [];
+		// Typewriter configuration
+		const CHUNK_SIZE = 3; // Characters per chunk for typewriter effect
+		const CHUNK_DELAY = 8; // ms between chunks
+
+		// Queue for text chunks to stream
+		const textQueue: string[] = [];
+		let queueResolve: (() => void) | null = null;
+
+		// Helper to add text to queue and trigger processing
+		const queueText = (text: string) => {
+			textQueue.push(text);
+			if (queueResolve) {
+				queueResolve();
+				queueResolve = null;
+			}
+		};
+
+		// Background task to stream text from queue
+		const streamTask = async () => {
+			while (!token.isCancellationRequested) {
+				// Wait for text to be available
+				while (textQueue.length === 0 && !token.isCancellationRequested) {
+					await new Promise<void>((resolve) => {
+						queueResolve = resolve;
+					});
+				}
+
+				if (token.isCancellationRequested) break;
+
+				// Process all queued text
+				while (textQueue.length > 0 && !token.isCancellationRequested) {
+					const text = textQueue.shift()!;
+					// Send in small chunks for typewriter effect
+					for (let i = 0; i < text.length; i += CHUNK_SIZE) {
+						if (token.isCancellationRequested) break;
+						const chunk = text.slice(i, i + CHUNK_SIZE);
+						progress.report(new vscode.LanguageModelTextPart(chunk));
+						await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+					}
+				}
+			}
+		};
+
+		// Start the streaming task
+		const streamPromise = streamTask();
 
 		// Register listener for session updates BEFORE calling prompt
 		const unsubscribe = this.clientManager.onSessionUpdate(session.sessionId, (update) => {
@@ -215,29 +255,18 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 
 			switch (updateData.sessionUpdate) {
 				case "agent_message_chunk": {
-					// Stream text content
+					// Add text to queue for streaming
 					const content = updateData.content;
 					if (content && "text" in content) {
-						const text = String(content.text);
-						textBuffer.push(text);
-						progress.report(new vscode.LanguageModelTextPart(text));
+						queueText(String(content.text));
 					}
-					break;
-				}
-
-				case "agent_thought_chunk": {
-					// Report thinking as a special text block
-					const thinkingText = "[Reasoning]";
-					progress.report(new vscode.LanguageModelTextPart(thinkingText));
 					break;
 				}
 
 				case "tool_call": {
 					// Report tool call for user confirmation
-					// ToolCall has toolCallId, title, and other fields
 					const toolCallId = (updateData as any).toolCallId ?? String(Date.now());
 					const title = (updateData as any).title ?? "Unknown Tool";
-					// Create tool call part with the tool name extracted from title or use default
 					const toolName = title.split(" ")[0] || "tool";
 					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, {});
 					progress.report(toolCallPart);
@@ -245,15 +274,14 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				}
 
 				case "tool_call_update": {
-					// Tool call update - could show status or result
+					// Tool call result - queue it for streaming
 					const status = (updateData as any).status;
 					if (status === "completed" || status === "success") {
-						// Tool completed, show result content if available
 						const content = (updateData as any).content;
 						if (content && Array.isArray(content)) {
 							for (const item of content) {
 								if (item && "text" in item) {
-									progress.report(new vscode.LanguageModelTextPart(String(item.text)));
+									queueText(String(item.text));
 								}
 							}
 						}
@@ -261,43 +289,8 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 					break;
 				}
 
-				case "user_message_chunk": {
-					// User message chunk (echo back for follow-along)
-					const content = updateData.content;
-					if (content && "text" in content) {
-						const text = String(content.text);
-						progress.report(new vscode.LanguageModelTextPart(text));
-					}
-					break;
-				}
-
-				case "plan": {
-					// Execution plan - show a brief indicator
-					progress.report(new vscode.LanguageModelTextPart("[Plan available]\n"));
-					break;
-				}
-
-				case "available_commands_update": {
-					// Available commands have been updated
-					const commands = (updateData as any).commands;
-					if (commands && Array.isArray(commands)) {
-						const commandsList = commands.map((c: any) => `  - ${c.name || c}: ${c.description || ""}`).join("\n");
-						progress.report(new vscode.LanguageModelTextPart(`\n[Available commands updated:\n${commandsList}]\n`));
-					}
-					break;
-				}
-
-				case "current_mode_update": {
-					// Mode has changed - show the new mode
-					const mode = (updateData as any).mode;
-					if (mode) {
-						progress.report(new vscode.LanguageModelTextPart(`\n[Mode: ${mode}]\n`));
-					}
-					break;
-				}
-
 				default:
-					// Unknown update type, ignore or log
+					// Other update types are internal, ignore in chat
 					break;
 			}
 		});
@@ -314,8 +307,13 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				return;
 			}
 
-			// Note: Content is already streamed via sessionUpdate notifications
-			// The result only contains stopReason
+			// Wait for streaming to complete
+			await streamPromise;
+
+			// Check for cancellation again after streaming
+			if (token.isCancellationRequested) {
+				return;
+			}
 
 			// Report completion with stop reason
 			const stopReasonText = this.formatStopReason(result.stopReason);
