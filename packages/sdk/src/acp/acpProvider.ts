@@ -182,6 +182,10 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 
 	/**
 	 * Streams the response from the agent to the progress reporter.
+	 * This properly handles:
+	 * - Streaming text output via sessionUpdate notifications
+	 * - Tool calls and tool results
+	 * - Agent thinking/reasoning
 	 */
 	private async streamResponse(
 		session: ACPSession,
@@ -189,31 +193,133 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		progress: vscode.Progress<vscode.LanguageModelResponsePart>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		// For streaming, we use a custom approach that captures output as it comes
-		let fullText = "";
-		let currentToolCall: { id: string; name: string; input: string } | null = null;
-		let toolCallId = 0;
+		// Track accumulated text chunks for streaming
+		const textBuffer: string[] = [];
 
-		// Send the prompt
-		const result = await session.connection.prompt({
-			sessionId: session.sessionId,
-			prompt,
+		// Register listener for session updates BEFORE calling prompt
+		const unsubscribe = this.clientManager.onSessionUpdate(session.sessionId, (update) => {
+			// Handle the update based on its type
+			const updateData = update.update;
+
+			switch (updateData.sessionUpdate) {
+				case "agent_message_chunk": {
+					// Stream text content
+					const content = updateData.content;
+					if (content && "text" in content) {
+						const text = String(content.text);
+						textBuffer.push(text);
+						progress.report(new vscode.LanguageModelTextPart(text));
+					}
+					break;
+				}
+
+				case "agent_thought_chunk": {
+					// Report thinking as a special text block
+					const thinkingText = "[Reasoning]";
+					progress.report(new vscode.LanguageModelTextPart(thinkingText));
+					break;
+				}
+
+				case "tool_call": {
+					// Report tool call for user confirmation
+					// ToolCall has toolCallId, title, and other fields
+					const toolCallId = (updateData as any).toolCallId ?? String(Date.now());
+					const title = (updateData as any).title ?? "Unknown Tool";
+					// Create tool call part with the tool name extracted from title or use default
+					const toolName = title.split(" ")[0] || "tool";
+					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, {});
+					progress.report(toolCallPart);
+					break;
+				}
+
+				case "tool_call_update": {
+					// Tool call update - could show status or result
+					const status = (updateData as any).status;
+					if (status === "completed" || status === "success") {
+						// Tool completed, show result content if available
+						const content = (updateData as any).content;
+						if (content && Array.isArray(content)) {
+							for (const item of content) {
+								if (item && "text" in item) {
+									progress.report(new vscode.LanguageModelTextPart(String(item.text)));
+								}
+							}
+						}
+					}
+					break;
+				}
+
+				case "user_message_chunk": {
+					// User message chunk (echo back for follow-along)
+					const content = updateData.content;
+					if (content && "text" in content) {
+						const text = String(content.text);
+						progress.report(new vscode.LanguageModelTextPart(text));
+					}
+					break;
+				}
+
+				case "plan": {
+					// Execution plan - show a brief indicator
+					progress.report(new vscode.LanguageModelTextPart("[Plan available]\n"));
+					break;
+				}
+
+				default:
+					// Unknown update type, ignore or log
+					break;
+			}
 		});
 
-		// Note: The SDK doesn't expose streaming directly, so we get the final result.
-		// For true streaming, we'd need to implement a custom streaming connection.
-		// For now, we report the complete response.
+		try {
+			// Send the prompt - this will trigger sessionUpdate notifications
+			const result = await session.connection.prompt({
+				sessionId: session.sessionId,
+				prompt,
+			});
 
-		// In a full implementation, we would:
-		// 1. Start the prompt asynchronously
-		// 2. Listen for session updates via sessionUpdate callback
-		// 3. Report text chunks as they arrive
-		// 4. Report tool calls when they're made
-		// 5. Report tool results when they're received
-		// 6. Report completion when done
+			// Check for cancellation
+			if (token.isCancellationRequested) {
+				return;
+			}
 
-		// For now, we'll construct a simple response from the result
-		progress.report(new vscode.LanguageModelTextPart(`[Response: ${result.stopReason}]`));
+			// Note: Content is already streamed via sessionUpdate notifications
+			// The result only contains stopReason
+
+			// Report completion with stop reason
+			const stopReasonText = this.formatStopReason(result.stopReason);
+			if (stopReasonText) {
+				progress.report(new vscode.LanguageModelTextPart(`\n${stopReasonText}`));
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			progress.report(new vscode.LanguageModelTextPart(`\nError: ${errorMessage}`));
+			throw error;
+		} finally {
+			// Clean up the listener
+			unsubscribe();
+		}
+	}
+
+	/**
+	 * Formats the stop reason for display.
+	 */
+	private formatStopReason(reason: string): string {
+		switch (reason) {
+			case "end_turn":
+				return "";
+			case "max_tokens":
+				return "[Response truncated - max tokens reached]";
+			case "max_turn_requests":
+				return "[Response truncated - max turn requests exceeded]";
+			case "refusal":
+				return "[Response refused]";
+			case "cancelled":
+				return "[Response cancelled]";
+			case "unknown":
+			default:
+				return "";
+		}
 	}
 
 	/**

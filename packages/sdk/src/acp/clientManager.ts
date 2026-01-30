@@ -206,6 +206,7 @@ export class ACPClientManager {
 	private readonly clients = new Map<string, ClientSideConnection>();
 	private readonly sessions = new Map<string, { connection: ClientSideConnection; sessionId: string }>();
 	private readonly processes = new Map<string, ChildProcess>();
+	private readonly sessionUpdateListeners = new Map<string, Set<(update: SessionNotification) => void>>();
 
 	constructor(clientInfo?: { name?: string; version?: string }) {
 		this.clientInfo = {
@@ -342,6 +343,29 @@ export class ACPClientManager {
 	}
 
 	/**
+	 * Registers a listener for session update notifications.
+	 * @param sessionId The session ID to listen to
+	 * @param listener Callback function to invoke on each update
+	 * @returns A disposable to remove the listener
+	 */
+	onSessionUpdate(sessionId: string, listener: (update: SessionNotification) => void): () => void {
+		let listeners = this.sessionUpdateListeners.get(sessionId);
+		if (!listeners) {
+			listeners = new Set();
+			this.sessionUpdateListeners.set(sessionId, listeners);
+		}
+		listeners.add(listener);
+
+		// Return unsubscribe function
+		return () => {
+			listeners?.delete(listener);
+			if (listeners?.size === 0) {
+				this.sessionUpdateListeners.delete(sessionId);
+			}
+		};
+	}
+
+	/**
 	 * Sends a prompt to an agent and returns the result.
 	 */
 	async prompt(
@@ -474,6 +498,10 @@ export class ACPClientManager {
 	private createClientImplementation(config: ACPClientConfig) {
 		const callbacks = config.callbacks ?? {};
 		const terminalIdToHandle = new Map<string, { name: string; command: string; args?: string[]; cwd?: string }>();
+		const sessionIdToConnection = new Map<string, ClientSideConnection>();
+
+		// Capture reference to sessionUpdateListeners for use in callbacks
+		const listenersMap = this.sessionUpdateListeners;
 
 		return {
 			/**
@@ -512,9 +540,26 @@ export class ACPClientManager {
 
 			/**
 			 * Handles session update notifications from the agent.
-			 * Logs message chunks to stdout.
+			 * Forwards updates to registered listeners via onSessionUpdate().
 			 */
 			async sessionUpdate(params: SessionNotification): Promise<void> {
+				// Find the session ID from the update context if available
+				// The SessionNotification structure contains session info
+				const sessionId = (params as any).sessionId ?? (params.update as any).sessionId ?? "";
+
+				// Forward to all registered listeners for this session
+				const listeners = listenersMap.get(sessionId);
+				if (listeners) {
+					for (const listener of listeners) {
+						try {
+							listener(params);
+						} catch (error) {
+							console.error(`[ACPClientManager] Error in sessionUpdate listener: ${error}`);
+						}
+					}
+				}
+
+				// Also log message chunks for debugging
 				const update = params.update;
 				if (update.sessionUpdate === "agent_message_chunk" && update.content && "text" in update.content) {
 					process.stdout.write(String(update.content.text));

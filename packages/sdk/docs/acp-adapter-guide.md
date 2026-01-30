@@ -184,6 +184,748 @@ vscode.lm.registerMcpServerDefinitionProvider(id, provider);
 
 ---
 
+## A. 架构设计：融入 VS Code Copilot 面板
+
+> 本章节描述 SDK 的目标架构设计，规划如何让 ACP Agent 无缝融入 VS Code Copilot 面板。
+
+### A.1 设计目标
+
+**核心原则**：复用 VS Code 现有 UI，通过模型切换来切换后端 Agent。
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    VS Code Copilot 面板                          │
+├─────────────────────────────────────────────────────────────────┤
+│  模型选择器                                                      │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ Anthropic Claude (default)  ▼                           │   │
+│  │ OpenAI GPT-4o              ▲                           │   │
+│  │ ✨ My ACP Agent             ▲  ← 用户选择此模型          │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  聊天内容 (复用现有 UI)                                          │
+│  ─────────────────────────────────────────────────────────────  │
+│  > Hello, help me write a function                             │
+│                                                                 │
+│  [Agent 响应]                                                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### A.2 当前架构状态
+
+| 组件 | 状态 | 说明 |
+|------|------|------|
+| `ACPProvider` (LanguageModelChatProvider) | ✅ 已完成 | 注册为语言模型提供商 |
+| `streamResponse` 流式输出 | ⚠️ 待完善 | 需要正确处理流式文本 |
+| 工具调用 (Tool Calls) | ❌ 未实现 | 需要集成 `LanguageModelChatResponse.toolCalls` |
+| 工具结果 (Tool Results) | ❌ 未实现 | 需要处理 `LanguageModelChatResponse2` |
+| ClientCallbacks | ✅ 已完成 | 终端、文件系统、权限回调 |
+
+### A.3 目标架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    VS Code Language Model API                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ ACPProvider                                              │   │
+│  │ implements LanguageModelChatProvider                     │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│         │                                                     │
+│         │ provideLanguageModelChatResponse()                  │
+│         ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ streamResponse() - 核心方法                              │   │
+│  │                                                         │   │
+│  │ 1. 发送 prompt 到 Agent                                  │   │
+│  │ 2. 接收 session/update 流                                │   │
+│  │ 3. 转换为 LanguageModelChatResponse                      │   │
+│  │    - text → LanguageModelTextPart                        │   │
+│  │    - tool_call → LanguageModelToolCallPart               │   │
+│  │    - tool_result → LanguageModelToolResultPart           │   │
+│  │ 4. 权限请求 → response.confirm()                         │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│         │                                                     │
+│         ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ ACPClientManager                                         │   │
+│  │ - ClientSideConnection (Agent Interface)                 │   │
+│  │ - ClientCallbacks (Client Interface)                     │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### A.4 核心方法：`streamResponse` 实现要求
+
+#### A.4.1 方法签名
+
+```typescript
+private async streamResponse(
+    session: ACPSession,
+    prompt: ContentBlock[],
+    progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+    token: vscode.CancellationToken
+): Promise<void>
+```
+
+#### A.4.2 处理流程
+
+```
+用户消息 → ACPProvider.provideLanguageModelChatResponse()
+                                      │
+                                      ▼
+                          streamResponse() 开始
+                                      │
+                                      ▼
+                      client.prompt() → Agent 处理
+                                      │
+                                      ▼
+                      接收 session/update 流
+         ┌────────────────────────────┼────────────────────────────┐
+         │                            │                            │
+         ▼                            ▼                            ▼
+    text 增量                 tool_call 请求               tool_result 完成
+         │                            │                            │
+         ▼                            ▼                            ▼
+  LanguageModelTextPart    LanguageModelToolCallPart    LanguageModelToolResultPart
+         │                            │                            │
+         └────────────────────────────┴────────────────────────────┘
+                                      │
+                                      ▼
+                         progress.report(part)
+                                      │
+                                      ▼
+                         处理完成或 CancellationToken
+```
+
+#### A.4.3 输出类型映射
+
+| ACP 类型 | VS Code API | 处理方式 |
+|----------|-------------|----------|
+| `text` | `LanguageModelTextPart` | 直接 report |
+| `tool_call` | `LanguageModelToolCallPart` | report + 等待结果 |
+| `tool_result` | `LanguageModelToolResultPart` | report 完成结果 |
+| `request_permission` | `response.confirm()` | 等待用户确认 |
+| `error` | `LanguageModelTextPart` | report 错误信息 |
+
+### A.5 实现任务清单
+
+#### P0 - 核心流式输出 (必须)
+
+- [ ] 实现 `streamResponse()` 正确发送 prompt
+- [ ] 接收 `session/update` 流式事件
+- [ ] 将 `text` 增量转换为 `LanguageModelTextPart`
+- [ ] 支持 `CancellationToken` 取消
+
+#### P1 - 工具调用 (重要)
+
+- [ ] 处理 `tool_call` 事件
+- [ ] 报告 `LanguageModelToolCallPart`
+- [ ] 等待工具执行结果
+- [ ] 报告 `LanguageModelToolResultPart`
+
+#### P2 - 权限确认 (增强)
+
+- [ ] 处理 `request_permission` 事件
+- [ ] 使用 `response.confirm()` 显示权限对话框
+- [ ] 将用户选择返回给 Agent
+
+#### P3 - 增强功能 (可选)
+
+- [ ] 支持 `truncated` 截断输出
+- [ ] 实现更精确的 token 计数
+- [ ] 添加详细的错误处理
+
+### A.6 关键类型定义
+
+#### A.6.1 VS Code Language Model Response 类型
+
+```typescript
+// 来自 vscode.d.ts
+interface LanguageModelChatResponse {
+    readonly stream: AsyncIterable<LanguageModelChatResponse2>;
+}
+
+interface LanguageModelChatResponse2 {
+    // 文本片段
+    readonly text?: string;
+    // 工具调用
+    readonly toolCalls?: Array<{
+        name: string;
+        input: unknown;
+    }>;
+    // 工具结果
+    readonly toolResults?: Array<{
+        callId: string;
+        name: string;
+        result: unknown;
+    }>;
+}
+
+// 通过 progress.report() 发送的类型
+type LanguageModelResponsePart =
+    | LanguageModelTextPart
+    | LanguageModelToolCallPart
+    | LanguageModelToolResultPart
+    | LanguageModelRichTextPart;
+```
+
+#### A.6.2 ACP Update 类型
+
+```typescript
+type Update =
+    | { type: "text"; content: string }
+    | { type: "tool_call"; id: string; name: string; input: unknown }
+    | { type: "tool_result"; callId: string; result: unknown }
+    | { type: "request_permission"; ... }
+    | { type: "error"; message: string }
+    | { type: "done"; reason: string };
+```
+
+### A.7 进度追踪
+
+| 任务 | 状态 | 完成日期 | 备注 |
+|------|------|----------|------|
+| streamResponse 事件系统 | ✅ 已完成 | 2025-01-22 | ACPClientManager.onSessionUpdate() |
+| sessionUpdate 监听器注册/注销 | ✅ 已完成 | 2025-01-22 | 返回 unsubscribe 函数 |
+| 文本流式输出 (agent_message_chunk) | ✅ 已完成 | 2025-01-22 | 通过 progress.report() |
+| 思考块输出 (agent_thought_chunk) | ✅ 已完成 | 2025-01-22 | 显示 "[Reasoning]" |
+| 工具调用支持 (tool_call, tool_call_update) | ✅ 已完成 | 2025-01-22 | LanguageModelToolCallPart |
+| 用户消息回显 (user_message_chunk) | ✅ 已完成 | 2025-01-22 | 实时显示用户输入 |
+| 权限确认集成 | ⏳ 待开始 | - | 需要 response.confirm() |
+| PromptResponse stopReason 处理 | ✅ 已完成 | 2025-01-22 | formatStopReason() |
+
+### A.7.1 待办事项
+
+- [ ] 实现 `response.confirm()` 用于权限请求
+- [ ] 添加 `available_commands_update` 处理
+- [ ] 添加 `current_mode_update` 处理
+- [ ] 添加单元测试覆盖 streamResponse
+
+### A.8 常见问题
+
+**Q: 是否需要创建 ChatParticipant？**
+
+A: 不需要。`LanguageModelChatProvider` 已经足够。用户选择模型后，VS Code 会自动使用对应的 provider 进行聊天。
+
+**Q: 工具调用是如何工作的？**
+
+A: 当 Agent 需要调用工具时：
+1. Agent 发送 `session/update` (tool_call)
+2. SDK 转换为 `LanguageModelToolCallPart` 通过 progress.report()
+3. VS Code 显示工具调用 UI
+4. 工具执行完成后，结果通过 `tool_result` 发送回 Agent
+
+**Q: ClientCallbacks 和 LanguageModelChatProvider 是什么关系？**
+
+A:
+- `ClientCallbacks`: 处理 Agent 主动发起的操作（终端、文件系统）
+- `LanguageModelChatProvider`: 处理用户发起的聊天请求
+- 两者独立工作，通过 `ACPClientManager` 共享连接
+
+---
+
+## A.9 streamResponse 实现细节
+
+> 本节详细描述 `streamResponse()` 方法的实现步骤和代码结构。
+
+### A.9.1 当前实现状态
+
+```typescript
+// 当前 acpProvider.ts 中的实现 (简化)
+private async streamResponse(
+    session: ACPSession,
+    prompt: ContentBlock[],
+    progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+    token: vscode.CancellationToken
+): Promise<void> {
+    // 问题：直接调用 prompt() 获取结果，没有处理流式更新
+    const result = await session.connection.prompt({
+        sessionId: session.sessionId,
+        prompt,
+    });
+    // 问题：只输出简单消息，没有正确处理各种事件类型
+    progress.report(new vscode.LanguageModelTextPart(`[Response: ${result.stopReason}]`));
+}
+```
+
+### A.9.2 目标实现
+
+```typescript
+private async streamResponse(
+    session: ACPSession,
+    prompt: ContentBlock[],
+    progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+    token: vscode.CancellationToken
+): Promise<void> {
+    // 1. 创建工具调用映射
+    const pendingToolCalls = new Map<string, { name: string; input: unknown }>();
+
+    // 2. 发送 prompt，获取异步结果
+    const promptResult = await session.connection.prompt({
+        sessionId: session.sessionId,
+        prompt,
+    });
+
+    // 3. 注意：当前 SDK 的 prompt() 返回最终结果
+    // 需要使用 streamPrompt() 或监听 session/update 事件来获取增量更新
+
+    // 4. 处理流式更新（需要 SDK 支持 sessionUpdate 回调）
+    // 这是当前实现缺失的关键部分
+
+    // 5. 对于工具调用，需要：
+    // - 报告 toolCallPart
+    // - 等待工具执行结果
+    // - 报告 toolResultPart
+
+    // 6. 将结果转换为 LanguageModelChatResponse2
+    const response2: vscode.LanguageModelChatResponse2 = {
+        // ... 根据结果填充
+    };
+
+    // 7. 通过 stream 返回
+    return {
+        stream: (async function*() {
+            yield response2;
+        })()
+    };
+}
+```
+
+### A.9.3 SDK 架构分析
+
+**重要发现**：SDK v0.13.1 的 `ClientSideConnection` 没有 `streamPrompt()` 方法！
+
+```typescript
+// 当前 SDK 的 ClientSideConnection 接口
+interface ClientSideConnection {
+    initialize(params): Promise<InitializeResponse>;
+    newSession(params): Promise<NewSessionResponse>;
+    prompt(params): Promise<PromptResponse>;  // 阻塞，返回最终结果
+    cancel(params): Promise<void>;
+    // 注意：没有 streamPrompt() 方法！
+}
+```
+
+**正确的实现方式**：
+1. `ClientSideConnection` 通过 `toClient` 函数接收一个 `Client` 接口实现
+2. `Client` 接口包含 `sessionUpdate()` 方法，用于接收 Agent 的流式更新通知
+3. 我们需要：
+   - 实现一个 `Client` 对象，包含 `sessionUpdate` 方法
+   - 将流式更新转发给 `ACPProvider`
+   - 在 `streamResponse()` 中监听这些更新并报告给 `progress`
+
+### A.9.4 实现步骤
+
+**Step 1: 理解通知机制**
+
+```typescript
+// SDK 架构
+new ClientSideConnection(
+    toClient: (agent: Agent) => Client,  // 提供 Client 实现
+    stream: Stream                       // 通信流
+);
+
+// Client 接口（SDK 定义）
+interface Client {
+    sessionUpdate(params: SessionNotification): Promise<void>;  // ← 接收通知
+    requestPermission(params): Promise<RequestPermissionResponse>;
+    // ...
+}
+```
+
+**Step 2: 实现事件转发系统**
+
+```typescript
+// ACPClientManager 需要：
+// 1. 维护一个 update 监听器映射
+// 2. 在 Client.sessionUpdate() 中调用对应的监听器
+// 3. 提供 registerUpdateListener() 方法供 ACPProvider 使用
+```
+
+**Step 3: 在 streamResponse() 中使用**
+
+```typescript
+private async streamResponse(
+    session: ACPSession,
+    prompt: ContentBlock[],
+    progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+    token: vscode.CancellationToken
+): Promise<void> {
+    // 1. 注册更新监听器
+    const updateHandler = (update: SessionNotification) => {
+        // 将 update 转换为 LanguageModelResponsePart
+        // 通过 progress.report() 发送
+    };
+    this.clientManager.onSessionUpdate(session.sessionId, updateHandler);
+
+    // 2. 发送 prompt（阻塞，等待整个 turn 完成）
+    const result = await session.connection.prompt({
+        sessionId: session.sessionId,
+        prompt,
+    });
+
+    // 3. 注销监听器
+    this.clientManager.offSessionUpdate(session.sessionId, updateHandler);
+}
+```
+
+### A.9.5 完整事件流
+
+```
+用户发送消息
+        │
+        ▼
+ACPProvider.provideLanguageModelChatResponse()
+        │
+        ▼
+streamResponse() 注册监听器
+        │
+        ▼
+connection.prompt() ────────→ Agent 处理
+        │                            │
+        │                            ▼
+        │                     Agent 发送 session/update 通知
+        │                            │
+        │                            ▼
+        │                     Client.sessionUpdate() 接收
+        │                            │
+        │                            ▼
+        │                     调用监听器
+        │                            │
+        ▼                            ▼
+监听器处理更新 ◀────────────────────┘
+        │
+        ▼
+progress.report(LanguageModelResponsePart)
+        │
+        ▼
+VS Code UI 显示增量更新
+```
+
+**Step 2: 实现文本流式输出**
+
+```typescript
+if (update.type === "text" || update.type === "text_delta") {
+    const textPart = new vscode.LanguageModelTextPart(update.content);
+    progress.report(textPart);
+}
+```
+
+**Step 3: 实现工具调用处理**
+
+```typescript
+if (update.type === "tool_call") {
+    // 报告工具调用
+    const toolCallPart = new vscode.LanguageModelToolCallPart(
+        update.id,
+        update.name,
+        update.input
+    );
+    progress.report(toolCallPart);
+
+    // 等待工具执行结果
+    // 注意：工具执行由 ClientCallbacks 处理
+    // 结果会通过另一个 update 事件返回
+}
+
+if (update.type === "tool_result") {
+    // 报告工具结果
+    const toolResultPart = new vscode.LanguageModelToolResultPart([
+        {
+            callId: update.callId,
+            name: update.toolName,
+            result: update.result
+        }
+    ]);
+    progress.report(toolResultPart);
+}
+```
+
+**Step 4: 实现权限请求**
+
+```typescript
+if (update.type === "request_permission") {
+    // 注意：权限请求需要通过 response.confirm() 处理
+    // 但 progress.report() 不支持 confirm()
+    // 需要在 provideLanguageModelChatResponse 层面处理
+
+    // 临时解决方案：跳过权限确认或使用简单的确认机制
+    const confirmed = await vscode.window.showInformationMessage(
+        update.message,
+        { modal: true },
+        "Allow", "Deny"
+    );
+
+    // 将用户选择返回给 Agent
+    // 需要通过 ClientCallbacks 或直接调用 Agent 方法
+}
+```
+
+### A.9.5 完整实现示例（已更新）
+
+以下是基于 SDK 实际实现的代码示例：
+
+```typescript
+private async streamResponse(
+    session: ACPSession,
+    prompt: ContentBlock[],
+    progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+    token: vscode.CancellationToken
+): Promise<void> {
+    // 跟踪已流式传输的文本块，避免重复
+    const textBuffer: string[] = [];
+
+    // 注册 sessionUpdate 监听器（在调用 prompt 之前）
+    const unsubscribe = this.clientManager.onSessionUpdate(
+        session.sessionId,
+        (update: SessionNotification) => {
+            const updateData = update.update;
+
+            switch (updateData.sessionUpdate) {
+                case "agent_message_chunk": {
+                    // 流式文本输出
+                    const content = updateData.content;
+                    if (content && "text" in content) {
+                        const text = String(content.text);
+                        textBuffer.push(text);
+                        progress.report(new vscode.LanguageModelTextPart(text));
+                    }
+                    break;
+                }
+
+                case "agent_thought_chunk": {
+                    // 思考块输出
+                    progress.report(new vscode.LanguageModelTextPart("[Reasoning]"));
+                    break;
+                }
+
+                case "tool_call": {
+                    // 工具调用通知
+                    const toolCallId = (updateData as any).toolCallId ?? String(Date.now());
+                    const title = (updateData as any).title ?? "Unknown Tool";
+                    const toolName = title.split(" ")[0] || "tool";
+                    progress.report(new vscode.LanguageModelToolCallPart(toolCallId, toolName, {}));
+                    break;
+                }
+
+                case "tool_call_update": {
+                    // 工具调用状态更新
+                    const status = (updateData as any).status;
+                    if (status === "completed" || status === "success") {
+                        const content = (updateData as any).content;
+                        if (content && Array.isArray(content)) {
+                            for (const item of content) {
+                                if (item && "text" in item) {
+                                    progress.report(new vscode.LanguageModelTextPart(String(item.text)));
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+
+                case "user_message_chunk": {
+                    // 用户消息回显
+                    const content = updateData.content;
+                    if (content && "text" in content) {
+                        progress.report(new vscode.LanguageModelTextPart(String(content.text)));
+                    }
+                    break;
+                }
+
+                case "plan": {
+                    // 执行计划通知
+                    progress.report(new vscode.LanguageModelTextPart("[Plan available]\n"));
+                    break;
+                }
+
+                default:
+                    // 未知更新类型，忽略
+                    break;
+            }
+        }
+    );
+
+    try {
+        // 调用 prompt（阻塞，等待整个 turn 完成）
+        // 流式更新通过 sessionUpdate 监听器实时传递
+        const result = await session.connection.prompt({
+            sessionId: session.sessionId,
+            prompt,
+        });
+
+        if (token.isCancellationRequested) {
+            return;
+        }
+
+        // 报告完成原因
+        const stopReasonText = this.formatStopReason(result.stopReason);
+        if (stopReasonText) {
+            progress.report(new vscode.LanguageModelTextPart(`\n${stopReasonText}`));
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress.report(new vscode.LanguageModelTextPart(`\nError: ${errorMessage}`));
+        throw error;
+    } finally {
+        // 清理监听器
+        unsubscribe();
+    }
+}
+
+private formatStopReason(reason: string): string {
+    switch (reason) {
+        case "end_turn":
+            return "";
+        case "max_tokens":
+            return "[Response truncated - max tokens reached]";
+        case "max_turn_requests":
+            return "[Response truncated - max turn requests exceeded]";
+        case "refusal":
+            return "[Response refused]";
+        case "cancelled":
+            return "[Response cancelled]";
+        default:
+            return "";
+    }
+}
+```
+
+### A.9.6 事件流时序图
+
+```
+用户发送消息
+        │
+        ▼
+┌───────────────────────────────────────────────────────────────┐
+│ ACPProvider.provideLanguageModelChatResponse()                │
+│   1. 获取/创建连接                                              │
+│   2. 获取/创建会话                                              │
+│   3. 调用 streamResponse()                                     │
+└────────────────────────────┬──────────────────────────────────┘
+                             │
+                             ▼
+┌───────────────────────────────────────────────────────────────┐
+│ streamResponse()                                              │
+│   1. 调用 clientManager.onSessionUpdate() 注册监听器          │
+│   2. 调用 connection.prompt() 发送消息                         │
+└────────────────────────────┬──────────────────────────────────┘
+                             │
+                             ▼
+        ┌────────────────────┼────────────────────┐
+        │                    │                    │
+        ▼                    ▼                    ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────────┐
+│ Agent 处理    │   │ Agent 发送    │   │ Client 接收       │
+│ 用户消息      │   │ session/update│   │ sessionUpdate()   │
+└───────────────┘   └───────┬───────┘   └─────────┬─────────┘
+                            │                     │
+                            │                     ▼
+                            │           ┌───────────────────┐
+                            │           │ 遍历 listeners    │
+                            │           │ 调用每个监听器    │
+                            │           └─────────┬─────────┘
+                            │                     │
+                            └─────────────────────┤
+                                                  │
+                                                  ▼
+                                ┌───────────────────────────────┐
+                                │ updateHandler()               │
+                                │ - 解析 update 类型            │
+                                │ - 转换为 LanguageModelResponsePart │
+                                │ - progress.report()           │
+                                └───────────────────────────────┘
+                                                  │
+                                                  ▼
+                                ┌───────────────────────────────┐
+                                │ VS Code UI 显示增量更新       │
+                                └───────────────────────────────┘
+
+        ┌───────────────────────────────────────────────────────┐
+        │ connection.prompt() 返回 (turn 结束)                 │
+        │   - result.stopReason                                │
+        │   - 无 content (内容已通过 sessionUpdate 传输)       │
+        └────────────────────────────┬──────────────────────────┘
+                                     │
+                                     ▼
+                     ┌───────────────────────────────┐
+                     │ 报告 stopReason               │
+                     │ 注销监听器 (unsubscribe)      │
+                     └───────────────────────────────┘
+```
+
+### A.9.7 关键实现点
+
+1. **事件监听模式**：SDK 不提供 `streamPrompt()` 方法，而是通过 `Client.sessionUpdate()` 回调接收流式更新
+
+2. **ACPClientManager 事件系统**：
+   - `sessionUpdateListeners: Map<string, Set<Listener>>` - 按 sessionId 存储监听器
+   - `onSessionUpdate(sessionId, listener)` - 注册监听器，返回注销函数
+   - 在 `Client.sessionUpdate()` 中调用所有注册的监听器
+
+3. **PromptResponse 不包含 content**：ACP 协议中 `PromptResponse` 只有 `stopReason`，所有内容通过 `sessionUpdate` 传输
+
+4. **类型转换**：需要将 ACP 的 `SessionNotification.update` 转换为 VS Code 的 `LanguageModelResponsePart`
+
+### A.9.8 注意事项
+
+- **监听器注册时机**：必须在调用 `prompt()` 之前注册监听器，否则会丢失初始更新
+- **监听器注销**：使用 `finally` 块确保监听器被正确注销，避免内存泄漏
+- **取消处理**：检查 `CancellationToken`，如果已取消则不再处理更新
+- **重复内容检测**：使用 `textBuffer` 避免重复输出已流式传输的内容
+
+```
+                    progress.report(new vscode.LanguageModelToolResultPart([{
+                        callId: update.callId,
+                        name: update.toolName,
+                        result: update.result
+                    }]));
+                    break;
+
+                case "error":
+                    const errorPart = new vscode.LanguageModelTextPart(
+                        `Error: ${update.message}`
+                    );
+                    progress.report(errorPart);
+                    break;
+
+                case "done":
+                    // 处理完成，可以记录 stopReason
+                    console.log(`Agent finished with: ${update.reason}`);
+                    return;
+
+                default:
+                    // 忽略未知类型
+                    break;
+            }
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress.report(new vscode.LanguageModelTextPart(`Error: ${errorMessage}`));
+        throw error;
+    }
+}
+```
+
+### A.9.6 测试验证
+
+实现完成后，需要验证以下场景：
+
+| 测试场景 | 预期行为 |
+|----------|----------|
+| 简单文本回复 | 文本逐字显示，无延迟 |
+| 工具调用 | 显示工具调用卡片，用户可以看到工具名称和参数 |
+| 工具结果 | 显示工具执行结果 |
+| 权限请求 | 显示确认对话框 |
+| 取消操作 | Agent 停止处理，不再产生输出 |
+| 长响应 | 文本正确分块显示，无丢失 |
+
+---
+
 ## 3. SDK 暴露接口
 
 ### 3.1 核心类
