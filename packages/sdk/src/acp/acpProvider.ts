@@ -388,37 +388,12 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 	}
 
 	/**
-	 * Decodes UTF-8 bytes to string (pure JS implementation).
+	 * Decodes UTF-8 bytes to string using TextDecoder.
 	 */
 	private decodeUtf8(bytes: number[]): string {
-		let result = "";
-		for (let i = 0; i < bytes.length; ) {
-			const byte = bytes[i];
-			let charCount = 0;
-			let codepoint = 0;
-
-			if (byte < 0x80) {
-				codepoint = byte;
-				charCount = 1;
-			} else if (byte < 0xe0) {
-				codepoint = byte & 0x1f;
-				charCount = 2;
-			} else if (byte < 0xf0) {
-				codepoint = byte & 0x0f;
-				charCount = 3;
-			} else {
-				codepoint = byte & 0x07;
-				charCount = 4;
-			}
-
-			for (let j = 1; j < charCount; j++) {
-				codepoint = (codepoint << 6) | (bytes[i + j] & 0x3f);
-			}
-
-			result += String.fromCodePoint(codepoint);
-			i += charCount;
-		}
-		return result;
+		const decoder = new TextDecoder("utf-8");
+		const uint8Array = new Uint8Array(bytes);
+		return decoder.decode(uint8Array);
 	}
 
 	/**
