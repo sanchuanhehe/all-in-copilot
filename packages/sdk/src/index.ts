@@ -62,6 +62,8 @@ export {
   processAnthropicStream,
   // Request building
   buildRequestBody,
+  buildRequest,
+  ensureValidMessageOrder,
   // Token estimation
   estimateTokens,
   estimateMessageTokens,

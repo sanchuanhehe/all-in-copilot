@@ -2,6 +2,7 @@
   "name": "@all-in-copilot/sdk",
   "version": "1.0.0",
   "description": "Core SDK for LLM providers - Uses official OpenAI and Anthropic SDKs",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

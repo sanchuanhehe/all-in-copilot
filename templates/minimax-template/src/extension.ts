@@ -16,14 +16,11 @@ import type {
 import {
   type ModelConfig,
   type VsCodeMessage,
-  convertToOpenAI,
-  convertToAnthropic,
-  convertToolsToOpenAI,
-  convertToolsToAnthropic,
   processOpenAIStream,
   processAnthropicStream,
   fetchModelsFromAPI,
   estimateTokens,
+  buildRequest,
 } from '@all-in-copilot/sdk';
 import { PROVIDER_CONFIG, FALLBACK_MODELS, filterModels } from './config';
 
@@ -124,10 +121,19 @@ class ExtensionProvider implements LanguageModelChatProvider {
       throw new Error('API key not configured');
     }
 
-    // Build request based on API mode
-    const requestBody = this.buildRequest(model, messages, options) as Record<string, unknown>;
+    // Build request using SDK helper
+    const requestBody = buildRequest(
+      PROVIDER_CONFIG.apiMode,
+      model.id,
+      messages as unknown as readonly VsCodeMessage[],
+      options.tools,
+      model.maxOutputTokens
+    );
 
     // Make streaming request with error handling
+    const controller = new AbortController();
+    token.onCancellationRequested(() => controller.abort());
+
     let response: Response;
     try {
       response = await fetch(PROVIDER_CONFIG.baseUrl, {
@@ -181,102 +187,6 @@ class ExtensionProvider implements LanguageModelChatProvider {
       }
       throw new Error(`Failed to process response: ${errorMessage}`);
     }
-  }
-
-  /**
-   * Build request body based on API mode
-   */
-  private buildRequest(
-    model: LanguageModelChatInformation,
-    messages: readonly LanguageModelChatRequestMessage[],
-    options: ProvideLanguageModelChatResponseOptions
-  ): object {
-    const vsMessages = messages as unknown as readonly VsCodeMessage[];
-
-    if (PROVIDER_CONFIG.apiMode === 'anthropic') {
-      const { system, messages: anthropicMessages } = convertToAnthropic(vsMessages);
-      const tools = convertToolsToAnthropic(options.tools);
-
-      // Filter out messages with empty content (some providers don't accept them)
-      const validMessages = anthropicMessages.filter(msg => {
-        if (Array.isArray(msg.content)) {
-          return msg.content.length > 0;
-        }
-        return true;
-      });
-
-      // Ensure alternating user/assistant pattern and starts with user
-      // This is required by Anthropic API
-      const finalMessages = this.ensureValidMessageOrder(validMessages);
-
-      // Build base request - only include fields that have values
-      const request: Record<string, unknown> = {
-        model: model.id,
-        messages: finalMessages,
-        max_tokens: model.maxOutputTokens,
-        stream: true,
-      };
-
-      // Only add system if not empty
-      if (system) {
-        request.system = system;
-      }
-
-      // Only add tools if there are any
-      if (tools && tools.length > 0) {
-        request.tools = tools;
-      }
-
-      return request;
-    } else {
-      // OpenAI format
-      const tools = convertToolsToOpenAI(options.tools);
-      const request: Record<string, unknown> = {
-        model: model.id,
-        messages: convertToOpenAI(vsMessages),
-        max_tokens: model.maxOutputTokens,
-        stream: true,
-      };
-
-      if (tools && tools.length > 0) {
-        request.tools = tools;
-      }
-
-      return request;
-    }
-  }
-
-  /**
-   * Ensure message order is valid for Anthropic API:
-   * 1. Must start with user message
-   * 2. Must alternate between user and assistant
-   */
-  private ensureValidMessageOrder(messages: Array<{role: string; content: unknown[]}>): Array<{role: string; content: unknown[]}> {
-    if (messages.length === 0) {
-      return [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }];
-    }
-
-    const result: Array<{role: string; content: unknown[]}> = [];
-
-    // Ensure first message is user
-    if (messages[0].role !== 'user') {
-      result.push({ role: 'user', content: [{ type: 'text', text: '(continue)' }] });
-    }
-
-    for (const msg of messages) {
-      // If the last message in result has the same role, merge or skip
-      if (result.length > 0 && result[result.length - 1].role === msg.role) {
-        // Merge content
-        const lastMsg = result[result.length - 1];
-        if (Array.isArray(lastMsg.content) && Array.isArray(msg.content)) {
-          lastMsg.content.push(...msg.content);
-        }
-      } else {
-        result.push({ ...msg, content: [...(msg.content as unknown[])] });
-      }
-    }
-
-    return result;
   }
 
   /**

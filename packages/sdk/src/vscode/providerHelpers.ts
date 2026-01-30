@@ -842,3 +842,112 @@ export function estimateTokens(text: string): number {
 export function estimateMessageTokens(message: VsCodeMessage): number {
   return Math.ceil(JSON.stringify(message).length / 4);
 }
+
+// ============================================================================
+// Message Order Validation
+// ============================================================================
+
+/**
+ * Anthropic API has strict requirements for message order:
+ * 1. Must start with a user message
+ * 2. Must alternate between user and assistant roles
+ *
+ * This function ensures messages meet these requirements.
+ */
+export function ensureValidMessageOrder(
+  messages: AnthropicMessage[]
+): AnthropicMessage[] {
+  if (messages.length === 0) {
+    return [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }];
+  }
+
+  const result: AnthropicMessage[] = [];
+
+  // Ensure first message is user
+  if (messages[0].role !== 'user') {
+    result.push({ role: 'user', content: [{ type: 'text', text: '(continue)' }] });
+  }
+
+  for (const msg of messages) {
+    // If the last message in result has the same role, merge or skip
+    if (result.length > 0 && result[result.length - 1].role === msg.role) {
+      // Merge content
+      const lastMsg = result[result.length - 1];
+      if (Array.isArray(lastMsg.content) && Array.isArray(msg.content)) {
+        lastMsg.content.push(...msg.content);
+      }
+    } else {
+      result.push({ ...msg, content: [...msg.content] });
+    }
+  }
+
+  return result;
+}
+
+// ============================================================================
+// Request Building for Templates
+// ============================================================================
+
+/**
+ * Build request body for templates - simplifies provider implementation
+ * This is a template-friendly wrapper around buildRequestBody that handles
+ * Anthropic-specific requirements like message ordering.
+ */
+export function buildRequest(
+  apiMode: ApiMode,
+  modelId: string,
+  messages: readonly VsCodeMessage[],
+  tools: readonly unknown[] | undefined,
+  maxTokens: number
+): Record<string, unknown> {
+  if (apiMode === 'anthropic') {
+    const { system, messages: anthropicMessages } = convertToAnthropic(messages);
+    const toolsAnthropic = convertToolsToAnthropic(tools);
+
+    // Filter out messages with empty content (some providers don't accept them)
+    const validMessages = anthropicMessages.filter(msg => {
+      if (Array.isArray(msg.content)) {
+        return msg.content.length > 0;
+      }
+      return true;
+    });
+
+    // Ensure alternating user/assistant pattern and starts with user
+    const finalMessages = ensureValidMessageOrder(validMessages);
+
+    // Build base request - only include fields that have values
+    const request: Record<string, unknown> = {
+      model: modelId,
+      messages: finalMessages,
+      max_tokens: maxTokens,
+      stream: true,
+    };
+
+    // Only add system if not empty
+    if (system) {
+      request.system = system;
+    }
+
+    // Only add tools if there are any
+    if (toolsAnthropic && toolsAnthropic.length > 0) {
+      request.tools = toolsAnthropic;
+    }
+
+    return request;
+  } else {
+    // OpenAI format
+    const toolsOpenAI = convertToolsToOpenAI(tools);
+    const request: Record<string, unknown> = {
+      model: modelId,
+      messages: convertToOpenAI(messages),
+      max_tokens: maxTokens,
+      stream: true,
+    };
+
+    if (toolsOpenAI && toolsOpenAI.length > 0) {
+      request.tools = toolsOpenAI;
+    }
+
+    return request;
+  }
+}
