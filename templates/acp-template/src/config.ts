@@ -196,5 +196,16 @@ export function getActiveAgentConfig(): AgentConfig {
         };
 }
 
-// Default active configuration
+// Default active configuration - Uses OpenCode if available
+// Note: If OpenCode is not in PATH, extension will show an error
+// To use Claude Agent SDK instead, uncomment below:
+// export const AGENT_CONFIG: AgentConfig = {
+//         id: "claude-agent",
+//         name: "Claude Agent",
+//         participantId: "claude-agent.agent",
+//         command: "npx",
+//         args: ["-y", "@anthropic-ai/claude-agent-sdk"],
+//         env: {},
+//         cwd: undefined,
+// };
 export const AGENT_CONFIG = getActiveAgentConfig();
