@@ -157,7 +157,8 @@ export function getWorkspaceFolder(): string {
 	if (workspaceFolders && workspaceFolders.length > 0) {
 		return workspaceFolders[0].uri.fsPath;
 	}
-	return "/workspace";
+	// Use home directory as fallback - /workspace might not exist
+	return process.env.HOME || "/tmp";
 }
 
 /**

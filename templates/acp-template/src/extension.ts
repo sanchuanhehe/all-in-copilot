@@ -7,6 +7,7 @@
 
 import * as vscode from "vscode";
 import { spawn, ChildProcess } from "child_process";
+import { existsSync, statSync, accessSync, constants } from "fs";
 import { ACPClientManager, ACPProvider, type ContentBlock } from "@all-in-copilot/sdk";
 import type { ACPModelInfo } from "@all-in-copilot/sdk";
 import {
@@ -65,6 +66,87 @@ function logToChannel(message: string): void {
 }
 
 /**
+ * Debug helper to check file accessibility
+ */
+function debugFileAccess(filePath: string): boolean {
+	logToChannel(`[DEBUG] Checking file: ${filePath}`);
+	
+	// Check if file exists
+	if (!existsSync(filePath)) {
+		logToChannel(`[DEBUG] ❌ File does not exist`);
+		return false;
+	}
+	logToChannel(`[DEBUG] ✓ File exists`);
+	
+	// Check if it's a file (not directory)
+	try {
+		const stats = statSync(filePath);
+		if (!stats.isFile()) {
+			logToChannel(`[DEBUG] ❌ Not a file (is directory?)`);
+			return false;
+		}
+		logToChannel(`[DEBUG] ✓ Is regular file`);
+		logToChannel(`[DEBUG] File size: ${stats.size} bytes`);
+		logToChannel(`[DEBUG] Permissions: ${stats.mode.toString(8)}`);
+	} catch (e) {
+		logToChannel(`[DEBUG] ❌ Cannot stat file: ${e}`);
+		return false;
+	}
+	
+	// Check read and execute permission
+	try {
+		accessSync(filePath, constants.R_OK);
+		logToChannel(`[DEBUG] ✓ Readable`);
+	} catch (e) {
+		logToChannel(`[DEBUG] ❌ Not readable: ${e}`);
+		return false;
+	}
+	
+	try {
+		accessSync(filePath, constants.X_OK);
+		logToChannel(`[DEBUG] ✓ Executable`);
+	} catch (e) {
+		logToChannel(`[DEBUG] ❌ Not executable: ${e}`);
+		return false;
+	}
+	
+	return true;
+}
+
+/**
+ * Debug helper to show environment
+ */
+function debugEnvironment(env: NodeJS.ProcessEnv): void {
+	logToChannel(`[DEBUG] === Environment ===`);
+	logToChannel(`[DEBUG] PATH: ${env.PATH?.substring(0, 200)}...`);
+	logToChannel(`[DEBUG] HOME: ${env.HOME || "NOT SET"}`);
+	logToChannel(`[DEBUG] USER: ${env.USER || "NOT SET"}`);
+	logToChannel(`[DEBUG] SHELL: ${env.SHELL || "NOT SET"}`);
+	logToChannel(`[DEBUG] === End Environment ===`);
+}
+
+/**
+ * Debug helper to show cwd info
+ */
+function debugCwd(cwd: string): void {
+	logToChannel(`[DEBUG] === CWD Info ===`);
+	logToChannel(`[DEBUG] CWD: ${cwd}`);
+	
+	if (!existsSync(cwd)) {
+		logToChannel(`[DEBUG] ❌ CWD does not exist`);
+		return;
+	}
+	
+	try {
+		const stats = statSync(cwd);
+		logToChannel(`[DEBUG] ✓ CWD exists (${stats.isDirectory() ? "directory" : "file"})`);
+	} catch (e) {
+		logToChannel(`[DEBUG] ❌ Cannot access CWD: ${e}`);
+	}
+	logToChannel(`[DEBUG] === End CWD Info ===`);
+}
+
+/**
  * Extension activation
  */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -109,21 +191,57 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	 */
 	async function startOpenCodeACP(): Promise<{ port: number; hostname: string }> {
 		logToChannel(`[${agentName}] Starting OpenCode ACP server...`);
+		logToChannel(`[DEBUG] Executable: ${agentCommand}`);
+		logToChannel(`[DEBUG] Args: acp --print-logs`);
+		
+		const cwd = agentCwd ?? getWorkspaceFolder();
+		logToChannel(`[DEBUG] CWD: ${cwd}`);
 
-		// Prepare environment with a unique port for this session
+		// Debug environment and file access BEFORE spawning
+		logToChannel(`[DEBUG] === Pre-spawn Debug ===`);
+		debugEnvironment(process.env);
+		debugCwd(cwd);
+		
+		const fileAccessible = debugFileAccess(agentCommand);
+		logToChannel(`[DEBUG] File accessible: ${fileAccessible ? "YES" : "NO"}`);
+		logToChannel(`[DEBUG] === End Pre-spawn Debug ===`);
+
+		// Prepare environment
 		const envWithPort = {
 			...process.env,
 			...agentEnv,
 		};
 
-		// Start OpenCode as a background process
-		opencodeProcess = spawn(agentCommand, ["acp", "--print-logs"], {
-			stdio: ["ignore", "pipe", "pipe"],
+		// Use explicit port to avoid relying on log parsing
+		const acpPort = 31000 + Math.floor(Math.random() * 10000);
+		const acpHostname = "127.0.0.1";
+		
+		logToChannel(`[DEBUG] Using explicit port: ${acpPort}`);
+		
+		// Direct spawn - no shell, no intermediate command
+		logToChannel(`[DEBUG] Spawning process directly...`);
+		
+		opencodeProcess = spawn(agentCommand, [
+			"acp", 
+			"--print-logs", 
+			"--port", acpPort.toString(), 
+			"--hostname", acpHostname
+		], {
+			stdio: ["pipe", "pipe", "pipe"],
 			env: envWithPort,
 			cwd: agentCwd ?? getWorkspaceFolder(),
 			detached: false,
 		});
 
+		// Keep stdin open to prevent the process from exiting
+		// OpenCode may exit if it detects stdin is closed
+		opencodeProcess.stdin?.on("error", () => {
+			// Ignore stdin errors - this is expected if we don't write to it
+		});
+		
+		// Prevent stdin from closing
+		opencodeProcess.stdin?.write("");
+		
 		// Log stdout/stderr to output channel
 		opencodeProcess.stdout?.on("data", (data: Buffer) => {
 			const message = data.toString().trim();
@@ -142,6 +260,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// Handle process exit
 		opencodeProcess.on("error", (error) => {
 			logToChannel(`[ERROR] Process error: ${error.message}`);
+			logToChannel(`[ERROR] Error code: ${error.code || "unknown"}`);
+			logToChannel(`[ERROR] This usually means the executable is missing or cannot be run.`);
+			logToChannel(`[ERROR] Check if ${agentCommand} exists and is executable.`);
 		});
 
 		opencodeProcess.on("exit", (code) => {
@@ -153,25 +274,63 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		});
 
 		// Wait for the server to be ready
-		// OpenCode outputs "Set CLAUDE_CODE_SSE_PORT=XXXXX" when it starts listening
+		// We specify the port explicitly, so we just wait for the server to be ready
 		const port = await new Promise<number>((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				logToChannel(`[ERROR] Timeout waiting for OpenCode ACP server to start`);
 				reject(new Error("Timeout waiting for OpenCode ACP server to start"));
 			}, 30000);
 
+			let resolved = false;
+			
+			const doResolve = (port: number, reason: string) => {
+				if (resolved) return;
+				resolved = true;
+				logToChannel(`[INFO] Server ready (${reason})`);
+				clearTimeout(timeout);
+				opencodeProcess?.stdout?.off("data", dataHandler);
+				opencodeProcess?.stderr?.off("data", stderrHandler);
+				resolve(port);
+			};
+
 			const dataHandler = (data: Buffer) => {
+				if (resolved) return;
 				const message = data.toString();
 				
-				// Look for "Set CLAUDE_CODE_SSE_PORT=XXXXX" - this is the actual port being used
-				const portMatch = message.match(/Set CLAUDE_CODE_SSE_PORT=(\d+)/);
-				if (portMatch) {
-					const port = parseInt(portMatch[1], 10);
-					logToChannel(`[INFO] Detected SSE port: ${port}`);
-					clearTimeout(timeout);
-					opencodeProcess?.stdout?.off("data", dataHandler);
-					opencodeProcess?.stderr?.off("data", dataHandler);
-					resolve(port);
+				// Check for "status=started" - server is ready
+				if (message.includes("status=started")) {
+					doResolve(acpPort, "status=started detected");
+					return;
+				}
+
+				// Check for "global event connected" - client can connect
+				if (message.includes("global event connected")) {
+					doResolve(acpPort, "global event connected");
+					return;
+				}
+				
+				// Check for "Listening on" message
+				if (message.includes("Listening on")) {
+					logToChannel(`[INFO] Server listening: ${message.trim()}`);
+				}
+			};
+
+			opencodeProcess?.stdout?.on("data", dataHandler);
+
+			// Also check stderr for ready signals
+			const stderrHandler = (data: Buffer) => {
+				if (resolved) return;
+				const message = data.toString();
+				
+				// Check for "status=started" - server is ready
+				if (message.includes("status=started")) {
+					doResolve(acpPort, "status=started (stderr)");
+					return;
+				}
+
+				// Check for "global event connected" - client can connect
+				if (message.includes("global event connected")) {
+					doResolve(acpPort, "global event connected (stderr)");
 					return;
 				}
 				
@@ -179,37 +338,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				if (message.includes("acp-command") && message.includes("setup connection")) {
 					logToChannel(`[INFO] ACP server connection setup started`);
 				}
-				
-				// Check for "status=started" - server is ready
-				if (message.includes("status=started")) {
-					logToChannel(`[INFO] Server status: started`);
-				}
-
-				// Check for "global event connected" - client can connect
-				if (message.includes("global event connected")) {
-					logToChannel(`[INFO] Global event connection established`);
-				}
-			};
-
-			opencodeProcess?.stdout?.on("data", dataHandler);
-
-			// Also check stderr for port information
-			const stderrHandler = (data: Buffer) => {
-				const message = data.toString();
-				const portMatch = message.match(/Set CLAUDE_CODE_SSE_PORT=(\d+)/);
-				if (portMatch) {
-					const port = parseInt(portMatch[1], 10);
-					logToChannel(`[INFO] Detected SSE port from stderr: ${port}`);
-					clearTimeout(timeout);
-					opencodeProcess?.stderr?.off("data", stderrHandler);
-					resolve(port);
-				}
 			};
 			opencodeProcess?.stderr?.on("data", stderrHandler);
 		});
 
 		logToChannel(`[${agentName}] OpenCode ACP server started on port ${port}`);
-		return { port, hostname: "127.0.0.1" };
+		return { port, hostname: acpHostname };
 	}
 
 	try {
