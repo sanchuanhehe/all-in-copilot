@@ -497,6 +497,9 @@ Then press F5 in VS Code to test your extension.
     // Update config.ts
     this.updateConfigTs(outputDir, config);
 
+    // Update README.md
+    this.updateReadme(outputDir, config);
+
     // Create .gitignore
     this.createGitignore(outputDir);
 
@@ -612,6 +615,48 @@ out/
 .vscode-test/
 `;
     fs.writeFileSync(path.join(outputDir, '.gitignore'), content);
+  }
+
+  private updateReadme(outputDir: string, config: ProjectConfig): void {
+    const readmePath = path.join(outputDir, 'README.md');
+
+    if (!fs.existsSync(readmePath)) {
+      // If no README exists, create a basic one
+      const content = `# ${config.displayName}
+
+${config.description}
+
+## Quick Start
+
+1. \`npm install\`
+2. \`npm run compile\`
+3. Press F5 in VS Code to test
+
+## Configuration
+
+Edit \`src/config.ts\` to customize your provider settings.
+
+## Documentation
+
+See [All-In Copilot SDK](https://github.com/sanchuanhehe/all-in-copilot) for more info.
+`;
+      fs.writeFileSync(readmePath, content);
+      return;
+    }
+
+    // Read existing README and update title/description
+    let content = fs.readFileSync(readmePath, 'utf-8');
+
+    // Update title (first markdown header)
+    content = content.replace(/^# .+/m, `# ${config.displayName}`);
+
+    // Update description if it exists
+    content = content.replace(
+      /> .+/m,
+      `> ${config.description}`
+    );
+
+    fs.writeFileSync(readmePath, content);
   }
 
   private objectToTS(obj: object, indent: number): string {
