@@ -8,7 +8,35 @@
 			"name": "Extension",
 			"type": "extensionHost",
 			"request": "launch",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-workspace-trust"
+			],
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"preLaunchTask": "esbuild: watch",
+			"postDebugTask": "esbuild: dispose",
+			"internalConsoleOptions": "neverOpen"
+		},
+		{
+			"name": "Extension (No Debug)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-workspace-trust"
+			],
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"preLaunchTask": "esbuild: production"
+		},
+		{
+			"name": "Extension (Profile)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-workspace-trust",
+				"--inspect-extensions=9339"
+			],
 			"outFiles": ["${workspaceFolder}/out/**/*.js"],
 			"preLaunchTask": "esbuild: watch"
 		}

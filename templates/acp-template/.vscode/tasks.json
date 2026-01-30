@@ -10,13 +10,27 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"problemMatcher": ["$esbuild"]
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			}
 		},
 		{
 			"label": "esbuild: production",
 			"type": "npm",
 			"script": "compile -- --production",
-			"group": "build"
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "esbuild: dispose",
+			"type": "shell",
+			"command": "echo 'Build process completed'",
+			"presentation": {
+				"reveal": "silent"
+			}
 		}
 	]
 }

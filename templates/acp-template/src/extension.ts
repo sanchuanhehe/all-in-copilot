@@ -90,18 +90,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	/**
 	 * Start OpenCode ACP server and wait for it to be ready.
-	 * OpenCode ACP runs as a TCP server.
+	 * OpenCode ACP runs as a TCP server and uses CLAUDE_CODE_SSE_PORT env var.
 	 */
 	async function startOpenCodeACP(): Promise<{ port: number; hostname: string }> {
 		console.log(`[${agentName}] Starting OpenCode ACP server...`);
 
+		// Prepare environment with a unique port for this session
+		const ssePort = 30000 + Math.floor(Math.random() * 10000);
+		const envWithPort = {
+			...process.env,
+			...agentEnv,
+			CLAUDE_CODE_SSE_PORT: ssePort.toString(),
+		};
+
 		// Start OpenCode as a background process
 		opencodeProcess = spawn(agentCommand, ["acp", "--print-logs"], {
 			stdio: ["ignore", "pipe", "pipe"],
-			env: {
-				...process.env,
-				...agentEnv,
-			},
+			env: envWithPort,
 			cwd: agentCwd ?? getWorkspaceFolder(),
 			detached: false,
 		});
@@ -132,26 +137,58 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			}
 		});
 
-		// Wait for the server to be ready and extract port from logs
-		// OpenCode will print something like "Listening on 127.0.0.1:8080"
+		// Wait for the server to be ready
+		// OpenCode uses CLAUDE_CODE_SSE_PORT environment variable for the port
 		const port = await new Promise<number>((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				reject(new Error("Timeout waiting for OpenCode ACP server to start"));
-			}, 10000);
+			}, 15000);
 
 			const dataHandler = (data: Buffer) => {
 				const message = data.toString();
-				// Look for port information in the output
-				const portMatch = message.match(/Listening on .*:(\d+)/);
-				if (portMatch) {
-					const port = parseInt(portMatch[1], 10);
+				// Check if the port is being used (from SSE_PORT env var or logs)
+				if (message.includes("Set CLAUDE_CODE_SSE_PORT=") || message.includes("Listening on")) {
+					// Try to extract port from environment or parse from log
+					const portMatch = message.match(/CLAUDE_CODE_SSE_PORT=(\d+)/);
+					if (portMatch) {
+						const port = parseInt(portMatch[1], 10);
+						clearTimeout(timeout);
+						opencodeProcess?.stdout?.off("data", dataHandler);
+						resolve(port);
+						return;
+					}
+
+					// Fallback: parse from "Listening on 127.0.0.1:8080"
+					const listenMatch = message.match(/Listening on .*:(\d+)/);
+					if (listenMatch) {
+						const port = parseInt(listenMatch[1], 10);
+						clearTimeout(timeout);
+						opencodeProcess?.stdout?.off("data", dataHandler);
+						resolve(port);
+					}
+				}
+
+				// Check if server is ready (OpenCode might print other indicators)
+				if (message.includes("ACP") && message.includes("ready")) {
+					// Use the port we set in environment variable
 					clearTimeout(timeout);
 					opencodeProcess?.stdout?.off("data", dataHandler);
-					resolve(port);
+					resolve(ssePort);
 				}
 			};
 
 			opencodeProcess?.stdout?.on("data", dataHandler);
+
+			// Also check stderr for ready signals
+			const stderrHandler = (data: Buffer) => {
+				const message = data.toString();
+				if (message.includes("ACP") && message.includes("ready")) {
+					clearTimeout(timeout);
+					opencodeProcess?.stderr?.off("data", stderrHandler);
+					resolve(ssePort);
+				}
+			};
+			opencodeProcess?.stderr?.on("data", stderrHandler);
 		});
 
 		console.log(`[${agentName}] OpenCode ACP server started on port ${port}`);
