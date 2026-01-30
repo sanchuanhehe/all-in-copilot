@@ -80,6 +80,14 @@ export const FALLBACK_MODELS: ModelConfig[] = [
 		supportsTools: true,
 		supportsVision: false,
 	},
+	{
+		id: "kimi-k2.5",
+		name: "Kimi K2.5",
+		maxInputTokens: 246144,
+		maxOutputTokens: 16000,
+		supportsTools: true,
+		supportsVision: false,
+	},
 ];
 
 /**
