@@ -30,8 +30,8 @@ export const PROVIDER_CONFIG: ProviderConfig = {
 
 	// Option 2: Anthropic-compatible API (GLM Coding Plan)
 	// Uncomment below and comment above to use GLM Coding Plan
-	baseUrl: 'https://open.bigmodel.cn/api/anthropic/v1/messages',
-	apiMode: 'anthropic',
+	baseUrl: "https://open.bigmodel.cn/api/anthropic/v1/messages",
+	apiMode: "anthropic",
 
 	// Capabilities
 	supportsTools: true,

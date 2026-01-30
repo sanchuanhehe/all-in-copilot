@@ -55,6 +55,50 @@ const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TIMEOUT = 30000;
 
 /**
+ * Model cache interface (used by templates)
+ */
+export interface ModelCache {
+	models: ModelConfig[] | null;
+	lastFetch: number;
+}
+
+/**
+ * Fetch models from API with caching support (for templates)
+ */
+export async function fetchModelsFromAPI(
+	baseUrl: string,
+	apiKey: string,
+	provider: ProviderConfig,
+	cache: ModelCache,
+	timeout?: number
+): Promise<ModelConfig[]> {
+	const now = Date.now();
+	const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+	// Return cached if valid
+	if (cache.models && now - cache.lastFetch < CACHE_TTL) {
+		return cache.models;
+	}
+
+	try {
+		const models = await fetchModels(provider, {
+			apiKey,
+			timeout: timeout ?? DEFAULT_TIMEOUT,
+		});
+		cache.models = models;
+		cache.lastFetch = now;
+		return models;
+	} catch (error) {
+		// Return cached on error if available
+		if (cache.models) {
+			console.warn("Failed to refresh models, using cached:", error);
+			return cache.models;
+		}
+		throw error;
+	}
+}
+
+/**
  * Fetch models from a provider
  */
 export async function fetchModels(provider: ProviderConfig, options: ModelFetchOptions): Promise<ModelConfig[]> {

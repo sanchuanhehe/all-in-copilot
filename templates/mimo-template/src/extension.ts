@@ -48,7 +48,7 @@ class ExtensionProvider implements LanguageModelChatProvider {
 	 */
 	dispose(): void {
 		this.statusBar.dispose();
-		this.disposables.forEach(d => d.dispose());
+		this.disposables.forEach((d) => d.dispose());
 		this.disposables = [];
 	}
 
@@ -240,12 +240,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register management command
 	const manageCommand = vscode.commands.registerCommand(`${PROVIDER_CONFIG.id}.manage`, async () => {
-		const action = await vscode.window.showQuickPick(
-			["Configure API Key", "Delete API Key", "View Provider Info"],
-			{
-				placeHolder: `Manage ${PROVIDER_CONFIG.name}`,
-			}
-		);
+		const action = await vscode.window.showQuickPick(["Configure API Key", "Delete API Key", "View Provider Info"], {
+			placeHolder: `Manage ${PROVIDER_CONFIG.name}`,
+		});
 
 		if (action === "Configure API Key") {
 			const apiKey = await vscode.window.showInputBox({

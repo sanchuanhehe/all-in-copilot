@@ -48,7 +48,7 @@ class ExtensionProvider implements LanguageModelChatProvider {
 	 */
 	dispose(): void {
 		this.statusBar.dispose();
-		this.disposables.forEach(d => d.dispose());
+		this.disposables.forEach((d) => d.dispose());
 		this.disposables = [];
 	}
 
@@ -122,9 +122,14 @@ class ExtensionProvider implements LanguageModelChatProvider {
 			throw new Error("API key not configured");
 		}
 
+		// Determine which API format to use
+		const apiMode = PROVIDER_CONFIG.apiMode === "gemini" || PROVIDER_CONFIG.apiMode === "ollama"
+			? "openai"
+			: PROVIDER_CONFIG.apiMode;
+
 		// Build request using SDK helper
 		const requestBody = buildRequest(
-			PROVIDER_CONFIG.apiMode,
+			apiMode,
 			model.id,
 			messages as unknown as readonly VsCodeMessage[],
 			options.tools,
@@ -142,7 +147,7 @@ class ExtensionProvider implements LanguageModelChatProvider {
 				headers: {
 					"Content-Type": "application/json",
 					// Use appropriate auth header based on API mode
-					...(PROVIDER_CONFIG.apiMode === "anthropic"
+					...(apiMode === "anthropic"
 						? {
 								"x-api-key": apiKey,
 								"anthropic-version": "2023-06-01",
@@ -167,7 +172,6 @@ class ExtensionProvider implements LanguageModelChatProvider {
 		}
 
 		// Process streaming response using SDK helpers with error handling
-		const apiMode = PROVIDER_CONFIG.apiMode;
 		const processStream = apiMode === "anthropic" ? processAnthropicStream : processOpenAIStream;
 
 		try {
@@ -240,12 +244,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register management command
 	const manageCommand = vscode.commands.registerCommand(`${PROVIDER_CONFIG.id}.manage`, async () => {
-		const action = await vscode.window.showQuickPick(
-			["Configure API Key", "Delete API Key", "View Provider Info"],
-			{
-				placeHolder: `Manage ${PROVIDER_CONFIG.name}`,
-			}
-		);
+		const action = await vscode.window.showQuickPick(["Configure API Key", "Delete API Key", "View Provider Info"], {
+			placeHolder: `Manage ${PROVIDER_CONFIG.name}`,
+		});
 
 		if (action === "Configure API Key") {
 			const apiKey = await vscode.window.showInputBox({

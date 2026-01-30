@@ -1,6 +1,6 @@
 /**
  * Provider exports
- * Using official OpenAI and Anthropic SDKs
+ * Using official OpenAI, Anthropic SDKs
  */
 
 export { OpenAIProvider } from "./openaiProvider";
