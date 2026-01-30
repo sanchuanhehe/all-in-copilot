@@ -22,17 +22,16 @@ export const PROVIDER_CONFIG: ProviderConfig = {
 	id: "glm",
 	name: "GLM (智谱AI)",
 	family: "glm",
-
+	apiKeySecret: "glm-copilot.apiKey",
 	// API configuration
 	// Option 1: OpenAI-compatible API (default)
-	baseUrl: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-	apiKeySecret: "glm-copilot.apiKey",
-	apiMode: "openai", // Use 'anthropic' for GLM Coding Plan
+	// baseUrl: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+	// apiMode: "openai", // Use 'anthropic' for GLM Coding Plan
 
 	// Option 2: Anthropic-compatible API (GLM Coding Plan)
 	// Uncomment below and comment above to use GLM Coding Plan
-	// baseUrl: 'https://open.bigmodel.cn/api/anthropic',
-	// apiMode: 'anthropic',
+	baseUrl: 'https://open.bigmodel.cn/api/anthropic/v1/messages',
+	apiMode: 'anthropic',
 
 	// Capabilities
 	supportsTools: true,
