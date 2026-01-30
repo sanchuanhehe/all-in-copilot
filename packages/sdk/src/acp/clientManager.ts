@@ -462,7 +462,13 @@ export class ACPClientManager {
 	 * Spawns an agent process with stdio communication.
 	 */
 	private spawnAgent(config: ACPClientConfig): ChildProcess {
-		const agentProcess = spawn(config.agentPath, config.agentArgs ?? [], {
+		const agentPath = config.agentPath;
+		const args = config.agentArgs ?? [];
+
+		console.log(`[ACPClientManager] Spawning agent: ${agentPath} ${args.join(" ")}`);
+		console.log(`[ACPClientManager] Working directory: ${config.cwd ?? process.cwd()}`);
+
+		const agentProcess = spawn(agentPath, args, {
 			stdio: ["pipe", "pipe", "pipe"],
 			env: {
 				...process.env,
@@ -474,11 +480,21 @@ export class ACPClientManager {
 		// Handle process errors
 		agentProcess.on("error", (error: Error) => {
 			console.error(`[ACPClientManager] Process error: ${error.message}`);
+			console.error(`[ACPClientManager] Could not spawn agent at path: ${agentPath}`);
 		});
 
 		// Log stderr for debugging
 		agentProcess.stderr?.on("data", (data: Buffer) => {
-			console.error(`[ACPClientManager] Agent stderr: ${data.toString().trim()}`);
+			const message = data.toString().trim();
+			console.error(`[ACPClientManager] Agent stderr: ${message}`);
+		});
+
+		// Log stdout for debugging (ACP uses stdout for JSON-RPC)
+		agentProcess.stdout?.on("data", (data: Buffer) => {
+			const message = data.toString().trim();
+			if (message) {
+				console.log(`[ACPClientManager] Agent stdout: ${message.substring(0, 200)}...`);
+			}
 		});
 
 		return agentProcess;

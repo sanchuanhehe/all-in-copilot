@@ -155,6 +155,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 	 */
 	private async initializeConnection(client: ClientSideConnection): Promise<InitResult> {
 		try {
+			console.log("[ACPProvider] Initializing connection with agent...");
 			const result = await client.initialize({
 				protocolVersion: 20250101 as any, // Protocol version as number
 				clientCapabilities: {
@@ -165,6 +166,8 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				},
 			});
 
+			console.log("[ACPProvider] Agent initialized successfully:", result.agentInfo);
+
 			return {
 				success: true,
 				agentInfo: {
@@ -173,9 +176,17 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				},
 			};
 		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			const errorStack = error instanceof Error ? error.stack : "";
+
+			console.error(`[ACPProvider] Initialization error: ${errorMessage}`);
+			if (errorStack) {
+				console.error(`[ACPProvider] Stack: ${errorStack}`);
+			}
+
 			return {
 				success: false,
-				error: error instanceof Error ? error.message : String(error),
+				error: errorMessage,
 			};
 		}
 	}
