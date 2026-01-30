@@ -6,13 +6,21 @@
  */
 
 import * as vscode from "vscode";
+import { spawn, ChildProcess } from "child_process";
 import {
 	ACPClientManager,
 	ACPProvider,
 	type ACPModelInfo,
 	type ContentBlock,
 } from "@all-in-copilot/sdk";
-import { AGENT_CONFIG, getACPModels, getOpenCodeConfig, getWorkspaceFolder, toACPClientConfig } from "./config";
+import {
+	AGENT_CONFIG,
+	getACPModels,
+	getOpenCodeConfig,
+	getWorkspaceFolder,
+	toACPClientConfig,
+	setRuntimeConnection,
+} from "./config";
 
 /**
  * Extension context singleton
@@ -20,6 +28,7 @@ import { AGENT_CONFIG, getACPModels, getOpenCodeConfig, getWorkspaceFolder, toAC
 let extensionContext: vscode.ExtensionContext | null = null;
 let clientManager: ACPClientManager | null = null;
 let acpProvider: ACPProvider | null = null;
+let opencodeProcess: ChildProcess | null = null;
 
 /**
  * Get the extension context (lazy initialization)
@@ -65,7 +74,83 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	console.log(`[${opencodeConfig.name}] Activating ACP extension...`);
 
+	/**
+	 * Start OpenCode ACP server and wait for it to be ready.
+	 * OpenCode ACP runs as a TCP server.
+	 */
+	async function startOpenCodeACP(): Promise<{ port: number; hostname: string }> {
+		console.log(`[${opencodeConfig.name}] Starting OpenCode ACP server...`);
+
+		// Start OpenCode as a background process
+		opencodeProcess = spawn(opencodeConfig.command, ["acp", "--print-logs"], {
+			stdio: ["ignore", "pipe", "pipe"],
+			env: {
+				...process.env,
+				...opencodeConfig.env,
+			},
+			cwd: opencodeConfig.cwd ?? getWorkspaceFolder(),
+			detached: false,
+		});
+
+		// Log stdout/stderr for debugging
+		opencodeProcess.stdout?.on("data", (data: Buffer) => {
+			const message = data.toString().trim();
+			if (message) {
+				console.log(`[${opencodeConfig.name}] ${message}`);
+			}
+		});
+
+		opencodeProcess.stderr?.on("data", (data: Buffer) => {
+			const message = data.toString().trim();
+			if (message) {
+				console.error(`[${opencodeConfig.name}] ${message}`);
+			}
+		});
+
+		// Handle process exit
+		opencodeProcess.on("error", (error) => {
+			console.error(`[${opencodeConfig.name}] Process error: ${error.message}`);
+		});
+
+		opencodeProcess.on("exit", (code) => {
+			if (code !== 0) {
+				console.error(`[${opencodeConfig.name}] Process exited with code ${code}`);
+			}
+		});
+
+		// Wait for the server to be ready and extract port from logs
+		// OpenCode will print something like "Listening on 127.0.0.1:8080"
+		const port = await new Promise<number>((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				reject(new Error("Timeout waiting for OpenCode ACP server to start"));
+			}, 10000);
+
+			const dataHandler = (data: Buffer) => {
+				const message = data.toString();
+				// Look for port information in the output
+				const portMatch = message.match(/Listening on .*:(\d+)/);
+				if (portMatch) {
+					const port = parseInt(portMatch[1], 10);
+					clearTimeout(timeout);
+					opencodeProcess?.stdout?.off("data", dataHandler);
+					resolve(port);
+				}
+			};
+
+			opencodeProcess?.stdout?.on("data", dataHandler);
+		});
+
+		console.log(`[${opencodeConfig.name}] OpenCode ACP server started on port ${port}`);
+		return { port, hostname: "127.0.0.1" };
+	}
+
 	try {
+		// Start OpenCode ACP server
+		const { port, hostname } = await startOpenCodeACP();
+
+		// Store the server connection info for later use by toACPClientConfig
+		setRuntimeConnection(hostname, port);
+
 		// Initialize the ACP client manager
 		clientManager = new ACPClientManager({
 			name: opencodeConfig.id,
@@ -75,8 +160,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// Get available models
 		const models = getACPModels();
 
-		// Create client config from agent config
-		const clientConfig = toACPClientConfig(opencodeConfig);
+		// Create client config with TCP connection details
+		const clientConfig = toACPClientConfig({
+			...opencodeConfig,
+			hostname: hostname,
+			port: port,
+		});
 
 		// Create and register the ACP provider using the SDK
 		acpProvider = new ACPProvider({
@@ -153,7 +242,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
  * Extension deactivation
  */
 export async function deactivate(): Promise<void> {
-	console.log(`[${AGENT_CONFIG.name}] Deactivating extension...`);
+	const agentName = AGENT_CONFIG?.name ?? "ACP Agent";
+	console.log(`[${agentName}] Deactivating extension...`);
 
 	// Clean up provider first
 	if (acpProvider) {
@@ -167,8 +257,15 @@ export async function deactivate(): Promise<void> {
 		clientManager = null;
 	}
 
+	// Kill OpenCode ACP process
+	if (opencodeProcess) {
+		console.log(`[${agentName}] Stopping OpenCode ACP server...`);
+		opencodeProcess.kill("SIGTERM");
+		opencodeProcess = null;
+	}
+
 	extensionContext = null;
-	console.log(`[${AGENT_CONFIG.name}] Extension deactivated`);
+	console.log(`[${agentName}] Extension deactivated`);
 }
 
 /**

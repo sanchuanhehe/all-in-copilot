@@ -22,6 +22,9 @@ async function build() {
                 conditions: ["import"],
                 logLevel: "info",
                 treeShaking: true,
+                loader: {
+                        ".ts": "ts",
+                },
         });
 
         if (isProduction) {

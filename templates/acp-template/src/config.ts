@@ -28,6 +28,10 @@ export interface AgentConfig {
         // Working directory
         cwd?: string;
 
+        // TCP connection settings (for ACP over TCP)
+        hostname?: string;
+        port?: number;
+
         // Default session mode (agent-specific)
         defaultMode?: string;
 
@@ -39,63 +43,44 @@ export interface AgentConfig {
 }
 
 /**
- * Convert AgentConfig to ACPClientConfig for SDK usage
+ * Runtime connection configuration (updated when server starts)
  */
-export function toACPClientConfig(config: AgentConfig): ACPClientConfig {
+let runtimeHostname: string | undefined;
+let runtimePort: number | undefined;
+
+/**
+ * Set runtime connection info (called by extension.ts when server starts)
+ */
+export function setRuntimeConnection(hostname: string, port: number): void {
+        runtimeHostname = hostname;
+        runtimePort = port;
+}
+
+/**
+ * Get runtime connection info
+ */
+export function getRuntimeConnection(): { hostname: string; port: number } {
         return {
-                transport: "stdio",
-                agentPath: config.command,
-                agentArgs: config.args,
-                env: config.env,
-                cwd: config.cwd,
+                hostname: runtimeHostname ?? "127.0.0.1",
+                port: runtimePort ?? 8080,
         };
 }
 
 /**
- * Pre-configured agents - Uncomment and modify as needed
+ * Convert AgentConfig to ACPClientConfig for SDK usage
  */
+export function toACPClientConfig(config: AgentConfig): ACPClientConfig {
+        // Use runtime values if available (set when ACP server starts)
+        const { hostname, port } = runtimeHostname !== undefined
+                ? { hostname: runtimeHostname, port: runtimePort ?? 8080 }
+                : { hostname: config.hostname ?? "127.0.0.1", port: config.port ?? 8080 };
 
-// Claude Code (Anthropic)
-// export const AGENT_CONFIG: AgentConfig = {
-//         id: "claude-code",
-//         name: "Claude Code",
-//         participantId: "claude-code.agent",
-//         command: "npx",
-//         args: ["-y", "@anthropic-ai/claude-agent-sdk"],
-//         defaultMode: "Primary",
-//         defaultModel: "sonnet-4-20250514",
-//         favoriteModels: ["sonnet-4-20250514", "haiku-4-20250514"],
-// };
-
-// Gemini CLI (Google)
-// export const AGENT_CONFIG: AgentConfig = {
-//         id: "gemini-cli",
-//         name: "Gemini CLI",
-//         participantId: "gemini-cli.agent",
-//         command: "npx",
-//         args: ["-y", "@google/gemini-cli"],
-//         defaultModel: "gemini-2.5-pro",
-// };
-
-// OpenAI Codex
-// export const AGENT_CONFIG: AgentConfig = {
-//         id: "openai-codex",
-//         name: "OpenAI Codex",
-//         participantId: "openai-codex.agent",
-//         command: "npx",
-//         args: ["-y", "@openai/codex"],
-// };
-
-// Custom agent example
-// export const AGENT_CONFIG: AgentConfig = {
-//         id: "my-acp-agent",
-//         name: "My ACP Agent",
-//         participantId: "my-acp-agent.agent",
-//         command: "npx",
-//         args: ["-y", "@anthropic-ai/claude-agent-sdk"],
-//         env: {},
-//         cwd: undefined, // Will use workspace folder at runtime
-// };
+        return {
+		transport: "tcp",
+		hostname,
+		port,
+	};
+}
 
 // OpenCode AI - Use system PATH to find "opencode" executable
 // Run: which opencode (or add to PATH if not found)
@@ -134,10 +119,10 @@ export function getWorkspaceFolder(): string {
 
 /**
  * Get list of available ACP models
- * Uses dynamic detection when possible
+ * Note: OpenCode currently reports a single default model.
+ * Dynamic model detection would require additional SDK support.
  */
 export function getACPModels(): ACPModelInfo[] {
-        // Version will be detected at runtime during activation
         return [
                 {
                         id: "opencode-default",
@@ -148,6 +133,17 @@ export function getACPModels(): ACPModelInfo[] {
                         supportsToolCalls: true,
                         supportsImageInput: true,
                 },
+                // OpenCode may support different model tiers in the future
+                // Uncomment and modify as needed when OpenCode adds model selection:
+                // {
+                //         id: "opencode-fast",
+                //         name: "OpenCode Fast (Lightweight)",
+                //         version: "1.0",
+                //         maxInputTokens: 100000,
+                //         maxOutputTokens: 32000,
+                //         supportsToolCalls: true,
+                //         supportsImageInput: false,
+                // },
         ];
 }
 
