@@ -10,9 +10,9 @@ import { spawn, ChildProcess } from "child_process";
 import {
 	ACPClientManager,
 	ACPProvider,
-	type ACPModelInfo,
 	type ContentBlock,
 } from "@all-in-copilot/sdk";
+import type { ACPModelInfo } from "@all-in-copilot/sdk";
 import {
 	AGENT_CONFIG,
 	getACPModels,
@@ -21,6 +21,16 @@ import {
 	toACPClientConfig,
 	setRuntimeConnection,
 } from "./config";
+
+/**
+ * Get the active agent configuration (throws if not available)
+ */
+function getAgentConfig(): NonNullable<typeof AGENT_CONFIG> {
+	if (!AGENT_CONFIG) {
+		throw new Error("Agent not configured. OpenCode may not be in PATH.");
+	}
+	return AGENT_CONFIG;
+}
 
 /**
  * Extension context singleton
@@ -242,7 +252,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
  * Extension deactivation
  */
 export async function deactivate(): Promise<void> {
-	const agentName = AGENT_CONFIG?.name ?? "ACP Agent";
+	const agentName = getAgentConfig().name;
 	console.log(`[${agentName}] Deactivating extension...`);
 
 	// Clean up provider first
@@ -278,41 +288,42 @@ async function handleChatRequest(
 	token: vscode.CancellationToken
 ): Promise<vscode.ChatResult> {
 	const userPrompt = request.prompt;
+	const agentConfig = getAgentConfig();
 
 	// Stream a response
-	response.markdown(`*Connected to ${AGENT_CONFIG.name}*\n\n`);
+	response.markdown(`*Connected to ${agentConfig.name}*\n\n`);
 	response.markdown(`Processing: "${userPrompt}"\n\n`);
 
 	if (!clientManager) {
 		response.markdown("Error: ACP client not initialized");
-		return { metadata: { agent: AGENT_CONFIG.name } };
+		return { metadata: { agent: agentConfig.name } };
 	}
 
 	try {
 		// Check for cancellation
 		if (token.isCancellationRequested) {
-			return { metadata: { agent: AGENT_CONFIG.name } };
+			return { metadata: { agent: agentConfig.name } };
 		}
 
 		// Create client connection
-		const clientConfig = toACPClientConfig(AGENT_CONFIG);
+		const clientConfig = toACPClientConfig(agentConfig);
 		const connection = await clientManager.getClient(clientConfig);
 
 		// Check for cancellation
 		if (token.isCancellationRequested) {
-			return { metadata: { agent: AGENT_CONFIG.name } };
+			return { metadata: { agent: agentConfig.name } };
 		}
 
 		// Initialize connection
 		const initResult = await clientManager.initialize(connection);
 		if (!initResult.success) {
 			response.markdown(`Failed to initialize agent: ${initResult.error}`);
-			return { metadata: { agent: AGENT_CONFIG.name } };
+			return { metadata: { agent: agentConfig.name } };
 		}
 
 		// Create session
 		const sessionResult = await clientManager.newSession(connection, {
-			cwd: AGENT_CONFIG.cwd ?? getWorkspaceFolder(),
+			cwd: agentConfig.cwd ?? getWorkspaceFolder(),
 		});
 
 		if (!sessionResult.success) {
@@ -324,7 +335,7 @@ async function handleChatRequest(
 		const sessionId = sessionResult.sessionId;
 		if (!sessionId) {
 			response.markdown("Failed to create session: No session ID returned");
-			return { metadata: { agent: AGENT_CONFIG.name } };
+			return { metadata: { agent: agentConfig.name } };
 		}
 
 		// Store session
@@ -357,7 +368,7 @@ async function handleChatRequest(
 
 	return {
 		metadata: {
-			agent: AGENT_CONFIG.name,
+			agent: agentConfig.name,
 		},
 	};
 }
@@ -366,34 +377,29 @@ async function handleChatRequest(
  * Show configuration panel for the agent
  */
 async function showConfigurationPanel(): Promise<void> {
-	interface ConfigItem {
-		label: string;
-		detail?: string;
-		action?: string;
-	}
+	const agentConfig = getAgentConfig();
 
 	const items: vscode.QuickPickItem[] = [
 		{
 			label: "$(info) Agent Information",
-			detail: `Name: ${AGENT_CONFIG.name}\nID: ${AGENT_CONFIG.id}\nCommand: ${AGENT_CONFIG.command} ${AGENT_CONFIG.args.join(" ")}`,
+			detail: `Name: ${agentConfig.name}\nID: ${agentConfig.id}\nCommand: ${agentConfig.command} ${agentConfig.args.join(" ")}`,
 		},
 		{ label: "$(refresh) Restart Agent", description: "restart" },
 		{ label: "$(debug-alt) View Logs", description: "logs" },
 	];
 
 	const selection = await vscode.window.showQuickPick(items, {
-		placeHolder: `Configure ${AGENT_CONFIG.name}`,
+		placeHolder: `Configure ${agentConfig.name}`,
 	});
 
-	if (!selection) return;
+	if (!selection) {
+		return;
+	}
 
-	switch (selection.label) {
-		case "$(refresh) Restart Agent":
-			await restartAgent();
-			break;
-		case "$(debug-alt) View Logs":
-			await showLogs();
-			break;
+	if (selection.label === "$(refresh) Restart Agent") {
+		await restartAgent();
+	} else if (selection.label === "$(debug-alt) View Logs") {
+		await showLogs();
 	}
 }
 
@@ -401,10 +407,12 @@ async function showConfigurationPanel(): Promise<void> {
  * Restart the agent connection
  */
 async function restartAgent(): Promise<void> {
-	const progress = await vscode.window.withProgress(
+	const agentConfig = getAgentConfig();
+
+	const _progress = await vscode.window.withProgress(
 		{
 			location: vscode.ProgressLocation.Notification,
-			title: `Restarting ${AGENT_CONFIG.name}...`,
+			title: `Restarting ${agentConfig.name}...`,
 			cancellable: false,
 		},
 		async () => {
@@ -420,23 +428,23 @@ async function restartAgent(): Promise<void> {
 
 				// Reinitialize
 				clientManager = new ACPClientManager({
-					name: AGENT_CONFIG.id,
+					name: agentConfig.id,
 					version: "1.0.0",
 				});
 
 				acpProvider = new ACPProvider({
 					models: getACPModels(),
-					clientConfig: toACPClientConfig(AGENT_CONFIG),
+					clientConfig: toACPClientConfig(agentConfig),
 					clientInfo: {
-						name: AGENT_CONFIG.id,
+						name: agentConfig.id,
 						version: "1.0.0",
 					},
 				});
 
-				vscode.window.showInformationMessage(`${AGENT_CONFIG.name} restarted successfully`);
+				vscode.window.showInformationMessage(`${agentConfig.name} restarted successfully`);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : "Unknown error";
-				vscode.window.showErrorMessage(`Failed to restart ${AGENT_CONFIG.name}: ${message}`);
+				vscode.window.showErrorMessage(`Failed to restart ${agentConfig.name}: ${message}`);
 			}
 		}
 	);
@@ -446,15 +454,17 @@ async function restartAgent(): Promise<void> {
  * Show agent logs
  */
 async function showLogs(): Promise<void> {
+	const agentConfig = getAgentConfig();
+
 	// Create output channel for logs
-	const outputChannel = vscode.window.createOutputChannel(AGENT_CONFIG.name);
+	const outputChannel = vscode.window.createOutputChannel(agentConfig.name);
 	outputChannel.show();
 
 	// Add header
-	outputChannel.appendLine(`=== ${AGENT_CONFIG.name} Logs ===`);
+	outputChannel.appendLine(`=== ${agentConfig.name} Logs ===`);
 	outputChannel.appendLine(`Timestamp: ${new Date().toISOString()}`);
-	outputChannel.appendLine(`Agent: ${AGENT_CONFIG.name}`);
-	outputChannel.appendLine(`Command: ${AGENT_CONFIG.command} ${AGENT_CONFIG.args.join(" ")}`);
+	outputChannel.appendLine(`Agent: ${agentConfig.name}`);
+	outputChannel.appendLine(`Command: ${agentConfig.command} ${agentConfig.args.join(" ")}`);
 	outputChannel.appendLine("");
 
 	if (clientManager) {
