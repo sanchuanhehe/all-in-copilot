@@ -16,7 +16,7 @@ export const PROVIDER_CONFIG: ProviderConfig = {
 	// Provider identity
 	id: "kimi-coding",
 	name: "Kimi (Moonshot) Coding Plan",
-	family: "kimi-coding-plan",
+	family: "kimi-coding",
 
 	// API configuration - Anthropic compatible endpoint
 	// https://platform.moonshot.cn/docs/guide/agent-support
