@@ -162,33 +162,282 @@ export function getWorkspaceFolder(): string {
 }
 
 /**
- * Get list of available ACP models
- * Note: OpenCode currently reports a single default model.
- * Dynamic model detection would require additional SDK support.
+ * Execute a command and return the output
  */
-export function getACPModels(): ACPModelInfo[] {
+function execCommand(command: string, cwd?: string): string | null {
+	try {
+		const result = execSync(command, {
+			encoding: "utf-8",
+			timeout: 10000,
+			cwd: cwd ?? process.cwd(),
+		});
+		return result.trim();
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Get model ID from OpenCode model string (e.g., "opencode/minimax-m2.1-free" -> "opencode-minimax-m2.1-free")
+ */
+function sanitizeModelId(modelId: string): string {
+	return modelId.replace(/[^a-zA-Z0-9\-/_]/g, "-");
+}
+
+/**
+ * Get human-readable name from model ID
+ */
+function getModelName(modelId: string): string {
+	// Extract the model name part after the last slash
+	const parts = modelId.split("/");
+	const namePart = parts[parts.length - 1];
+
+	// Convert to readable format
+	return namePart
+		.split("-")
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
+}
+
+/**
+ * Get provider name from model ID
+ */
+function getProviderName(modelId: string): string {
+	const parts = modelId.split("/");
+	if (parts.length >= 2) {
+		return parts[0];
+	}
+	return "opencode";
+}
+
+/**
+ * Model capability details from OpenCode verbose output
+ */
+interface OpenCodeModelCapabilities {
+	temperature: boolean;
+	reasoning: boolean;
+	attachment: boolean;
+	toolcall: boolean;
+	input: {
+		text: boolean;
+		audio: boolean;
+		image: boolean;
+		video: boolean;
+		pdf: boolean;
+	};
+	output: {
+		text: boolean;
+		audio: boolean;
+		image: boolean;
+		video: boolean;
+		pdf: boolean;
+	};
+	interleaved: boolean;
+}
+
+/**
+ * OpenCode model details from verbose output
+ */
+interface OpenCodeModelDetail {
+	id: string;
+	providerID: string;
+	name: string;
+	family: string;
+	status: string;
+	limit: {
+		context: number;
+		output: number;
+	};
+	capabilities: OpenCodeModelCapabilities;
+}
+
+/**
+ * Parse verbose model output from OpenCode
+ * Format: modelId\n{\n  "id": "...\n  ...\n}\nmodelId\n{...}
+ */
+function parseVerboseModelOutput(output: string): Map<string, OpenCodeModelDetail> {
+	const models = new Map<string, OpenCodeModelDetail>();
+	const lines = output.split("\n");
+	let currentModelId: string | null = null;
+	let currentJsonBuffer: string[] = [];
+	let inJsonBlock = false;
+	let braceDepth = 0;
+
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+
+		// Skip log messages
+		if (trimmedLine.startsWith("INFO") || trimmedLine.includes("refreshing")) {
+			continue;
+		}
+
+		// Skip empty lines
+		if (!trimmedLine) {
+			continue;
+		}
+
+		// Check if this is a model ID line (not starting with { or ")
+		if (!inJsonBlock && trimmedLine && !trimmedLine.startsWith("{") && !trimmedLine.startsWith('"')) {
+			// Save previous model if exists
+			if (currentModelId && currentJsonBuffer.length > 0) {
+				try {
+					const jsonStr = currentJsonBuffer.join("\n");
+					const detail = JSON.parse(jsonStr) as OpenCodeModelDetail;
+					models.set(currentModelId, detail);
+				} catch {
+					// Skip invalid JSON
+				}
+			}
+
+			// Start new model
+			currentModelId = trimmedLine;
+			currentJsonBuffer = [];
+			inJsonBlock = false;
+			continue;
+		}
+
+		// Track JSON block
+		if (trimmedLine === "{") {
+			inJsonBlock = true;
+			braceDepth = 1;
+			currentJsonBuffer = [trimmedLine];
+		} else if (inJsonBlock) {
+			currentJsonBuffer.push(trimmedLine);
+
+			// Track brace depth
+			for (const char of trimmedLine) {
+				if (char === "{") braceDepth++;
+				if (char === "}") braceDepth--;
+			}
+
+			// End of JSON block
+			if (braceDepth === 0) {
+				inJsonBlock = false;
+			}
+		}
+	}
+
+	// Save last model
+	if (currentModelId && currentJsonBuffer.length > 0) {
+		try {
+			const jsonStr = currentJsonBuffer.join("\n");
+			const detail = JSON.parse(jsonStr) as OpenCodeModelDetail;
+			models.set(currentModelId, detail);
+		} catch {
+			// Skip invalid JSON
+		}
+	}
+
+	return models;
+}
+
+/**
+ * Fetch available models from OpenCode CLI with verbose output
+ */
+export function fetchOpenCodeModels(): ACPModelInfo[] {
+	const opencodePath = findOpenCodePath();
+	if (!opencodePath) {
+		return getDefaultModels();
+	}
+
+	const verboseOutput = execCommand(`"${opencodePath}" models --verbose 2>/dev/null`);
+	if (!verboseOutput) {
+		return getDefaultModels();
+	}
+
+	// Parse verbose output to get model capabilities
+	const modelDetails = parseVerboseModelOutput(verboseOutput);
+
+	// Also get the simple list for any models not in verbose output
+	const simpleOutput = execCommand(`"${opencodePath}" models 2>/dev/null`);
+	const simpleLines = simpleOutput?.split("\n") ?? [];
+
+	const models: ACPModelInfo[] = [];
+
+	// Process models from verbose output
+	for (const [modelId, detail] of modelDetails.entries()) {
+		const provider = getProviderName(modelId);
+		const capabilities = detail.capabilities;
+
+		models.push({
+			id: sanitizeModelId(modelId),
+			name: `${detail.name} (${provider})`,
+			version: "1.0.0",
+			maxInputTokens: detail.limit?.context ?? 200000,
+			maxOutputTokens: detail.limit?.output ?? 64000,
+			supportsToolCalls: capabilities?.toolcall ?? true,
+			supportsImageInput: capabilities?.input?.image ?? false,
+		});
+	}
+
+	// Process any models that only appear in simple output
+	for (const line of simpleLines) {
+		const modelId = line.trim();
+		if (!modelId || modelId.startsWith("INFO") || modelId.includes("refreshing")) {
+			continue;
+		}
+		if (modelId.length < 3 || modelId.includes("service=")) {
+			continue;
+		}
+
+		// Skip if already processed from verbose output
+		if (modelDetails.has(modelId)) {
+			continue;
+		}
+
+		const provider = getProviderName(modelId);
+		const name = getModelName(modelId);
+
+		models.push({
+			id: sanitizeModelId(modelId),
+			name: `${name} (${provider})`,
+			version: "1.0.0",
+			maxInputTokens: 200000,
+			maxOutputTokens: 64000,
+			supportsToolCalls: true,
+			supportsImageInput: false,
+		});
+	}
+
+	if (models.length === 0) {
+		return getDefaultModels();
+	}
+
+	return models;
+}
+
+/**
+ * Get default models when OpenCode is not available
+ */
+function getDefaultModels(): ACPModelInfo[] {
 	return [
 		{
 			id: "opencode-default",
-			name: "OpenCode Agent",
+			name: "OpenCode Agent (Default)",
 			version: "1.0",
 			maxInputTokens: 200000,
 			maxOutputTokens: 64000,
 			supportsToolCalls: true,
 			supportsImageInput: true,
 		},
-		// OpenCode may support different model tiers in the future
-		// Uncomment and modify as needed when OpenCode adds model selection:
-		// {
-		//         id: "opencode-fast",
-		//         name: "OpenCode Fast (Lightweight)",
-		//         version: "1.0",
-		//         maxInputTokens: 100000,
-		//         maxOutputTokens: 32000,
-		//         supportsToolCalls: true,
-		//         supportsImageInput: false,
-		// },
 	];
+}
+
+/**
+ * Get list of available ACP models
+ * Dynamically fetches models from OpenCode CLI
+ */
+export function getACPModels(): ACPModelInfo[] {
+	// Try to get models from OpenCode CLI
+	const models = fetchOpenCodeModels();
+
+	// If we got models from OpenCode, return them
+	if (models.length > 1 || (models.length === 1 && models[0].id !== "opencode-default")) {
+		return models;
+	}
+
+	// Fallback to default model if no models found
+	return getDefaultModels();
 }
 
 /**
