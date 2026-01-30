@@ -134,7 +134,7 @@ describe("Message Content Extraction", () => {
 	});
 
 	it("should return null for unknown format", () => {
-		const message = { unknown: "format" };
+		const message = { unknown: "format" } as any;
 		expect(extractUserContent(message)).toBeNull();
 	});
 });
