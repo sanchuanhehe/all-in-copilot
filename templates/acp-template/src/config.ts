@@ -113,18 +113,15 @@ export function getRuntimeConnection(): { hostname: string; port: number } {
 
 /**
  * Convert AgentConfig to ACPClientConfig for SDK usage
+ * For OpenCode, we use stdio transport - the process stdin/stdout is used for ACP protocol
  */
 export function toACPClientConfig(config: AgentConfig): ACPClientConfig {
-	// Use runtime values if available (set when ACP server starts)
-	const { hostname, port } =
-		runtimeHostname !== undefined
-			? { hostname: runtimeHostname, port: runtimePort ?? 8080 }
-			: { hostname: config.hostname ?? "127.0.0.1", port: config.port ?? 8080 };
-
 	return {
-		transport: "tcp",
-		hostname,
-		port,
+		transport: "stdio",
+		agentPath: config.command,
+		agentArgs: config.args,
+		env: config.env,
+		cwd: config.cwd,
 	};
 }
 
@@ -140,7 +137,7 @@ export function getOpenCodeConfig(): AgentConfig | null {
 			name: "OpenCode Agent",
 			participantId: "opencode.agent",
 			command: opencodePath,
-			args: ["acp", "--print-logs"],
+			args: ["acp"],
 			env: {},
 			cwd: undefined, // Will use workspace folder at runtime
 		};

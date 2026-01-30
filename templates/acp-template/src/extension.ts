@@ -6,7 +6,6 @@
  */
 
 import * as vscode from "vscode";
-import { spawn, ChildProcess } from "child_process";
 import { existsSync, statSync, accessSync, constants } from "fs";
 import { ACPClientManager, ACPProvider, type ContentBlock } from "@all-in-copilot/sdk";
 import type { ACPModelInfo } from "@all-in-copilot/sdk";
@@ -16,7 +15,6 @@ import {
 	getOpenCodeConfig,
 	getWorkspaceFolder,
 	toACPClientConfig,
-	setRuntimeConnection,
 } from "./config";
 
 /**
@@ -35,7 +33,6 @@ function getAgentConfig(): NonNullable<typeof AGENT_CONFIG> {
 let extensionContext: vscode.ExtensionContext | null = null;
 let clientManager: ACPClientManager | null = null;
 let acpProvider: ACPProvider | null = null;
-let opencodeProcess: ChildProcess | null = null;
 let opencodeOutputChannel: vscode.OutputChannel | null = null;
 
 /**
@@ -63,87 +60,6 @@ function logToChannel(message: string): void {
 	const logMessage = `[${timestamp}] ${message}`;
 	console.log(logMessage);
 	opencodeOutputChannel?.appendLine(logMessage);
-}
-
-/**
- * Debug helper to check file accessibility
- */
-function debugFileAccess(filePath: string): boolean {
-	logToChannel(`[DEBUG] Checking file: ${filePath}`);
-	
-	// Check if file exists
-	if (!existsSync(filePath)) {
-		logToChannel(`[DEBUG] ❌ File does not exist`);
-		return false;
-	}
-	logToChannel(`[DEBUG] ✓ File exists`);
-	
-	// Check if it's a file (not directory)
-	try {
-		const stats = statSync(filePath);
-		if (!stats.isFile()) {
-			logToChannel(`[DEBUG] ❌ Not a file (is directory?)`);
-			return false;
-		}
-		logToChannel(`[DEBUG] ✓ Is regular file`);
-		logToChannel(`[DEBUG] File size: ${stats.size} bytes`);
-		logToChannel(`[DEBUG] Permissions: ${stats.mode.toString(8)}`);
-	} catch (e) {
-		logToChannel(`[DEBUG] ❌ Cannot stat file: ${e}`);
-		return false;
-	}
-	
-	// Check read and execute permission
-	try {
-		accessSync(filePath, constants.R_OK);
-		logToChannel(`[DEBUG] ✓ Readable`);
-	} catch (e) {
-		logToChannel(`[DEBUG] ❌ Not readable: ${e}`);
-		return false;
-	}
-	
-	try {
-		accessSync(filePath, constants.X_OK);
-		logToChannel(`[DEBUG] ✓ Executable`);
-	} catch (e) {
-		logToChannel(`[DEBUG] ❌ Not executable: ${e}`);
-		return false;
-	}
-	
-	return true;
-}
-
-/**
- * Debug helper to show environment
- */
-function debugEnvironment(env: NodeJS.ProcessEnv): void {
-	logToChannel(`[DEBUG] === Environment ===`);
-	logToChannel(`[DEBUG] PATH: ${env.PATH?.substring(0, 200)}...`);
-	logToChannel(`[DEBUG] HOME: ${env.HOME || "NOT SET"}`);
-	logToChannel(`[DEBUG] USER: ${env.USER || "NOT SET"}`);
-	logToChannel(`[DEBUG] SHELL: ${env.SHELL || "NOT SET"}`);
-	logToChannel(`[DEBUG] === End Environment ===`);
-}
-
-/**
- * Debug helper to show cwd info
- */
-function debugCwd(cwd: string): void {
-	logToChannel(`[DEBUG] === CWD Info ===`);
-	logToChannel(`[DEBUG] CWD: ${cwd}`);
-	
-	if (!existsSync(cwd)) {
-		logToChannel(`[DEBUG] ❌ CWD does not exist`);
-		return;
-	}
-	
-	try {
-		const stats = statSync(cwd);
-		logToChannel(`[DEBUG] ✓ CWD exists (${stats.isDirectory() ? "directory" : "file"})`);
-	} catch (e) {
-		logToChannel(`[DEBUG] ❌ Cannot access CWD: ${e}`);
-	}
-	logToChannel(`[DEBUG] === End CWD Info ===`);
 }
 
 /**
@@ -176,184 +92,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}
 
 	// From here on, opencodeConfig is guaranteed to be non-null
-	// Copy values for use in async functions where TypeScript can't track nullability
 	const agentName = opencodeConfig.name;
-	const agentCommand = opencodeConfig.command;
-	const agentEnv = opencodeConfig.env;
-	const agentCwd = opencodeConfig.cwd;
 	const agentId = opencodeConfig.id;
 
 	logToChannel(`[${agentName}] Activating ACP extension...`);
 
-	/**
-	 * Start OpenCode ACP server and wait for it to be ready.
-	 * OpenCode ACP runs as a TCP server and uses CLAUDE_CODE_SSE_PORT env var.
-	 */
-	async function startOpenCodeACP(): Promise<{ port: number; hostname: string }> {
-		logToChannel(`[${agentName}] Starting OpenCode ACP server...`);
-		logToChannel(`[DEBUG] Executable: ${agentCommand}`);
-		logToChannel(`[DEBUG] Args: acp --print-logs`);
-		
-		const cwd = agentCwd ?? getWorkspaceFolder();
-		logToChannel(`[DEBUG] CWD: ${cwd}`);
-
-		// Debug environment and file access BEFORE spawning
-		logToChannel(`[DEBUG] === Pre-spawn Debug ===`);
-		debugEnvironment(process.env);
-		debugCwd(cwd);
-		
-		const fileAccessible = debugFileAccess(agentCommand);
-		logToChannel(`[DEBUG] File accessible: ${fileAccessible ? "YES" : "NO"}`);
-		logToChannel(`[DEBUG] === End Pre-spawn Debug ===`);
-
-		// Prepare environment
-		const envWithPort = {
-			...process.env,
-			...agentEnv,
-		};
-
-		// Use explicit port to avoid relying on log parsing
-		const acpPort = 31000 + Math.floor(Math.random() * 10000);
-		const acpHostname = "127.0.0.1";
-		
-		logToChannel(`[DEBUG] Using explicit port: ${acpPort}`);
-		
-		// Direct spawn - no shell, no intermediate command
-		logToChannel(`[DEBUG] Spawning process directly...`);
-		
-		opencodeProcess = spawn(agentCommand, [
-			"acp", 
-			"--print-logs", 
-			"--port", acpPort.toString(), 
-			"--hostname", acpHostname
-		], {
-			stdio: ["pipe", "pipe", "pipe"],
-			env: envWithPort,
-			cwd: agentCwd ?? getWorkspaceFolder(),
-			detached: false,
-		});
-
-		// Keep stdin open to prevent the process from exiting
-		// OpenCode may exit if it detects stdin is closed
-		opencodeProcess.stdin?.on("error", () => {
-			// Ignore stdin errors - this is expected if we don't write to it
-		});
-		
-		// Prevent stdin from closing
-		opencodeProcess.stdin?.write("");
-		
-		// Log stdout/stderr to output channel
-		opencodeProcess.stdout?.on("data", (data: Buffer) => {
-			const message = data.toString().trim();
-			if (message) {
-				logToChannel(message);
-			}
-		});
-
-		opencodeProcess.stderr?.on("data", (data: Buffer) => {
-			const message = data.toString().trim();
-			if (message) {
-				logToChannel(`[STDERR] ${message}`);
-			}
-		});
-
-		// Handle process exit
-		opencodeProcess.on("error", (error) => {
-			logToChannel(`[ERROR] Process error: ${error.message}`);
-			logToChannel(`[ERROR] Error code: ${error.code || "unknown"}`);
-			logToChannel(`[ERROR] This usually means the executable is missing or cannot be run.`);
-			logToChannel(`[ERROR] Check if ${agentCommand} exists and is executable.`);
-		});
-
-		opencodeProcess.on("exit", (code) => {
-			if (code !== 0) {
-				logToChannel(`[WARN] Process exited with code ${code}`);
-			} else {
-				logToChannel(`[INFO] Process exited normally`);
-			}
-		});
-
-		// Wait for the server to be ready
-		// We specify the port explicitly, so we just wait for the server to be ready
-		const port = await new Promise<number>((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				logToChannel(`[ERROR] Timeout waiting for OpenCode ACP server to start`);
-				reject(new Error("Timeout waiting for OpenCode ACP server to start"));
-			}, 30000);
-
-			let resolved = false;
-			
-			const doResolve = (port: number, reason: string) => {
-				if (resolved) return;
-				resolved = true;
-				logToChannel(`[INFO] Server ready (${reason})`);
-				clearTimeout(timeout);
-				opencodeProcess?.stdout?.off("data", dataHandler);
-				opencodeProcess?.stderr?.off("data", stderrHandler);
-				resolve(port);
-			};
-
-			const dataHandler = (data: Buffer) => {
-				if (resolved) return;
-				const message = data.toString();
-				
-				// Check for "status=started" - server is ready
-				if (message.includes("status=started")) {
-					doResolve(acpPort, "status=started detected");
-					return;
-				}
-
-				// Check for "global event connected" - client can connect
-				if (message.includes("global event connected")) {
-					doResolve(acpPort, "global event connected");
-					return;
-				}
-				
-				// Check for "Listening on" message
-				if (message.includes("Listening on")) {
-					logToChannel(`[INFO] Server listening: ${message.trim()}`);
-				}
-			};
-
-			opencodeProcess?.stdout?.on("data", dataHandler);
-
-			// Also check stderr for ready signals
-			const stderrHandler = (data: Buffer) => {
-				if (resolved) return;
-				const message = data.toString();
-				
-				// Check for "status=started" - server is ready
-				if (message.includes("status=started")) {
-					doResolve(acpPort, "status=started (stderr)");
-					return;
-				}
-
-				// Check for "global event connected" - client can connect
-				if (message.includes("global event connected")) {
-					doResolve(acpPort, "global event connected (stderr)");
-					return;
-				}
-				
-				// Check for "acp-command setup connection" - server is initializing
-				if (message.includes("acp-command") && message.includes("setup connection")) {
-					logToChannel(`[INFO] ACP server connection setup started`);
-				}
-			};
-			opencodeProcess?.stderr?.on("data", stderrHandler);
-		});
-
-		logToChannel(`[${agentName}] OpenCode ACP server started on port ${port}`);
-		return { port, hostname: acpHostname };
-	}
-
 	try {
-		// Start OpenCode ACP server
-		const { port, hostname } = await startOpenCodeACP();
-
-		// Store the server connection info for later use by toACPClientConfig
-		setRuntimeConnection(hostname, port);
-
 		// Initialize the ACP client manager
+		// The manager will spawn OpenCode using stdio transport for ACP protocol
 		clientManager = new ACPClientManager({
 			name: agentId,
 			version: "1.0.0",
@@ -362,18 +108,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// Get available models
 		const models = getACPModels();
 
-		// Create client config with TCP connection details
-		const clientConfig = toACPClientConfig({
-			id: agentId,
-			name: agentName,
-			participantId: opencodeConfig.participantId,
-			command: agentCommand,
-			args: ["acp"],
-			env: agentEnv,
-			cwd: agentCwd,
-			hostname: hostname,
-			port: port,
-		});
+		// Create client config - SDK will spawn OpenCode using stdio transport
+		const clientConfig = toACPClientConfig(opencodeConfig);
 
 		// Create and register the ACP provider using the SDK
 		acpProvider = new ACPProvider({
@@ -444,17 +180,10 @@ export async function deactivate(): Promise<void> {
 		acpProvider = null;
 	}
 
-	// Clean up client manager
+	// Clean up client manager - this will also kill the spawned process
 	if (clientManager) {
 		await clientManager.dispose();
 		clientManager = null;
-	}
-
-	// Kill OpenCode ACP process
-	if (opencodeProcess) {
-		logToChannel(`[${agentName}] Stopping OpenCode ACP server...`);
-		opencodeProcess.kill("SIGTERM");
-		opencodeProcess = null;
 	}
 
 	extensionContext = null;

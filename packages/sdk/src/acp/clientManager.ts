@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
+import * as net from "node:net";
 import {
 	ClientSideConnection,
 	type ContentBlock,
@@ -108,19 +109,19 @@ export interface TerminalOutputResult {
  * Configuration for creating an ACP client.
  */
 export interface ACPClientConfig {
-	/** Transport type: "stdio" for spawned processes, "tcp" for TCP connections */
-	transport: "stdio" | "tcp";
+	/** Transport type: "stdio" for spawned processes, "tcp" for TCP connections, "http" for HTTP connections */
+	transport: "stdio" | "tcp" | "http";
 	/** Path to the agent executable (for stdio transport) */
 	agentPath?: string;
 	/** Arguments to pass to the agent (for stdio transport) */
 	agentArgs?: string[];
-	/** Hostname for TCP connection (for tcp transport) */
+	/** Hostname for TCP or HTTP connection */
 	hostname?: string;
-	/** Port for TCP connection (for tcp transport) */
+	/** Port for TCP or HTTP connection */
 	port?: number;
-	/** Environment variables for the agent process */
+	/** Environment variables for the agent process (for stdio transport) */
 	env?: Record<string, string>;
-	/** Working directory for the agent */
+	/** Working directory for the agent (for stdio transport) */
 	cwd?: string;
 	/** Callbacks for VS Code API integration */
 	callbacks?: ClientCallbacks;
@@ -221,16 +222,62 @@ export class ACPClientManager {
 
 	/**
 	 * Creates a new client connection to an agent.
-	 * Supports both stdio (spawned process) and tcp (direct connection) transports.
+	 * Supports stdio (spawned process), tcp (direct TCP connection), and http (HTTP API) transports.
 	 */
 	async getClient(config: ACPClientConfig): Promise<ClientSideConnection> {
 		if (config.transport === "stdio") {
 			return this.getClientStdio(config);
 		} else if (config.transport === "tcp") {
 			return this.getClientTcp(config);
+		} else if (config.transport === "http") {
+			return this.getClientHttp(config);
 		} else {
 			throw new Error(`Unsupported transport type: ${config.transport}`);
 		}
+	}
+
+	/**
+	 * Creates a new client connection via HTTP.
+	 * For remote agents that expose an HTTP API for ACP protocol.
+	 */
+	private async getClientHttp(config: ACPClientConfig): Promise<ClientSideConnection> {
+		const hostname = config.hostname ?? "127.0.0.1";
+		const port = config.port ?? 80;
+		const clientKey = `http:${hostname}:${port}`;
+
+		// Check if we already have a connection for this config
+		const existingClient = this.clients.get(clientKey);
+		if (existingClient) {
+			return existingClient;
+		}
+
+		console.log(`[ACPClientManager] Connecting to HTTP server: http://${hostname}:${port}`);
+
+		// Connect to HTTP server using TCP socket
+		const socket = await new Promise<net.Socket>((resolve, reject) => {
+			const client = net.connect(port, hostname, () => {
+				resolve(client);
+			});
+			client.on("error", reject);
+		});
+
+		// Create streams for communication
+		const writable = Writable.toWeb(socket);
+		const readable = Readable.toWeb(socket) as ReadableStream<Uint8Array>;
+
+		// Create the ACP stream using the SDK's ndJsonStream
+		const stream = ndJsonStream(writable, readable);
+
+		// Create a simple client implementation for the connection
+		const client = this.createClientImplementation(config);
+
+		// Create the ClientSideConnection
+		const connection = new ClientSideConnection(() => client, stream);
+
+		// Store the connection (no process for HTTP)
+		this.clients.set(clientKey, connection);
+
+		return connection;
 	}
 
 	/**
@@ -289,8 +336,7 @@ export class ACPClientManager {
 		console.log(`[ACPClientManager] Connecting to TCP server: ${hostname}:${port}`);
 
 		// Connect to TCP socket
-		const socket = await new Promise<import("net").Socket>((resolve, reject) => {
-			const net = require("net");
+		const socket = await new Promise<net.Socket>((resolve, reject) => {
 			const client = net.connect(port, hostname, () => {
 				resolve(client);
 			});
@@ -322,7 +368,7 @@ export class ACPClientManager {
 	async initialize(client: ClientSideConnection): Promise<InitResult> {
 		try {
 			const result = await client.initialize({
-				protocolVersion: 20250101 as any, // Protocol version as number
+				protocolVersion: 1, // Protocol version (must be <= 65535)
 				clientCapabilities: {
 					fs: {
 						readTextFile: true,

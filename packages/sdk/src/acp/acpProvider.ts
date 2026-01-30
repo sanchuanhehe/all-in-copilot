@@ -93,11 +93,11 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		try {
 			// Get or create connection
 			if (!this.connection) {
-				progress.report(new vscode.LanguageModelTextPart("Connecting to agent..."));
+				console.log("[ACPProvider] Connecting to agent...");
 				this.connection = await this.clientManager.getClient(this.options.clientConfig);
 
 				// Initialize the connection
-				progress.report(new vscode.LanguageModelTextPart("Initializing..."));
+				console.log("[ACPProvider] Initializing...");
 				const initResult = await this.initializeConnection(this.connection);
 				if (!initResult.success) {
 					throw new Error(`Failed to initialize: ${initResult.error}`);
@@ -112,7 +112,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			// Get or create session
 			let session = this.sessions.get(model.id);
 			if (!session) {
-				progress.report(new vscode.LanguageModelTextPart("Creating session..."));
+				console.log("[ACPProvider] Creating session...");
 				const sessionResult = await this.clientManager.newSession(this.connection, {
 					cwd: this.options.clientConfig.cwd ?? process.cwd(),
 				});
@@ -132,12 +132,13 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			const prompt = this.convertMessagesToPrompt(messages);
 
 			// Send the prompt and stream results
-			progress.report(new vscode.LanguageModelTextPart("Processing..."));
-
 			await this.streamResponse(session!, prompt, progress, token);
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error);
-			progress.report(new vscode.LanguageModelTextPart(`Error: ${errorMessage}`));
+			// Log the error but don't report it to the chat response
+			const errorMessage = error instanceof Error
+				? (typeof error.message === 'string' ? error.message : JSON.stringify(error.message))
+				: String(error);
+			console.error(`[ACPProvider] Error: ${errorMessage}`);
 			throw error;
 		}
 	}
@@ -154,7 +155,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		try {
 			console.log("[ACPProvider] Initializing connection with agent...");
 			const result = await client.initialize({
-				protocolVersion: 20250101 as any, // Protocol version as number
+				protocolVersion: 1, // Protocol version (must be <= 65535)
 				clientCapabilities: {
 					fs: {
 						readTextFile: true,
@@ -173,7 +174,10 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				},
 			};
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error);
+			// Safely extract error message from any type of error
+			const errorMessage = error instanceof Error
+				? (typeof error.message === 'string' ? error.message : JSON.stringify(error.message))
+				: String(error);
 			const errorStack = error instanceof Error ? error.stack : "";
 
 			console.error(`[ACPProvider] Initialization error: ${errorMessage}`);
