@@ -8,28 +8,28 @@
 
 ### 1.1 连接管理
 
-| 职责 | 描述 | 核心类 |
-|------|------|--------|
-| 进程生命周期 | 启动、监控、终止外部 Agent 进程 | `ACPClientManager` |
-| 传输层抽象 | 处理 stdio 传输的输入输出流 | `ACPClientManager` |
-| 连接缓存 | 复用已建立的连接，避免重复启动进程 | `ACPClientManager.clients` |
+| 职责         | 描述                               | 核心类                     |
+| ------------ | ---------------------------------- | -------------------------- |
+| 进程生命周期 | 启动、监控、终止外部 Agent 进程    | `ACPClientManager`         |
+| 传输层抽象   | 处理 stdio 传输的输入输出流        | `ACPClientManager`         |
+| 连接缓存     | 复用已建立的连接，避免重复启动进程 | `ACPClientManager.clients` |
 
 ### 1.2 协议消息处理
 
-| 职责 | 描述 | 核心类 |
-|------|------|--------|
-| 请求构建 | 将高层 API 调用转换为 ACP JSON-RPC 消息 | SDK 自动处理 |
-| 响应解析 | 将 ACP 响应转换为易用的 TypeScript 类型 | SDK 自动处理 |
-| 流式处理 | 支持 `ndJsonStream` 格式的增量响应 | SDK 自动处理 |
-| 错误标准化 | 将 ACP 错误转换为统一的错误格式 | `ACPClientManager` |
+| 职责       | 描述                                    | 核心类             |
+| ---------- | --------------------------------------- | ------------------ |
+| 请求构建   | 将高层 API 调用转换为 ACP JSON-RPC 消息 | SDK 自动处理       |
+| 响应解析   | 将 ACP 响应转换为易用的 TypeScript 类型 | SDK 自动处理       |
+| 流式处理   | 支持 `ndJsonStream` 格式的增量响应      | SDK 自动处理       |
+| 错误标准化 | 将 ACP 错误转换为统一的错误格式         | `ACPClientManager` |
 
 ### 1.3 VS Code 集成
 
-| 职责 | 描述 | 核心类 |
-|------|------|--------|
-| LanguageModelChatProvider | 实现 VS Code 语言模型聊天 API | `ACPProvider` |
-| 会话管理 | 在 VS Code 会话中跟踪 Agent 对话 | `ACPProvider` |
-| 进度报告 | 通过 `vscode.Progress` 显示操作状态 | `ACPProvider` |
+| 职责                      | 描述                                | 核心类        |
+| ------------------------- | ----------------------------------- | ------------- |
+| LanguageModelChatProvider | 实现 VS Code 语言模型聊天 API       | `ACPProvider` |
+| 会话管理                  | 在 VS Code 会话中跟踪 Agent 对话    | `ACPProvider` |
+| 进度报告                  | 通过 `vscode.Progress` 显示操作状态 | `ACPProvider` |
 
 ---
 
@@ -99,11 +99,7 @@ const sessionResult = await clientManager.newSession(connection, {
 vscode.chat.createChatParticipant(participantId, handler);
 
 // VS Code Language Model API (ACPProvider)
-const response = await provider.provideLanguageModelChatResponse(
-    model,
-    messages,
-    { stream: true }
-);
+const response = await provider.provideLanguageModelChatResponse(model, messages, { stream: true });
 ```
 
 **SDK 提供**：
@@ -214,13 +210,13 @@ vscode.lm.registerMcpServerDefinitionProvider(id, provider);
 
 ### A.2 当前架构状态
 
-| 组件 | 状态 | 说明 |
-|------|------|------|
-| `ACPProvider` (LanguageModelChatProvider) | ✅ 已完成 | 注册为语言模型提供商 |
-| `streamResponse` 流式输出 | ⚠️ 待完善 | 需要正确处理流式文本 |
-| 工具调用 (Tool Calls) | ❌ 未实现 | 需要集成 `LanguageModelChatResponse.toolCalls` |
-| 工具结果 (Tool Results) | ❌ 未实现 | 需要处理 `LanguageModelChatResponse2` |
-| ClientCallbacks | ✅ 已完成 | 终端、文件系统、权限回调 |
+| 组件                                      | 状态      | 说明                                           |
+| ----------------------------------------- | --------- | ---------------------------------------------- |
+| `ACPProvider` (LanguageModelChatProvider) | ✅ 已完成 | 注册为语言模型提供商                           |
+| `streamResponse` 流式输出                 | ⚠️ 待完善 | 需要正确处理流式文本                           |
+| 工具调用 (Tool Calls)                     | ❌ 未实现 | 需要集成 `LanguageModelChatResponse.toolCalls` |
+| 工具结果 (Tool Results)                   | ❌ 未实现 | 需要处理 `LanguageModelChatResponse2`          |
+| ClientCallbacks                           | ✅ 已完成 | 终端、文件系统、权限回调                       |
 
 ### A.3 目标架构
 
@@ -303,12 +299,12 @@ private async streamResponse(
 
 #### A.4.3 输出类型映射
 
-| ACP 类型 | VS Code API | 处理方式 |
-|----------|-------------|----------|
-| `text` | `LanguageModelTextPart` | 直接 report |
-| `tool_call` | `LanguageModelToolCallPart` | report + 等待结果 |
-| `tool_result` | `LanguageModelToolResultPart` | report 完成结果 |
-| `error` | `LanguageModelTextPart` | report 错误信息 |
+| ACP 类型      | VS Code API                   | 处理方式          |
+| ------------- | ----------------------------- | ----------------- |
+| `text`        | `LanguageModelTextPart`       | 直接 report       |
+| `tool_call`   | `LanguageModelToolCallPart`   | report + 等待结果 |
+| `tool_result` | `LanguageModelToolResultPart` | report 完成结果   |
+| `error`       | `LanguageModelTextPart`       | report 错误信息   |
 
 > **注意**：`request_permission` 不是 `session/update` 通知类型，而是通过单独的 `session/request_permission` JSON-RPC 请求处理的。SDK 在 `ClientCallbacks.requestPermission` 中处理此权限请求，通过 `response.confirm()` API 等待用户确认。
 
@@ -347,31 +343,31 @@ private async streamResponse(
 ```typescript
 // 来自 vscode.d.ts
 interface LanguageModelChatResponse {
-    readonly stream: AsyncIterable<LanguageModelChatResponse2>;
+	readonly stream: AsyncIterable<LanguageModelChatResponse2>;
 }
 
 interface LanguageModelChatResponse2 {
-    // 文本片段
-    readonly text?: string;
-    // 工具调用
-    readonly toolCalls?: Array<{
-        name: string;
-        input: unknown;
-    }>;
-    // 工具结果
-    readonly toolResults?: Array<{
-        callId: string;
-        name: string;
-        result: unknown;
-    }>;
+	// 文本片段
+	readonly text?: string;
+	// 工具调用
+	readonly toolCalls?: Array<{
+		name: string;
+		input: unknown;
+	}>;
+	// 工具结果
+	readonly toolResults?: Array<{
+		callId: string;
+		name: string;
+		result: unknown;
+	}>;
 }
 
 // 通过 progress.report() 发送的类型
 type LanguageModelResponsePart =
-    | LanguageModelTextPart
-    | LanguageModelToolCallPart
-    | LanguageModelToolResultPart
-    | LanguageModelRichTextPart;
+	| LanguageModelTextPart
+	| LanguageModelToolCallPart
+	| LanguageModelToolResultPart
+	| LanguageModelRichTextPart;
 ```
 
 #### A.6.2 ACP Update 类型
@@ -388,18 +384,18 @@ type Update =
 
 ### A.7 进度追踪
 
-| 任务 | 状态 | 完成日期 | 备注 |
-|------|------|----------|------|
-| streamResponse 事件系统 | ✅ 已完成 | 2025-01-22 | ACPClientManager.onSessionUpdate() |
-| sessionUpdate 监听器注册/注销 | ✅ 已完成 | 2025-01-22 | 返回 unsubscribe 函数 |
-| 文本流式输出 (agent_message_chunk) | ✅ 已完成 | 2025-01-22 | 通过 progress.report() |
-| 思考块输出 (agent_thought_chunk) | ✅ 已完成 | 2025-01-22 | 显示 "[Reasoning]" |
-| 工具调用支持 (tool_call, tool_call_update) | ✅ 已完成 | 2025-01-22 | LanguageModelToolCallPart |
-| 用户消息回显 (user_message_chunk) | ✅ 已完成 | 2025-01-22 | 实时显示用户输入 |
-| available_commands_update 处理 | ✅ 已完成 | 2025-01-23 | 显示可用命令列表 |
-| current_mode_update 处理 | ✅ 已完成 | 2025-01-23 | 显示模式变化 |
-| PromptResponse stopReason 处理 | ✅ 已完成 | 2025-01-22 | formatStopReason() |
-| streamResponse 单元测试 | ✅ 已完成 | 2025-01-23 | 117 tests passing |
+| 任务                                       | 状态      | 完成日期   | 备注                               |
+| ------------------------------------------ | --------- | ---------- | ---------------------------------- |
+| streamResponse 事件系统                    | ✅ 已完成 | 2025-01-22 | ACPClientManager.onSessionUpdate() |
+| sessionUpdate 监听器注册/注销              | ✅ 已完成 | 2025-01-22 | 返回 unsubscribe 函数              |
+| 文本流式输出 (agent_message_chunk)         | ✅ 已完成 | 2025-01-22 | 通过 progress.report()             |
+| 思考块输出 (agent_thought_chunk)           | ✅ 已完成 | 2025-01-22 | 显示 "[Reasoning]"                 |
+| 工具调用支持 (tool_call, tool_call_update) | ✅ 已完成 | 2025-01-22 | LanguageModelToolCallPart          |
+| 用户消息回显 (user_message_chunk)          | ✅ 已完成 | 2025-01-22 | 实时显示用户输入                   |
+| available_commands_update 处理             | ✅ 已完成 | 2025-01-23 | 显示可用命令列表                   |
+| current_mode_update 处理                   | ✅ 已完成 | 2025-01-23 | 显示模式变化                       |
+| PromptResponse stopReason 处理             | ✅ 已完成 | 2025-01-22 | formatStopReason()                 |
+| streamResponse 单元测试                    | ✅ 已完成 | 2025-01-23 | 117 tests passing                  |
 
 ### A.7.1 待办事项
 
@@ -420,6 +416,7 @@ A: 不需要。`LanguageModelChatProvider` 已经足够。用户选择模型后�
 **Q: 工具调用是如何工作的？**
 
 A: 当 Agent 需要调用工具时：
+
 1. Agent 发送 `session/update` (tool_call)
 2. SDK 转换为 `LanguageModelToolCallPart` 通过 progress.report()
 3. VS Code 显示工具调用 UI
@@ -428,6 +425,7 @@ A: 当 Agent 需要调用工具时：
 **Q: ClientCallbacks 和 LanguageModelChatProvider 是什么关系？**
 
 A:
+
 - `ClientCallbacks`: 处理 Agent 主动发起的操作（终端、文件系统）
 - `LanguageModelChatProvider`: 处理用户发起的聊天请求
 - 两者独立工作，通过 `ACPClientManager` 共享连接
@@ -508,15 +506,16 @@ private async streamResponse(
 ```typescript
 // 当前 SDK 的 ClientSideConnection 接口
 interface ClientSideConnection {
-    initialize(params): Promise<InitializeResponse>;
-    newSession(params): Promise<NewSessionResponse>;
-    prompt(params): Promise<PromptResponse>;  // 阻塞，返回最终结果
-    cancel(params): Promise<void>;
-    // 注意：没有 streamPrompt() 方法！
+	initialize(params): Promise<InitializeResponse>;
+	newSession(params): Promise<NewSessionResponse>;
+	prompt(params): Promise<PromptResponse>; // 阻塞，返回最终结果
+	cancel(params): Promise<void>;
+	// 注意：没有 streamPrompt() 方法！
 }
 ```
 
 **正确的实现方式**：
+
 1. `ClientSideConnection` 通过 `toClient` 函数接收一个 `Client` 接口实现
 2. `Client` 接口包含 `sessionUpdate()` 方法，用于接收 Agent 的流式更新通知
 3. 我们需要：
@@ -616,8 +615,8 @@ VS Code UI 显示增量更新
 
 ```typescript
 if (update.type === "text" || update.type === "text_delta") {
-    const textPart = new vscode.LanguageModelTextPart(update.content);
-    progress.report(textPart);
+	const textPart = new vscode.LanguageModelTextPart(update.content);
+	progress.report(textPart);
 }
 ```
 
@@ -625,29 +624,25 @@ if (update.type === "text" || update.type === "text_delta") {
 
 ```typescript
 if (update.type === "tool_call") {
-    // 报告工具调用
-    const toolCallPart = new vscode.LanguageModelToolCallPart(
-        update.id,
-        update.name,
-        update.input
-    );
-    progress.report(toolCallPart);
+	// 报告工具调用
+	const toolCallPart = new vscode.LanguageModelToolCallPart(update.id, update.name, update.input);
+	progress.report(toolCallPart);
 
-    // 等待工具执行结果
-    // 注意：工具执行由 ClientCallbacks 处理
-    // 结果会通过另一个 update 事件返回
+	// 等待工具执行结果
+	// 注意：工具执行由 ClientCallbacks 处理
+	// 结果会通过另一个 update 事件返回
 }
 
 if (update.type === "tool_result") {
-    // 报告工具结果
-    const toolResultPart = new vscode.LanguageModelToolResultPart([
-        {
-            callId: update.callId,
-            name: update.toolName,
-            result: update.result
-        }
-    ]);
-    progress.report(toolResultPart);
+	// 报告工具结果
+	const toolResultPart = new vscode.LanguageModelToolResultPart([
+		{
+			callId: update.callId,
+			name: update.toolName,
+			result: update.result,
+		},
+	]);
+	progress.report(toolResultPart);
 }
 ```
 
@@ -905,14 +900,14 @@ private formatStopReason(reason: string): string {
 
 实现完成后，需要验证以下场景：
 
-| 测试场景 | 预期行为 |
-|----------|----------|
-| 简单文本回复 | 文本逐字显示，无延迟 |
-| 工具调用 | 显示工具调用卡片，用户可以看到工具名称和参数 |
-| 工具结果 | 显示工具执行结果 |
-| 权限请求 | 显示确认对话框 |
-| 取消操作 | Agent 停止处理，不再产生输出 |
-| 长响应 | 文本正确分块显示，无丢失 |
+| 测试场景     | 预期行为                                     |
+| ------------ | -------------------------------------------- |
+| 简单文本回复 | 文本逐字显示，无延迟                         |
+| 工具调用     | 显示工具调用卡片，用户可以看到工具名称和参数 |
+| 工具结果     | 显示工具执行结果                             |
+| 权限请求     | 显示确认对话框                               |
+| 取消操作     | Agent 停止处理，不再产生输出                 |
+| 长响应       | 文本正确分块显示，无丢失                     |
 
 ---
 
@@ -924,23 +919,23 @@ private formatStopReason(reason: string): string {
 
 ```typescript
 class ACPClientManager {
-    constructor(clientInfo?: { name?: string; version?: string });
+	constructor(clientInfo?: { name?: string; version?: string });
 
-    // 连接管理
-    getClient(config: ACPClientConfig): Promise<ClientSideConnection>;
+	// 连接管理
+	getClient(config: ACPClientConfig): Promise<ClientSideConnection>;
 
-    // 协议方法
-    initialize(client: ClientSideConnection): Promise<InitResult>;
-    newSession(client: ClientSideConnection, params: SessionParams): Promise<NewSessionResult>;
-    prompt(client: ClientSideConnection, params: PromptParams): Promise<PromptResult>;
-    streamPrompt(client: ClientSideConnection, params: PromptParams): AsyncGenerator<Update>;
+	// 协议方法
+	initialize(client: ClientSideConnection): Promise<InitResult>;
+	newSession(client: ClientSideConnection, params: SessionParams): Promise<NewSessionResult>;
+	prompt(client: ClientSideConnection, params: PromptParams): Promise<PromptResult>;
+	streamPrompt(client: ClientSideConnection, params: PromptParams): AsyncGenerator<Update>;
 
-    // 会话管理
-    addSession(sessionId: string, connection: ClientSideConnection, result: NewSessionResult): void;
-    getSession(sessionId: string): { connection: ClientSideConnection; sessionId: string } | undefined;
+	// 会话管理
+	addSession(sessionId: string, connection: ClientSideConnection, result: NewSessionResult): void;
+	getSession(sessionId: string): { connection: ClientSideConnection; sessionId: string } | undefined;
 
-    // 资源清理
-    dispose(): Promise<void>;
+	// 资源清理
+	dispose(): Promise<void>;
 }
 ```
 
@@ -948,12 +943,20 @@ class ACPClientManager {
 
 ```typescript
 class ACPProvider implements vscode.LanguageModelChatProvider {
-    constructor(options: ACPProviderOptions);
+	constructor(options: ACPProviderOptions);
 
-    // VS Code LanguageModelChatProvider 接口
-    provideLanguageModelChatInformation(options: { silent: boolean }, token: CancellationToken): Promise<LanguageModelChatInformation[]>;
-    provideLanguageModelChatResponse(model: LanguageModelChatInformation, messages: readonly LanguageModelChatRequestMessage[], options: { stream: boolean }, token: CancellationToken): AsyncIterable<LanguageModelChatResponse>;
-    provideLanguageModelChatTokenLimits(model: LanguageModelChatInformation): Promise<LanguageModelChatTokenLimits>;
+	// VS Code LanguageModelChatProvider 接口
+	provideLanguageModelChatInformation(
+		options: { silent: boolean },
+		token: CancellationToken
+	): Promise<LanguageModelChatInformation[]>;
+	provideLanguageModelChatResponse(
+		model: LanguageModelChatInformation,
+		messages: readonly LanguageModelChatRequestMessage[],
+		options: { stream: boolean },
+		token: CancellationToken
+	): AsyncIterable<LanguageModelChatResponse>;
+	provideLanguageModelChatTokenLimits(model: LanguageModelChatInformation): Promise<LanguageModelChatTokenLimits>;
 }
 ```
 
@@ -961,28 +964,28 @@ class ACPProvider implements vscode.LanguageModelChatProvider {
 
 ```typescript
 interface ACPClientConfig {
-    transport: "stdio";
-    agentPath: string;           // Agent 可执行文件路径
-    agentArgs?: string[];        // 启动参数
-    env?: Record<string, string>; // 环境变量
-    cwd?: string;                // 工作目录
-    callbacks?: ClientCallbacks; // VS Code API 回调（可选）
+	transport: "stdio";
+	agentPath: string; // Agent 可执行文件路径
+	agentArgs?: string[]; // 启动参数
+	env?: Record<string, string>; // 环境变量
+	cwd?: string; // 工作目录
+	callbacks?: ClientCallbacks; // VS Code API 回调（可选）
 }
 
 interface ACPModelInfo {
-    id: string;                  // 模型标识符
-    name: string;                // 显示名称
-    version?: string;            // 版本
-    maxInputTokens?: number;     // 最大输入 token
-    maxOutputTokens?: number;    // 最大输出 token
-    supportsToolCalls?: boolean; // 是否支持工具调用
-    supportsImageInput?: boolean; // 是否支持图片输入
+	id: string; // 模型标识符
+	name: string; // 显示名称
+	version?: string; // 版本
+	maxInputTokens?: number; // 最大输入 token
+	maxOutputTokens?: number; // 最大输出 token
+	supportsToolCalls?: boolean; // 是否支持工具调用
+	supportsImageInput?: boolean; // 是否支持图片输入
 }
 
 interface ACPProviderOptions {
-    models: ACPModelInfo[];      // 可用模型列表
-    clientConfig: ACPClientConfig; // 客户端配置
-    clientInfo?: { name?: string; version?: string }; // 客户端信息
+	models: ACPModelInfo[]; // 可用模型列表
+	clientConfig: ACPClientConfig; // 客户端配置
+	clientInfo?: { name?: string; version?: string }; // 客户端信息
 }
 
 /**
@@ -990,78 +993,73 @@ interface ACPProviderOptions {
  * 用于将 ACP 协议事件映射到 VS Code API
  */
 interface ClientCallbacks {
-    /**
-     * 创建终端
-     * 当 Agent 调用 terminal/create 时触发
-     */
-    createTerminal?: (
-        sessionId: string,
-        command: string,
-        args?: string[],
-        cwd?: string
-    ) => Promise<IVsCodeTerminal>;
+	/**
+	 * 创建终端
+	 * 当 Agent 调用 terminal/create 时触发
+	 */
+	createTerminal?: (sessionId: string, command: string, args?: string[], cwd?: string) => Promise<IVsCodeTerminal>;
 
-    /**
-     * 获取终端输出
-     * 当 Agent 调用 terminal/output 时触发
-     */
-    getTerminalOutput?: (terminalId: string) => Promise<{
-        output: string;
-        exitCode?: number;
-    }>;
+	/**
+	 * 获取终端输出
+	 * 当 Agent 调用 terminal/output 时触发
+	 */
+	getTerminalOutput?: (terminalId: string) => Promise<{
+		output: string;
+		exitCode?: number;
+	}>;
 
-    /**
-     * 释放终端
-     * 当 Agent 调用 terminal/release 时触发
-     */
-    releaseTerminal?: (terminalId: string) => Promise<void>;
+	/**
+	 * 释放终端
+	 * 当 Agent 调用 terminal/release 时触发
+	 */
+	releaseTerminal?: (terminalId: string) => Promise<void>;
 
-    /**
-     * 等待终端退出
-     * 当 Agent 调用 terminal/wait_for_exit 时触发
-     */
-    waitForTerminalExit?: (terminalId: string) => Promise<{
-        exitCode?: number;
-    }>;
+	/**
+	 * 等待终端退出
+	 * 当 Agent 调用 terminal/wait_for_exit 时触发
+	 */
+	waitForTerminalExit?: (terminalId: string) => Promise<{
+		exitCode?: number;
+	}>;
 
-    /**
-     * 终止终端命令
-     * 当 Agent 调用 terminal/kill 时触发
-     */
-    killTerminal?: (terminalId: string) => Promise<void>;
+	/**
+	 * 终止终端命令
+	 * 当 Agent 调用 terminal/kill 时触发
+	 */
+	killTerminal?: (terminalId: string) => Promise<void>;
 
-    /**
-     * 读取文件
-     * 当 Agent 调用 fs/read_text_file 时触发
-     */
-    readTextFile?: (path: string) => Promise<string>;
+	/**
+	 * 读取文件
+	 * 当 Agent 调用 fs/read_text_file 时触发
+	 */
+	readTextFile?: (path: string) => Promise<string>;
 
-    /**
-     * 写入文件
-     * 当 Agent 调用 fs/write_text_file 时触发
-     */
-    writeTextFile?: (path: string, content: string) => Promise<void>;
+	/**
+	 * 写入文件
+	 * 当 Agent 调用 fs/write_text_file 时触发
+	 */
+	writeTextFile?: (path: string, content: string) => Promise<void>;
 
-    /**
-     * 请求权限
-     * 当 Agent 调用 session/request_permission 时触发
-     */
-    requestPermission?: (request: {
-        toolCall: { title: string; description?: string };
-        options: Array<{ optionId: string; label: string }>;
-    }) => Promise<string>;
+	/**
+	 * 请求权限
+	 * 当 Agent 调用 session/request_permission 时触发
+	 */
+	requestPermission?: (request: {
+		toolCall: { title: string; description?: string };
+		options: Array<{ optionId: string; label: string }>;
+	}) => Promise<string>;
 }
 
 /**
  * VS Code 终端接口
  */
 interface IVsCodeTerminal {
-    readonly terminalId: string;
-    readonly name: string;
-    sendText(text: string, shouldExecute?: boolean): void;
-    show(preserveFocus?: boolean): void;
-    hide(): void;
-    dispose(): void;
+	readonly terminalId: string;
+	readonly name: string;
+	sendText(text: string, shouldExecute?: boolean): void;
+	show(preserveFocus?: boolean): void;
+	hide(): void;
+	dispose(): void;
 }
 ```
 
@@ -1069,21 +1067,21 @@ interface IVsCodeTerminal {
 
 ```typescript
 interface InitResult {
-    success: boolean;
-    agentInfo?: { name: string; version?: string };
-    error?: string;
+	success: boolean;
+	agentInfo?: { name: string; version?: string };
+	error?: string;
 }
 
 interface NewSessionResult {
-    success: boolean;
-    sessionId?: string;
-    error?: string;
+	success: boolean;
+	sessionId?: string;
+	error?: string;
 }
 
 interface PromptResult {
-    success: boolean;
-    result?: { stopReason: string };
-    error?: string;
+	success: boolean;
+	result?: { stopReason: string };
+	error?: string;
 }
 ```
 
@@ -1133,38 +1131,28 @@ export type {
 ### 4.1 基本使用
 
 ```typescript
-import {
-    ACPProvider,
-    registerACPProvider,
-    type ACPClientConfig,
-    type ACPModelInfo,
-} from "@all-in-copilot/sdk";
+import { ACPProvider, registerACPProvider, type ACPClientConfig, type ACPModelInfo } from "@all-in-copilot/sdk";
 import * as vscode from "vscode";
 
 // 配置
 const clientConfig: ACPClientConfig = {
-    transport: "stdio",
-    agentPath: "npx",
-    agentArgs: ["-y", "@anthropic-ai/claude-agent-sdk"],
-    cwd: vscode.workspace.workspaceFolders?.[0].uri.fsPath,
+	transport: "stdio",
+	agentPath: "npx",
+	agentArgs: ["-y", "@anthropic-ai/claude-agent-sdk"],
+	cwd: vscode.workspace.workspaceFolders?.[0].uri.fsPath,
 };
 
-const models: ACPModelInfo[] = [
-    { id: "sonnet-4", name: "Claude Sonnet 4", maxInputTokens: 200000 },
-];
+const models: ACPModelInfo[] = [{ id: "sonnet-4", name: "Claude Sonnet 4", maxInputTokens: 200000 }];
 
 // 创建 Provider
 const provider = new ACPProvider({
-    models,
-    clientConfig,
-    clientInfo: { name: "my-extension", version: "1.0.0" },
+	models,
+	clientConfig,
+	clientInfo: { name: "my-extension", version: "1.0.0" },
 });
 
 // 注册到 VS Code
-const disposable = vscode.lm.registerLanguageModelChatProvider(
-    `acp.my-agent`,
-    provider
-);
+const disposable = vscode.lm.registerLanguageModelChatProvider(`acp.my-agent`, provider);
 context.subscriptions.push(disposable);
 ```
 
@@ -1175,93 +1163,91 @@ import { ACPClientManager, ClientCallbacks } from "@all-in-copilot/sdk";
 
 // 定义 VS Code API 回调
 const callbacks: ClientCallbacks = {
-    // 创建终端时调用
-    createTerminal: async (sessionId, command, args, cwd) => {
-        const terminal = vscode.window.createTerminal(
-            `Agent - ${sessionId.slice(0, 8)}`
-        );
-        terminal.show();
-        // 发送命令到终端
-        if (command) {
-            terminal.sendText([command, ...(args ?? [])].join(" "));
-        }
-        return {
-            terminalId: terminal.name,
-            name: terminal.name,
-            sendText: (text, shouldExecute) => terminal.sendText(text, shouldExecute),
-            show: (preserveFocus) => terminal.show(preserveFocus),
-            hide: () => terminal.hide(),
-            dispose: () => terminal.dispose(),
-        };
-    },
+	// 创建终端时调用
+	createTerminal: async (sessionId, command, args, cwd) => {
+		const terminal = vscode.window.createTerminal(`Agent - ${sessionId.slice(0, 8)}`);
+		terminal.show();
+		// 发送命令到终端
+		if (command) {
+			terminal.sendText([command, ...(args ?? [])].join(" "));
+		}
+		return {
+			terminalId: terminal.name,
+			name: terminal.name,
+			sendText: (text, shouldExecute) => terminal.sendText(text, shouldExecute),
+			show: (preserveFocus) => terminal.show(preserveFocus),
+			hide: () => terminal.hide(),
+			dispose: () => terminal.dispose(),
+		};
+	},
 
-    // 获取终端输出时调用
-    getTerminalOutput: async (terminalId) => {
-        const terminal = vscode.window.terminals.find(t => t.name === terminalId);
-        if (terminal && terminal.shellIntegration) {
-            // 使用 shell integration 获取输出
-            const output = await getTerminalBuffer(terminal);
-            return { output };
-        }
-        return { output: "" };
-    },
+	// 获取终端输出时调用
+	getTerminalOutput: async (terminalId) => {
+		const terminal = vscode.window.terminals.find((t) => t.name === terminalId);
+		if (terminal && terminal.shellIntegration) {
+			// 使用 shell integration 获取输出
+			const output = await getTerminalBuffer(terminal);
+			return { output };
+		}
+		return { output: "" };
+	},
 
-    // 读取文件时调用
-    readTextFile: async (path) => {
-        const uri = vscode.Uri.file(path);
-        const bytes = await vscode.workspace.fs.readFile(uri);
-        return new TextDecoder().decode(bytes);
-    },
+	// 读取文件时调用
+	readTextFile: async (path) => {
+		const uri = vscode.Uri.file(path);
+		const bytes = await vscode.workspace.fs.readFile(uri);
+		return new TextDecoder().decode(bytes);
+	},
 
-    // 写入文件时调用
-    writeTextFile: async (path, content) => {
-        const uri = vscode.Uri.file(path);
-        await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
-    },
+	// 写入文件时调用
+	writeTextFile: async (path, content) => {
+		const uri = vscode.Uri.file(path);
+		await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
+	},
 
-    // 请求权限时调用
-    requestPermission: async ({ toolCall, options }) => {
-        const selected = await vscode.window.showQuickPick(
-            options.map(opt => ({ label: opt.label, id: opt.optionId })),
-            { title: toolCall.title, placeHolder: "Select permission" }
-        );
-        return selected?.id ?? "reject";
-    },
+	// 请求权限时调用
+	requestPermission: async ({ toolCall, options }) => {
+		const selected = await vscode.window.showQuickPick(
+			options.map((opt) => ({ label: opt.label, id: opt.optionId })),
+			{ title: toolCall.title, placeHolder: "Select permission" }
+		);
+		return selected?.id ?? "reject";
+	},
 };
 
 // 使用回调配置客户端
 const connection = await manager.getClient({
-    transport: "stdio",
-    agentPath: "/path/to/agent",
-    agentArgs: ["--verbose"],
-    callbacks,  // 传入回调
+	transport: "stdio",
+	agentPath: "/path/to/agent",
+	agentArgs: ["--verbose"],
+	callbacks, // 传入回调
 });
 
 // 初始化
 const initResult = await manager.initialize(connection);
 if (!initResult.success) {
-    console.error("初始化失败:", initResult.error);
-    return;
+	console.error("初始化失败:", initResult.error);
+	return;
 }
 
 // 创建会话
 const sessionResult = await manager.newSession(connection, {
-    cwd: "/workspace",
-    mcpServers: [
-        { name: "filesystem", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"] },
-    ],
+	cwd: "/workspace",
+	mcpServers: [
+		{ name: "filesystem", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"] },
+	],
 });
 
 // 流式对话
 for await (const update of manager.streamPrompt(connection, {
-    sessionId: sessionResult.sessionId!,
-    prompt: [{ type: "text", text: "Hello, help me write a function." }],
+	sessionId: sessionResult.sessionId!,
+	prompt: [{ type: "text", text: "Hello, help me write a function." }],
 })) {
-    if (update.type === "text") {
-        process.stdout.write(update.text);
-    } else if (update.type === "tool_call") {
-        console.log("Tool call:", update.title);
-    }
+	if (update.type === "text") {
+		process.stdout.write(update.text);
+	} else if (update.type === "tool_call") {
+		console.log("Tool call:", update.title);
+	}
 }
 
 // 清理
@@ -1274,40 +1260,38 @@ await manager.dispose();
 
 ```typescript
 const callbacks: ClientCallbacks = {
-    createTerminal: async (sessionId, command, args, cwd) => {
-        const terminal = vscode.window.createTerminal(
-            `Agent - ${sessionId.slice(0, 8)}`
-        );
-        terminal.show();
+	createTerminal: async (sessionId, command, args, cwd) => {
+		const terminal = vscode.window.createTerminal(`Agent - ${sessionId.slice(0, 8)}`);
+		terminal.show();
 
-        // 执行命令
-        const fullCommand = [command, ...(args ?? [])].join(" ");
-        terminal.sendText(`cd ${cwd ?? "~"} && ${fullCommand}`);
+		// 执行命令
+		const fullCommand = [command, ...(args ?? [])].join(" ");
+		terminal.sendText(`cd ${cwd ?? "~"} && ${fullCommand}`);
 
-        return {
-            terminalId: terminal.name,
-            name: terminal.name,
-            sendText: (text) => terminal.sendText(text),
-            show: (preserveFocus) => terminal.show(preserveFocus),
-            hide: () => terminal.hide(),
-            dispose: () => terminal.dispose(),
-        };
-    },
+		return {
+			terminalId: terminal.name,
+			name: terminal.name,
+			sendText: (text) => terminal.sendText(text),
+			show: (preserveFocus) => terminal.show(preserveFocus),
+			hide: () => terminal.hide(),
+			dispose: () => terminal.dispose(),
+		};
+	},
 
-    getTerminalOutput: async (terminalId) => {
-        const terminal = vscode.window.terminals.find(t => t.name === terminalId);
-        if (!terminal) {
-            return { output: "Terminal not found" };
-        }
-        // 获取终端缓冲区内容
-        const output = getTerminalBuffer(terminal);
-        return { output };
-    },
+	getTerminalOutput: async (terminalId) => {
+		const terminal = vscode.window.terminals.find((t) => t.name === terminalId);
+		if (!terminal) {
+			return { output: "Terminal not found" };
+		}
+		// 获取终端缓冲区内容
+		const output = getTerminalBuffer(terminal);
+		return { output };
+	},
 
-    releaseTerminal: async (terminalId) => {
-        const terminal = vscode.window.terminals.find(t => t.name === terminalId);
-        terminal?.dispose();
-    },
+	releaseTerminal: async (terminalId) => {
+		const terminal = vscode.window.terminals.find((t) => t.name === terminalId);
+		terminal?.dispose();
+	},
 };
 ```
 
@@ -1317,28 +1301,28 @@ const callbacks: ClientCallbacks = {
 
 ```typescript
 const callbacks: ClientCallbacks = {
-    readTextFile: async (path) => {
-        try {
-            const uri = vscode.Uri.file(path);
-            const bytes = await vscode.workspace.fs.readFile(uri);
-            return new TextDecoder().decode(bytes);
-        } catch (error) {
-            console.error(`Failed to read ${path}:`, error);
-            return "";  // 返回空内容表示文件不存在
-        }
-    },
+	readTextFile: async (path) => {
+		try {
+			const uri = vscode.Uri.file(path);
+			const bytes = await vscode.workspace.fs.readFile(uri);
+			return new TextDecoder().decode(bytes);
+		} catch (error) {
+			console.error(`Failed to read ${path}:`, error);
+			return ""; // 返回空内容表示文件不存在
+		}
+	},
 
-    writeTextFile: async (path, content) => {
-        const uri = vscode.Uri.file(path);
-        // 确保目录存在
-        const dir = vscode.Uri.file(path.substring(0, path.lastIndexOf("/")));
-        try {
-            await vscode.workspace.fs.stat(dir);
-        } catch {
-            await vscode.workspace.fs.createDirectory(dir);
-        }
-        await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
-    },
+	writeTextFile: async (path, content) => {
+		const uri = vscode.Uri.file(path);
+		// 确保目录存在
+		const dir = vscode.Uri.file(path.substring(0, path.lastIndexOf("/")));
+		try {
+			await vscode.workspace.fs.stat(dir);
+		} catch {
+			await vscode.workspace.fs.createDirectory(dir);
+		}
+		await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
+	},
 };
 ```
 
@@ -1348,29 +1332,29 @@ const callbacks: ClientCallbacks = {
 
 ### 5.1 已支持功能
 
-| 功能 | 方法 | 状态 | 备注 |
-|------|------|------|------|
-| 初始化 | `initialize` | ✅ 已完成 | 完整支持 |
-| 会话创建 | `session/new` | ✅ 已完成 | 完整支持 |
-| 提示发送 | `session/prompt` | ✅ 已完成 | 流式支持 |
-| 流式更新 | `session/update` | ✅ 已完成 | 基础类型 |
-| 会话取消 | `session/cancel` | ✅ 已完成 | 通过 CancellationToken |
-| 文件读取 | `fs/read_text_file` | ✅ 已完成 | SDK 自动处理 |
-| 文件写入 | `fs/write_text_file` | ✅ 已完成 | SDK 自动处理 |
-| 权限请求 | `session/request_permission` | ✅ 已完成 | 集成 confirm API |
-| 终端创建 | `terminal/create` | ✅ 已完成 | Agent 调用，客户端实现处理 |
-| 终端输出 | `terminal/output` | ✅ 已完成 | Agent 调用，客户端实现处理 |
-| 终端终止 | `terminal/kill` | ✅ 已完成 | Agent 调用，客户端实现处理 |
-| MCP 服务器 | `mcp/*` | ✅ 已完成 | 通过 `newSession` 的 mcpServers 参数 |
+| 功能       | 方法                         | 状态      | 备注                                 |
+| ---------- | ---------------------------- | --------- | ------------------------------------ |
+| 初始化     | `initialize`                 | ✅ 已完成 | 完整支持                             |
+| 会话创建   | `session/new`                | ✅ 已完成 | 完整支持                             |
+| 提示发送   | `session/prompt`             | ✅ 已完成 | 流式支持                             |
+| 流式更新   | `session/update`             | ✅ 已完成 | 基础类型                             |
+| 会话取消   | `session/cancel`             | ✅ 已完成 | 通过 CancellationToken               |
+| 文件读取   | `fs/read_text_file`          | ✅ 已完成 | SDK 自动处理                         |
+| 文件写入   | `fs/write_text_file`         | ✅ 已完成 | SDK 自动处理                         |
+| 权限请求   | `session/request_permission` | ✅ 已完成 | 集成 confirm API                     |
+| 终端创建   | `terminal/create`            | ✅ 已完成 | Agent 调用，客户端实现处理           |
+| 终端输出   | `terminal/output`            | ✅ 已完成 | Agent 调用，客户端实现处理           |
+| 终端终止   | `terminal/kill`              | ✅ 已完成 | Agent 调用，客户端实现处理           |
+| MCP 服务器 | `mcp/*`                      | ✅ 已完成 | 通过 `newSession` 的 mcpServers 参数 |
 
 ### 5.2 待支持功能
 
-| 功能 | 方法 | 状态 | 优先级 |
-|------|------|------|--------|
-| 会话加载 | `session/load` | 🔄 计划中 | 高 |
-| 会话分叉 | `session/fork` | 🔄 计划中 | 中 |
-| 会话模式 | `session/set_mode` | 🔄 计划中 | 低 |
-| 会话恢复 | `session/resume` | 📋 待定 | 低 |
+| 功能     | 方法               | 状态      | 优先级 |
+| -------- | ------------------ | --------- | ------ |
+| 会话加载 | `session/load`     | 🔄 计划中 | 高     |
+| 会话分叉 | `session/fork`     | 🔄 计划中 | 中     |
+| 会话模式 | `session/set_mode` | 🔄 计划中 | 低     |
+| 会话恢复 | `session/resume`   | 📋 待定   | 低     |
 
 ### 5.3 已知限制
 
@@ -1387,36 +1371,36 @@ const callbacks: ClientCallbacks = {
 
 ```typescript
 interface ACPError {
-    code: number;      // 错误代码
-    message: string;   // 错误信息
-    data?: unknown;    // 附加数据
+	code: number; // 错误代码
+	message: string; // 错误信息
+	data?: unknown; // 附加数据
 }
 ```
 
 ### 6.2 常见错误代码
 
-| 代码 | 含义 | 处理建议 |
-|------|------|----------|
-| -32600 | 无效请求 | 检查请求格式 |
-| -32601 | 方法不存在 | 检查协议版本 |
-| -32602 | 参数无效 | 验证输入参数 |
+| 代码   | 含义       | 处理建议        |
+| ------ | ---------- | --------------- |
+| -32600 | 无效请求   | 检查请求格式    |
+| -32601 | 方法不存在 | 检查协议版本    |
+| -32602 | 参数无效   | 验证输入参数    |
 | -32000 | 服务器错误 | 查看 Agent 日志 |
-| -32001 | 会话不存在 | 重新创建会话 |
-| -32002 | 权限被拒 | 用户拒绝操作 |
+| -32001 | 会话不存在 | 重新创建会话    |
+| -32002 | 权限被拒   | 用户拒绝操作    |
 
 ### 6.3 错误处理示例
 
 ```typescript
 try {
-    const result = await clientManager.newSession(connection, params);
-    if (!result.success) {
-        // SDK 级别的错误
-        console.error("操作失败:", result.error);
-    }
+	const result = await clientManager.newSession(connection, params);
+	if (!result.success) {
+		// SDK 级别的错误
+		console.error("操作失败:", result.error);
+	}
 } catch (error) {
-    if (error instanceof Error) {
-        console.error("异常:", error.message);
-    }
+	if (error instanceof Error) {
+		console.error("异常:", error.message);
+	}
 }
 ```
 
@@ -1441,8 +1425,8 @@ const conn2 = await manager.getClient(config);
 
 ```typescript
 for await (const update of streamPrompt(connection, params)) {
-    // 增量处理，无需等待完整响应
-    processUpdate(update);
+	// 增量处理，无需等待完整响应
+	processUpdate(update);
 }
 ```
 
@@ -1457,7 +1441,7 @@ controller.abort();
 
 // 在方法调用中
 for await (const update of streamPrompt(connection, params, controller.signal)) {
-    // 检测到取消时自动退出循环
+	// 检测到取消时自动退出循环
 }
 ```
 
@@ -1478,21 +1462,21 @@ process.env.DEBUG = "acp:*";
 
 ### 8.2 常见问题
 
-| 问题 | 原因 | 解决方案 |
-|------|------|----------|
-| 进程启动失败 | agentPath 错误 | 检查路径配置 |
-| 会话创建超时 | Agent 无响应 | 检查 Agent 健康状态 |
-| 权限请求无响应 | confirm 未实现 | 实现确认处理器 |
-| 内存使用过高 | 未正确清理 | 调用 `dispose()` |
+| 问题           | 原因           | 解决方案            |
+| -------------- | -------------- | ------------------- |
+| 进程启动失败   | agentPath 错误 | 检查路径配置        |
+| 会话创建超时   | Agent 无响应   | 检查 Agent 健康状态 |
+| 权限请求无响应 | confirm 未实现 | 实现确认处理器      |
+| 内存使用过高   | 未正确清理     | 调用 `dispose()`    |
 
 ---
 
 ## 9. 版本兼容性
 
 | SDK 版本 | ACP 协议版本 | VS Code 版本 |
-|----------|--------------|--------------|
-| 1.0.x | 20250101 | 1.85+ |
-| 后续版本 | 后续版本 | 后续版本 |
+| -------- | ------------ | ------------ |
+| 1.0.x    | 20250101     | 1.85+        |
+| 后续版本 | 后续版本     | 后续版本     |
 
 ---
 

@@ -1,8 +1,5 @@
 import * as vscode from "vscode";
-import type {
-	ClientSideConnection,
-	ContentBlock,
-} from "@agentclientprotocol/sdk";
+import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sdk";
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
 
 /**
@@ -280,9 +277,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 					// Available commands have been updated
 					const commands = (updateData as any).commands;
 					if (commands && Array.isArray(commands)) {
-						const commandsList = commands
-							.map((c: any) => `  - ${c.name || c}: ${c.description || ""}`)
-							.join("\n");
+						const commandsList = commands.map((c: any) => `  - ${c.name || c}: ${c.description || ""}`).join("\n");
 						progress.report(new vscode.LanguageModelTextPart(`\n[Available commands updated:\n${commandsList}]\n`));
 					}
 					break;
@@ -368,7 +363,10 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				}
 			} else if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
 				// Assistant messages can include tool calls - check for toolCalls property
-				const messageAny = message as { toolCalls?: Array<{ id: string; name: string; input: unknown }>; content?: unknown };
+				const messageAny = message as {
+					toolCalls?: Array<{ id: string; name: string; input: unknown }>;
+					content?: unknown;
+				};
 				if (messageAny.toolCalls) {
 					for (const toolCall of messageAny.toolCalls) {
 						prompt.push({

@@ -7,11 +7,7 @@
 
 import * as vscode from "vscode";
 import { spawn, ChildProcess } from "child_process";
-import {
-	ACPClientManager,
-	ACPProvider,
-	type ContentBlock,
-} from "@all-in-copilot/sdk";
+import { ACPClientManager, ACPProvider, type ContentBlock } from "@all-in-copilot/sdk";
 import type { ACPModelInfo } from "@all-in-copilot/sdk";
 import {
 	AGENT_CONFIG,
@@ -83,7 +79,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}
 
 	// From here on, opencodeConfig is guaranteed to be non-null
+	// Copy values for use in async functions where TypeScript can't track nullability
 	const agentName = opencodeConfig.name;
+	const agentCommand = opencodeConfig.command;
+	const agentEnv = opencodeConfig.env;
+	const agentCwd = opencodeConfig.cwd;
+	const agentId = opencodeConfig.id;
 
 	console.log(`[${agentName}] Activating ACP extension...`);
 
@@ -92,155 +93,151 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	 * OpenCode ACP runs as a TCP server.
 	 */
 	async function startOpenCodeACP(): Promise<{ port: number; hostname: string }> {
-			console.log(`[${agentName}] Starting OpenCode ACP server...`);
+		console.log(`[${agentName}] Starting OpenCode ACP server...`);
 
-			// Start OpenCode as a background process
-			opencodeProcess = spawn(opencodeConfig.command, ["acp", "--print-logs"], {
-				stdio: ["ignore", "pipe", "pipe"],
-				env: {
-					...process.env,
-					...opencodeConfig.env,
-				},
-				cwd: opencodeConfig.cwd ?? getWorkspaceFolder(),
-				detached: false,
-			});
+		// Start OpenCode as a background process
+		opencodeProcess = spawn(agentCommand, ["acp", "--print-logs"], {
+			stdio: ["ignore", "pipe", "pipe"],
+			env: {
+				...process.env,
+				...agentEnv,
+			},
+			cwd: agentCwd ?? getWorkspaceFolder(),
+			detached: false,
+		});
 
-			// Log stdout/stderr for debugging
-			opencodeProcess.stdout?.on("data", (data: Buffer) => {
-				const message = data.toString().trim();
-				if (message) {
-					console.log(`[${agentName}] ${message}`);
+		// Log stdout/stderr for debugging
+		opencodeProcess.stdout?.on("data", (data: Buffer) => {
+			const message = data.toString().trim();
+			if (message) {
+				console.log(`[${agentName}] ${message}`);
+			}
+		});
+
+		opencodeProcess.stderr?.on("data", (data: Buffer) => {
+			const message = data.toString().trim();
+			if (message) {
+				console.error(`[${agentName}] ${message}`);
+			}
+		});
+
+		// Handle process exit
+		opencodeProcess.on("error", (error) => {
+			console.error(`[${agentName}] Process error: ${error.message}`);
+		});
+
+		opencodeProcess.on("exit", (code) => {
+			if (code !== 0) {
+				console.error(`[${agentName}] Process exited with code ${code}`);
+			}
+		});
+
+		// Wait for the server to be ready and extract port from logs
+		// OpenCode will print something like "Listening on 127.0.0.1:8080"
+		const port = await new Promise<number>((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				reject(new Error("Timeout waiting for OpenCode ACP server to start"));
+			}, 10000);
+
+			const dataHandler = (data: Buffer) => {
+				const message = data.toString();
+				// Look for port information in the output
+				const portMatch = message.match(/Listening on .*:(\d+)/);
+				if (portMatch) {
+					const port = parseInt(portMatch[1], 10);
+					clearTimeout(timeout);
+					opencodeProcess?.stdout?.off("data", dataHandler);
+					resolve(port);
 				}
-			});
+			};
 
-			opencodeProcess.stderr?.on("data", (data: Buffer) => {
-				const message = data.toString().trim();
-				if (message) {
-					console.error(`[${agentName}] ${message}`);
-				}
-			});
+			opencodeProcess?.stdout?.on("data", dataHandler);
+		});
 
-			// Handle process exit
-			opencodeProcess.on("error", (error) => {
-				console.error(`[${agentName}] Process error: ${error.message}`);
-			});
+		console.log(`[${agentName}] OpenCode ACP server started on port ${port}`);
+		return { port, hostname: "127.0.0.1" };
+	}
 
-			opencodeProcess.on("exit", (code) => {
-				if (code !== 0) {
-					console.error(`[${agentName}] Process exited with code ${code}`);
-				}
-			});
+	try {
+		// Start OpenCode ACP server
+		const { port, hostname } = await startOpenCodeACP();
 
-			// Wait for the server to be ready and extract port from logs
-			// OpenCode will print something like "Listening on 127.0.0.1:8080"
-			const port = await new Promise<number>((resolve, reject) => {
-				const timeout = setTimeout(() => {
-					reject(new Error("Timeout waiting for OpenCode ACP server to start"));
-				}, 10000);
+		// Store the server connection info for later use by toACPClientConfig
+		setRuntimeConnection(hostname, port);
 
-				const dataHandler = (data: Buffer) => {
-					const message = data.toString();
-					// Look for port information in the output
-					const portMatch = message.match(/Listening on .*:(\d+)/);
-					if (portMatch) {
-						const port = parseInt(portMatch[1], 10);
-						clearTimeout(timeout);
-						opencodeProcess?.stdout?.off("data", dataHandler);
-						resolve(port);
-					}
-				};
+		// Initialize the ACP client manager
+		clientManager = new ACPClientManager({
+			name: agentId,
+			version: "1.0.0",
+		});
 
-				opencodeProcess?.stdout?.on("data", dataHandler);
-			});
+		// Get available models
+		const models = getACPModels();
 
-			console.log(`[${agentName}] OpenCode ACP server started on port ${port}`);
-			return { port, hostname: "127.0.0.1" };
-		}
+		// Create client config with TCP connection details
+		const clientConfig = toACPClientConfig({
+			id: agentId,
+			name: agentName,
+			participantId: opencodeConfig.participantId,
+			command: agentCommand,
+			args: ["acp"],
+			env: agentEnv,
+			cwd: agentCwd,
+			hostname: hostname,
+			port: port,
+		});
 
-		try {
-			// Start OpenCode ACP server
-			const { port, hostname } = await startOpenCodeACP();
-
-			// Store the server connection info for later use by toACPClientConfig
-			setRuntimeConnection(hostname, port);
-
-			// Initialize the ACP client manager
-			clientManager = new ACPClientManager({
-				name: opencodeConfig.id,
+		// Create and register the ACP provider using the SDK
+		acpProvider = new ACPProvider({
+			models,
+			clientConfig,
+			clientInfo: {
+				name: agentId,
 				version: "1.0.0",
-			});
+			},
+		});
 
-			// Get available models
-			const models = getACPModels();
+		// Register with VS Code's language model system
+		// Vendor must be globally unique - use simple ID without dots
+		const vendorId = agentId.replace(/[^a-zA-Z0-9]/g, "");
+		const providerDisposable = vscode.lm.registerLanguageModelChatProvider(vendorId, acpProvider);
+		context.subscriptions.push(providerDisposable);
 
-			// Create client config with TCP connection details
-			const clientConfig = toACPClientConfig({
-				...opencodeConfig,
-				hostname: hostname,
-				port: port,
-			});
+		// Register chat participant for conversational AI
+		const chatParticipant = vscode.chat.createChatParticipant(
+			opencodeConfig.participantId,
+			async (
+				request: vscode.ChatRequest,
+				context: vscode.ChatContext,
+				response: vscode.ChatResponseStream,
+				token: vscode.CancellationToken
+			) => {
+				await handleChatRequest(request, context, response, token);
+			}
+		);
 
-			// Create and register the ACP provider using the SDK
-			acpProvider = new ACPProvider({
-				models,
-				clientConfig,
-				clientInfo: {
-					name: opencodeConfig.id,
-					version: "1.0.0",
-				},
-			});
+		context.subscriptions.push(chatParticipant);
 
-			// Register with VS Code's language model system
-			// Vendor must be globally unique - use simple ID without dots
-			const vendorId = opencodeConfig.id.replace(/[^a-zA-Z0-9]/g, "");
-			const providerDisposable = vscode.lm.registerLanguageModelChatProvider(
-				vendorId,
-				acpProvider
-			);
-			context.subscriptions.push(providerDisposable);
+		// Register configuration command
+		const configCommand = vscode.commands.registerCommand(`${agentId}.configure`, async () => {
+			await showConfigurationPanel();
+		});
+		context.subscriptions.push(configCommand);
 
-			// Register chat participant for conversational AI
-			const chatParticipant = vscode.chat.createChatParticipant(
-				opencodeConfig.participantId,
-				async (
-					request: vscode.ChatRequest,
-					context: vscode.ChatContext,
-					response: vscode.ChatResponseStream,
-					token: vscode.CancellationToken
-				) => {
-					await handleChatRequest(request, context, response, token);
-				}
-			);
+		// Register restart command
+		const restartCommand = vscode.commands.registerCommand(`${agentId}.restart`, async () => {
+			await restartAgent();
+		});
+		context.subscriptions.push(restartCommand);
 
-			context.subscriptions.push(chatParticipant);
+		console.log(`[${agentName}] Extension activated successfully`);
+		console.log(`[${agentName}] Registered models: ${models.map((m) => m.id).join(", ")}`);
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : "Unknown error";
+		console.error(`[${agentName}] Activation failed: ${errorMessage}`);
 
-			// Register configuration command
-			const configCommand = vscode.commands.registerCommand(
-				`${opencodeConfig.id}.configure`,
-				async () => {
-					await showConfigurationPanel();
-				}
-			);
-			context.subscriptions.push(configCommand);
-
-			// Register restart command
-			const restartCommand = vscode.commands.registerCommand(
-				`${opencodeConfig.id}.restart`,
-				async () => {
-					await restartAgent();
-				}
-			);
-			context.subscriptions.push(restartCommand);
-
-			console.log(`[${agentName}] Extension activated successfully`);
-			console.log(`[${agentName}] Registered models: ${models.map((m) => m.id).join(", ")}`);
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error";
-			console.error(`[${agentName}] Activation failed: ${errorMessage}`);
-
-			// Show error notification
-			vscode.window
-				.showErrorMessage(`Failed to initialize ${agentName}: ${errorMessage}`, "View Logs")
+		// Show error notification
+		vscode.window.showErrorMessage(`Failed to initialize ${agentName}: ${errorMessage}`, "View Logs");
 
 		throw error;
 	}
@@ -340,9 +337,7 @@ async function handleChatRequest(
 		clientManager.addSession("chat", connection, { sessionId });
 
 		// Convert user message to ACP format
-		const prompt: ContentBlock[] = [
-			{ type: "text", text: userPrompt },
-		];
+		const prompt: ContentBlock[] = [{ type: "text", text: userPrompt }];
 
 		// Send prompt and stream response
 		response.markdown("*Agent response:*\n\n");

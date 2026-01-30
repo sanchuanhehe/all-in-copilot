@@ -24,21 +24,21 @@ Edit `src/config.ts` to configure your agent:
 
 ```typescript
 export const AGENT_CONFIG: AgentConfig = {
-        // Agent identification
-        id: "my-agent",
-        name: "My Agent",
-        participantId: "my-agent.agent",
+	// Agent identification
+	id: "my-agent",
+	name: "My Agent",
+	participantId: "my-agent.agent",
 
-        // Command to run the agent
-        command: "npx",
-        args: ["-y", "@anthropic-ai/claude-agent-sdk"],
+	// Command to run the agent
+	command: "npx",
+	args: ["-y", "@anthropic-ai/claude-agent-sdk"],
 
-        // Environment variables
-        env: {},
+	// Environment variables
+	env: {},
 
-        // Default settings
-        defaultMode: "Primary",
-        defaultModel: "sonnet-4-20250514",
+	// Default settings
+	defaultMode: "Primary",
+	defaultModel: "sonnet-4-20250514",
 };
 ```
 

@@ -35,9 +35,4 @@ export type {
 } from "@agentclientprotocol/sdk";
 
 // VS Code ACP Integration
-export {
-	ACPProvider,
-	registerACPProvider,
-	type ACPModelInfo,
-	type ACPProviderOptions,
-} from "./acpProvider";
+export { ACPProvider, registerACPProvider, type ACPModelInfo, type ACPProviderOptions } from "./acpProvider";

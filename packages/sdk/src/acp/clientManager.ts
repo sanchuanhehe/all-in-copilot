@@ -352,7 +352,10 @@ export class ACPClientManager {
 	 */
 	async newSession(
 		client: ClientSideConnection,
-		params: { cwd: string; mcpServers?: Array<{ name: string; command: string; args?: string[]; env?: Record<string, string> }> }
+		params: {
+			cwd: string;
+			mcpServers?: Array<{ name: string; command: string; args?: string[]; env?: Record<string, string> }>;
+		}
 	): Promise<NewSessionResult> {
 		try {
 			// Check if newSession is available
@@ -364,7 +367,7 @@ export class ACPClientManager {
 			}
 
 			// Convert mcpServers to proper format with empty array as fallback
-			const mcpServers = (params.mcpServers ?? []).map(server => ({
+			const mcpServers = (params.mcpServers ?? []).map((server) => ({
 				type: "stdio" as const,
 				name: server.name,
 				command: server.command,
@@ -469,7 +472,11 @@ export class ACPClientManager {
 	 * @param modelId The model ID to set
 	 * @returns Success status or error message
 	 */
-	async setSessionModel(client: ClientSideConnection, sessionId: string, modelId: string): Promise<{ success: boolean; error?: string }> {
+	async setSessionModel(
+		client: ClientSideConnection,
+		sessionId: string,
+		modelId: string
+	): Promise<{ success: boolean; error?: string }> {
 		try {
 			// Check if setSessionModel is available
 			if (typeof (client as any).unstable_setSessionModel !== "function") {
@@ -723,12 +730,7 @@ export class ACPClientManager {
 				const cwd = params.cwd ?? undefined;
 
 				if (callbacks.createTerminal) {
-					const terminal = await callbacks.createTerminal(
-						params.sessionId,
-						params.command,
-						params.args,
-						cwd
-					);
+					const terminal = await callbacks.createTerminal(params.sessionId, params.command, params.args, cwd);
 					terminalIdToHandle.set(terminal.terminalId, {
 						name: terminal.name,
 						command: params.command,

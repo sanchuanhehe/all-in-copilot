@@ -491,10 +491,7 @@ describe("Session Update Handlers", () => {
 		});
 
 		it("should extract text from content array", () => {
-			const content = [
-				{ text: "File read successfully" },
-				{ text: "Lines: 42" },
-			];
+			const content = [{ text: "File read successfully" }, { text: "Lines: 42" }];
 
 			const textParts: string[] = [];
 			for (const item of content) {

@@ -1,22 +1,22 @@
 {
-        "version": "2.0.0",
-        "tasks": [
-                {
-                        "label": "esbuild: watch",
-                        "type": "npm",
-                        "script": "watch",
-                        "isBackground": true,
-                        "group": {
-                                "kind": "build",
-                                "isDefault": true
-                        },
-                        "problemMatcher": ["$esbuild"]
-                },
-                {
-                        "label": "esbuild: production",
-                        "type": "npm",
-                        "script": "compile -- --production",
-                        "group": "build"
-                }
-        ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "esbuild: watch",
+			"type": "npm",
+			"script": "watch",
+			"isBackground": true,
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": ["$esbuild"]
+		},
+		{
+			"label": "esbuild: production",
+			"type": "npm",
+			"script": "compile -- --production",
+			"group": "build"
+		}
+	]
 }
