@@ -1,75 +1,94 @@
 {
-        "name": "acp-template",
-        "publisher": "sanchuan",
-        "displayName": "ACP Agent Provider",
-        "description": "Integrate external ACP-compatible agent servers (Claude Code, Gemini CLI, etc.)",
-        "icon": "assets/logo.png",
-        "repository": {
-                "type": "git",
-                "url": "https://github.com/sanchuanhehe/all-in-copilot"
-        },
-        "version": "0.0.1",
-        "type": "module",
-        "engines": {
-                "vscode": "^1.104.0"
-        },
-        "categories": [
-                "AI",
-                "Machine Learning"
+    "name": "acp-template",
+    "publisher": "sanchuan",
+    "displayName": "ACP Agent Provider",
+    "description": "Integrate external ACP-compatible agent servers (Claude Code, Gemini CLI, etc.)",
+    "icon": "assets/logo.png",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/sanchuanhehe/all-in-copilot"
+    },
+    "version": "0.0.1",
+    "type": "module",
+    "engines": {
+        "vscode": "^1.104.0"
+    },
+    "categories": [
+        "AI",
+        "Machine Learning"
+    ],
+    "keywords": [
+        "ai",
+        "agent",
+        "acp",
+        "claude",
+        "gemini",
+        "copilot",
+        "llm"
+    ],
+    "main": "./out/extension.js",
+    "scripts": {
+        "vscode:prepublish": "npm run package",
+        "download-api": "dts dev && dts main && mv vscode.d.ts src/vscode/vscode.d.ts 2>/dev/null || true",
+        "postinstall": "npm run download-api 2>/dev/null || true",
+        "compile": "node esbuild.js",
+        "watch": "node esbuild.js --watch",
+        "package": "node esbuild.js --production",
+        "vsce:package": "vsce package --no-dependencies",
+        "lint": "eslint",
+        "format": "prettier --write .",
+        "test": "pnpm run compile && vscode-test"
+    },
+    "dependencies": {
+        "@all-in-copilot/sdk": "workspace:*",
+        "@agentclientprotocol/sdk": "^0.13.1"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.13.0",
+        "@stylistic/eslint-plugin": "^2.9.0",
+        "@types/node": "^22",
+        "@types/mocha": "^10.0.6",
+        "@vscode/dts": "^0.4.1",
+        "@vscode/test-cli": "^0.0.11",
+        "@vscode/test-electron": "^2.5.2",
+        "@vscode/vsce": "^3.7.1",
+        "esbuild": "^0.24.2",
+        "eslint": "^9.13.0",
+        "prettier": "^3.1.0",
+        "typescript": "^5.9.2",
+        "typescript-eslint": "^8.39.0"
+    },
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "contributes": {
+        "languageModelChatProviders": [
+            {
+                "vendor": "opencode",
+                "displayName": "OpenCode Agent",
+                "managementCommand": "opencode.manage"
+            }
         ],
-        "keywords": [
-                "ai",
-                "agent",
-                "acp",
-                "claude",
-                "gemini",
-                "copilot",
-                "llm"
+        "chatParticipants": [
+            {
+                "id": "opencode.agent",
+                "name": "Agent Name",
+                "description": "Ask questions or get help with coding tasks"
+            }
         ],
-        "main": "./out/extension.js",
-        "scripts": {
-                "vscode:prepublish": "npm run package",
-                "download-api": "dts dev && dts main && mv vscode.d.ts src/vscode/vscode.d.ts 2>/dev/null || true",
-                "postinstall": "npm run download-api 2>/dev/null || true",
-                "compile": "node esbuild.js",
-                "watch": "node esbuild.js --watch",
-                "package": "node esbuild.js --production",
-                "vsce:package": "vsce package --no-dependencies",
-                "lint": "eslint",
-                "format": "prettier --write .",
-                "test": "pnpm run compile && vscode-test"
-        },
-        "dependencies": {
-                "@all-in-copilot/sdk": "workspace:*",
-                "@agentclientprotocol/sdk": "^0.13.1"
-        },
-        "devDependencies": {
-                "@eslint/js": "^9.13.0",
-                "@stylistic/eslint-plugin": "^2.9.0",
-                "@types/node": "^22",
-                "@types/mocha": "^10.0.6",
-                "@vscode/dts": "^0.4.1",
-                "@vscode/test-cli": "^0.0.11",
-                "@vscode/test-electron": "^2.5.2",
-                "@vscode/vsce": "^3.7.1",
-                "esbuild": "^0.24.2",
-                "eslint": "^9.13.0",
-                "prettier": "^3.1.0",
-                "typescript": "^5.9.2",
-                "typescript-eslint": "^8.39.0"
-        },
-        "activationEvents": [
-                "onStartupFinished"
-        ],
-        "contributes": {
-                "languageModelChatParticipants": [
-                        {
-                                "id": "agentId.agent",
-                                "name": "Agent Name",
-                                "hint": {
-                                        "description": "Ask questions or get help with coding tasks"
-                                }
-                        }
-                ]
-        }
+        "commands": [
+            {
+                "command": "opencode.manage",
+                "title": "Configure OpenCode Agent"
+            },
+            {
+                "command": "opencode.restart",
+                "title": "Restart OpenCode Agent"
+            },
+            {
+                "command": "opencode.configure",
+                "title": "Configure OpenCode Agent Settings"
+            }
+        ]
+    }
 }
