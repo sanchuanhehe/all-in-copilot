@@ -44,12 +44,31 @@ export function getClientManager(): ACPClientManager | null {
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	extensionContext = context;
 
-	console.log(`[${AGENT_CONFIG.name}] Activating ACP extension...`);
+	// Check if OpenCode is available
+	const opencodeConfig = getOpenCodeConfig();
+	if (!opencodeConfig) {
+		// Show info message and don't activate
+		const installCmd = "OpenCode Agent: Install OpenCode";
+		const selected = await vscode.window.showInformationMessage(
+			"ACP Agent Provider requires OpenCode to be installed and in PATH.",
+			{ modal: true },
+			installCmd
+		);
+
+		if (selected === installCmd) {
+			vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/download"));
+		}
+
+		console.log("[ACP Agent] OpenCode not found in PATH, extension not activated");
+		return;
+	}
+
+	console.log(`[${opencodeConfig.name}] Activating ACP extension...`);
 
 	try {
 		// Initialize the ACP client manager
 		clientManager = new ACPClientManager({
-			name: AGENT_CONFIG.id,
+			name: opencodeConfig.id,
 			version: "1.0.0",
 		});
 
@@ -57,28 +76,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		const models = getACPModels();
 
 		// Create client config from agent config
-		const clientConfig = toACPClientConfig(AGENT_CONFIG);
+		const clientConfig = toACPClientConfig(opencodeConfig);
 
 		// Create and register the ACP provider using the SDK
 		acpProvider = new ACPProvider({
 			models,
 			clientConfig,
 			clientInfo: {
-				name: AGENT_CONFIG.id,
+				name: opencodeConfig.id,
 				version: "1.0.0",
 			},
 		});
 
 		// Register with VS Code's language model system
 		const providerDisposable = vscode.lm.registerLanguageModelChatProvider(
-			`acp.${AGENT_CONFIG.id}`,
+			`acp.${opencodeConfig.id}`,
 			acpProvider
 		);
 		context.subscriptions.push(providerDisposable);
 
 		// Register chat participant for conversational AI
 		const chatParticipant = vscode.chat.createChatParticipant(
-			AGENT_CONFIG.participantId,
+			opencodeConfig.participantId,
 			async (
 				request: vscode.ChatRequest,
 				context: vscode.ChatContext,
@@ -93,7 +112,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 		// Register configuration command
 		const configCommand = vscode.commands.registerCommand(
-			`${AGENT_CONFIG.id}.configure`,
+			`${opencodeConfig.id}.configure`,
 			async () => {
 				await showConfigurationPanel();
 			}
@@ -102,22 +121,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 		// Register restart command
 		const restartCommand = vscode.commands.registerCommand(
-			`${AGENT_CONFIG.id}.restart`,
+			`${opencodeConfig.id}.restart`,
 			async () => {
 				await restartAgent();
 			}
 		);
 		context.subscriptions.push(restartCommand);
 
-		console.log(`[${AGENT_CONFIG.name}] Extension activated successfully`);
-		console.log(`[${AGENT_CONFIG.name}] Registered models: ${models.map((m) => m.id).join(", ")}`);
+		console.log(`[${opencodeConfig.name}] Extension activated successfully`);
+		console.log(`[${opencodeConfig.name}] Registered models: ${models.map((m) => m.id).join(", ")}`);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : "Unknown error";
-		console.error(`[${AGENT_CONFIG.name}] Activation failed: ${errorMessage}`);
+		console.error(`[${opencodeConfig.name}] Activation failed: ${errorMessage}`);
 
 		// Show error notification
 		vscode.window
-			.showErrorMessage(`Failed to initialize ${AGENT_CONFIG.name}: ${errorMessage}`, "View Logs")
+			.showErrorMessage(`Failed to initialize ${opencodeConfig.name}: ${errorMessage}`, "View Logs")
 			.then((selection) => {
 				if (selection === "View Logs") {
 					vscode.commands.executeCommand("workbench.action.openWalkthrough", { folder: undefined }, "Show Logs");
