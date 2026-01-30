@@ -206,7 +206,7 @@ describe('convertToOpenAI', () => {
 
 describe('ensureValidMessageOrder', () => {
   it('should create user message if empty', () => {
-    const input: { role: 'user' | 'assistant'; content: Array<{ type: string; text: string }> }[] = [];
+    const input: Array<{ role: 'user' | 'assistant'; content: Array<{ type: 'text'; text: string }> }> = [];
     const result = ensureValidMessageOrder(input);
     expect(result).toHaveLength(1);
     expect(result[0].role).toBe('user');
@@ -214,7 +214,9 @@ describe('ensureValidMessageOrder', () => {
   });
 
   it('should prepend user message if starts with assistant', () => {
-    const input = [{ role: 'assistant', content: [{ type: 'text', text: 'Hi' }] }];
+    const input: Array<{ role: 'user' | 'assistant'; content: Array<{ type: 'text'; text: string }> }> = [
+      { role: 'assistant', content: [{ type: 'text', text: 'Hi' }] }
+    ];
     const result = ensureValidMessageOrder(input);
     expect(result[0].role).toBe('user');
     expect(result[0].content).toEqual([{ type: 'text', text: '(continue)' }]);
@@ -222,7 +224,7 @@ describe('ensureValidMessageOrder', () => {
   });
 
   it('should merge consecutive messages of same role', () => {
-    const input = [
+    const input: Array<{ role: 'user' | 'assistant'; content: Array<{ type: 'text'; text: string }> }> = [
       { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
       { role: 'user', content: [{ type: 'text', text: ' world' }] },
     ];
@@ -232,7 +234,7 @@ describe('ensureValidMessageOrder', () => {
   });
 
   it('should alternate user and assistant correctly', () => {
-    const input = [
+    const input: Array<{ role: 'user' | 'assistant'; content: Array<{ type: 'text'; text: string }> }> = [
       { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
       { role: 'assistant', content: [{ type: 'text', text: 'Hi there!' }] },
       { role: 'user', content: [{ type: 'text', text: 'How are you?' }] },
