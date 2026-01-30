@@ -28,13 +28,13 @@ function expandPath(path: string): string {
 function findOpenCodePath(): string | null {
 	// First try which command with extended PATH
 	try {
-		const extendedEnv = { 
-			...process.env, 
-			PATH: (process.env.PATH || "") + ":/usr/local/bin:/home/sanchuanhehe/.opencode/bin"
+		const extendedEnv = {
+			...process.env,
+			PATH: (process.env.PATH || "") + ":/usr/local/bin:/home/sanchuanhehe/.opencode/bin",
 		};
-		const path = execSync("which opencode 2>/dev/null || echo ''", { 
+		const path = execSync("which opencode 2>/dev/null || echo ''", {
 			encoding: "utf-8",
-			env: extendedEnv
+			env: extendedEnv,
 		}).trim();
 		if (path && existsSync(path)) {
 			return path;
@@ -130,7 +130,7 @@ export function toACPClientConfig(config: AgentConfig): ACPClientConfig {
 export function getOpenCodeConfig(): AgentConfig | null {
 	// Try to find opencode using multiple strategies
 	const opencodePath = findOpenCodePath();
-	
+
 	if (opencodePath) {
 		return {
 			id: "opencode",

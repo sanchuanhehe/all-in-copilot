@@ -9,13 +9,7 @@ import * as vscode from "vscode";
 import { existsSync, statSync, accessSync, constants } from "fs";
 import { ACPClientManager, ACPProvider, type ContentBlock } from "@all-in-copilot/sdk";
 import type { ACPModelInfo } from "@all-in-copilot/sdk";
-import {
-	AGENT_CONFIG,
-	getACPModels,
-	getOpenCodeConfig,
-	getWorkspaceFolder,
-	toACPClientConfig,
-} from "./config";
+import { AGENT_CONFIG, getACPModels, getOpenCodeConfig, getWorkspaceFolder, toACPClientConfig } from "./config";
 
 /**
  * Get the active agent configuration (throws if not available)
@@ -188,7 +182,7 @@ export async function deactivate(): Promise<void> {
 
 	extensionContext = null;
 	logToChannel(`[${agentName}] Extension deactivated`);
-	
+
 	// Dispose output channel
 	opencodeOutputChannel?.dispose();
 	opencodeOutputChannel = null;

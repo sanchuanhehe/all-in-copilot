@@ -95,15 +95,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        template: [
-          { name: "acp", path: "acp-template" },
-          { name: "base", path: "base-template" },
-          { name: "glm", path: "glm-template" },
-          { name: "minimax", path: "minimax-template" },
-          { name: "kimi", path: "kimi-template" },
-          { name: "kimi-coding", path: "kimi-coding-template" },
-          { name: "mimo", path: "mimo-template" }
-        ]
+        template:
+          [
+            { name: "acp", path: "acp-template" },
+            { name: "base", path: "base-template" },
+            { name: "glm", path: "glm-template" },
+            { name: "minimax", path: "minimax-template" },
+            { name: "kimi", path: "kimi-template" },
+            { name: "kimi-coding", path: "kimi-coding-template" },
+            { name: "mimo", path: "mimo-template" },
+          ]
 
     steps:
       - name: Checkout code

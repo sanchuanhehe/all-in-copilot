@@ -26,9 +26,7 @@
 		{
 			"label": "esbuild compile",
 			"command": "node esbuild.js",
-			"args": [
-				"--production"
-			],
+			"args": ["--production"],
 			"group": "build"
 		},
 		{

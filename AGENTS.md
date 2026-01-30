@@ -39,18 +39,18 @@ Create a new file in `packages/sdk/src/core/fetchers/`:
 import type { ModelInfo } from "../types.js";
 
 export async function fetchMyProviderModels(apiKey: string): Promise<ModelInfo[]> {
-    const response = await fetch("https://api.myprovider.com/models", {
-        headers: { "Authorization": `Bearer ${apiKey}` }
-    });
+	const response = await fetch("https://api.myprovider.com/models", {
+		headers: { Authorization: `Bearer ${apiKey}` },
+	});
 
-    const data = await response.json();
-    return data.models.map((model: any) => ({
-        id: model.id,
-        name: model.name,
-        maxInputTokens: model.context_length,
-        maxOutputTokens: model.max_tokens,
-        supportsToolCalls: model.supports_tools,
-    }));
+	const data = await response.json();
+	return data.models.map((model: any) => ({
+		id: model.id,
+		name: model.name,
+		maxInputTokens: model.context_length,
+		maxOutputTokens: model.max_tokens,
+		supportsToolCalls: model.supports_tools,
+	}));
 }
 ```
 
@@ -60,22 +60,22 @@ Update `packages/sdk/src/core/config.ts`:
 
 ```typescript
 export interface ProviderConfig {
-    name: string;
-    baseUrl: string;
-    apiFormat: "openai" | "anthropic";
-    modelFetcher: (apiKey: string) => Promise<ModelInfo[]>;
-    defaultModels: string[];
+	name: string;
+	baseUrl: string;
+	apiFormat: "openai" | "anthropic";
+	modelFetcher: (apiKey: string) => Promise<ModelInfo[]>;
+	defaultModels: string[];
 }
 
 export const PROVIDERS: Record<string, ProviderConfig> = {
-    myprovider: {
-        name: "MyProvider",
-        baseUrl: "https://api.myprovider.com/v1",
-        apiFormat: "openai",
-        modelFetcher: fetchMyProviderModels,
-        defaultModels: ["model-1", "model-2"],
-    },
-    // ... existing providers
+	myprovider: {
+		name: "MyProvider",
+		baseUrl: "https://api.myprovider.com/v1",
+		apiFormat: "openai",
+		modelFetcher: fetchMyProviderModels,
+		defaultModels: ["model-1", "model-2"],
+	},
+	// ... existing providers
 };
 ```
 
@@ -93,8 +93,8 @@ Update `cli/src/presets.ts` to include your new provider:
 
 ```typescript
 export const PRESETS = [
-    { id: "myprovider", name: "MyProvider", config: "myprovider" },
-    // ... existing presets
+	{ id: "myprovider", name: "MyProvider", config: "myprovider" },
+	// ... existing presets
 ];
 ```
 
@@ -106,14 +106,14 @@ export const PRESETS = [
 import { AllInCopilot } from "@all-in-copilot/sdk";
 
 const copilot = new AllInCopilot({
-    provider: "openai",
-    apiKey: process.env.OPENAI_API_KEY,
-    model: "gpt-4",
+	provider: "openai",
+	apiKey: process.env.OPENAI_API_KEY,
+	model: "gpt-4",
 });
 
 // Stream responses
 for await (const chunk of copilot.stream("Hello, world!")) {
-    process.stdout.write(chunk);
+	process.stdout.write(chunk);
 }
 ```
 
@@ -123,13 +123,13 @@ for await (const chunk of copilot.stream("Hello, world!")) {
 import { registerChatProvider } from "@all-in-copilot/sdk/vscode";
 
 export function activate(context: vscode.ExtensionContext) {
-    const disposable = registerChatProvider("my-extension", {
-        provider: "openai",
-        apiKey: context.secrets.get("openai-api-key"),
-        defaultModel: "gpt-4",
-    });
+	const disposable = registerChatProvider("my-extension", {
+		provider: "openai",
+		apiKey: context.secrets.get("openai-api-key"),
+		defaultModel: "gpt-4",
+	});
 
-    context.subscriptions.push(disposable);
+	context.subscriptions.push(disposable);
 }
 ```
 
@@ -139,26 +139,26 @@ Each template supports the following customizations in `src/config.ts`:
 
 ```typescript
 export interface ExtensionConfig {
-    // Provider settings
-    provider: {
-        id: string;
-        name: string;
-        apiFormat: "openai" | "anthropic";
-        baseUrl: string;
-    };
+	// Provider settings
+	provider: {
+		id: string;
+		name: string;
+		apiFormat: "openai" | "anthropic";
+		baseUrl: string;
+	};
 
-    // Model settings
-    model: {
-        id: string;
-        maxInputTokens: number;
-        maxOutputTokens: number;
-    };
+	// Model settings
+	model: {
+		id: string;
+		maxInputTokens: number;
+		maxOutputTokens: number;
+	};
 
-    // UI settings
-    ui: {
-        chatTitle: string;
-        welcomeMessage: string;
-    };
+	// UI settings
+	ui: {
+		chatTitle: string;
+		welcomeMessage: string;
+	};
 }
 ```
 
@@ -189,11 +189,11 @@ import { describe, it, expect } from "vitest";
 import { fetchModels } from "../core/fetchers/myprovider";
 
 describe("MyProvider Fetcher", () => {
-    it("should fetch models", async () => {
-        const models = await fetchModels("test-api-key");
-        expect(models).toBeInstanceOf(Array);
-        expect(models[0]).toHaveProperty("id");
-    });
+	it("should fetch models", async () => {
+		const models = await fetchModels("test-api-key");
+		expect(models).toBeInstanceOf(Array);
+		expect(models[0]).toHaveProperty("id");
+	});
 });
 ```
 
@@ -293,18 +293,18 @@ all-in-copilot/
 import type { ModelInfo } from "../types.js";
 
 export async function fetchMyProviderModels(apiKey: string): Promise<ModelInfo[]> {
-    const response = await fetch("https://api.myprovider.com/models", {
-        headers: { "Authorization": `Bearer ${apiKey}` }
-    });
+	const response = await fetch("https://api.myprovider.com/models", {
+		headers: { Authorization: `Bearer ${apiKey}` },
+	});
 
-    const data = await response.json();
-    return data.models.map((model: any) => ({
-        id: model.id,
-        name: model.name,
-        maxInputTokens: model.context_length,
-        maxOutputTokens: model.max_tokens,
-        supportsToolCalls: model.supports_tools,
-    }));
+	const data = await response.json();
+	return data.models.map((model: any) => ({
+		id: model.id,
+		name: model.name,
+		maxInputTokens: model.context_length,
+		maxOutputTokens: model.max_tokens,
+		supportsToolCalls: model.supports_tools,
+	}));
 }
 ```
 
@@ -314,22 +314,22 @@ export async function fetchMyProviderModels(apiKey: string): Promise<ModelInfo[]
 
 ```typescript
 export interface ProviderConfig {
-    name: string;
-    baseUrl: string;
-    apiFormat: "openai" | "anthropic";
-    modelFetcher: (apiKey: string) => Promise<ModelInfo[]>;
-    defaultModels: string[];
+	name: string;
+	baseUrl: string;
+	apiFormat: "openai" | "anthropic";
+	modelFetcher: (apiKey: string) => Promise<ModelInfo[]>;
+	defaultModels: string[];
 }
 
 export const PROVIDERS: Record<string, ProviderConfig> = {
-    myprovider: {
-        name: "MyProvider",
-        baseUrl: "https://api.myprovider.com/v1",
-        apiFormat: "openai",
-        modelFetcher: fetchMyProviderModels,
-        defaultModels: ["model-1", "model-2"],
-    },
-    // ... 现有提供者
+	myprovider: {
+		name: "MyProvider",
+		baseUrl: "https://api.myprovider.com/v1",
+		apiFormat: "openai",
+		modelFetcher: fetchMyProviderModels,
+		defaultModels: ["model-1", "model-2"],
+	},
+	// ... 现有提供者
 };
 ```
 
@@ -347,8 +347,8 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
 
 ```typescript
 export const PRESETS = [
-    { id: "myprovider", name: "MyProvider", config: "myprovider" },
-    // ... 现有预设
+	{ id: "myprovider", name: "MyProvider", config: "myprovider" },
+	// ... 现有预设
 ];
 ```
 
@@ -360,14 +360,14 @@ export const PRESETS = [
 import { AllInCopilot } from "@all-in-copilot/sdk";
 
 const copilot = new AllInCopilot({
-    provider: "openai",
-    apiKey: process.env.OPENAI_API_KEY,
-    model: "gpt-4",
+	provider: "openai",
+	apiKey: process.env.OPENAI_API_KEY,
+	model: "gpt-4",
 });
 
 // 流式响应
 for await (const chunk of copilot.stream("你好，世界！")) {
-    process.stdout.write(chunk);
+	process.stdout.write(chunk);
 }
 ```
 
@@ -377,13 +377,13 @@ for await (const chunk of copilot.stream("你好，世界！")) {
 import { registerChatProvider } from "@all-in-copilot/sdk/vscode";
 
 export function activate(context: vscode.ExtensionContext) {
-    const disposable = registerChatProvider("my-extension", {
-        provider: "openai",
-        apiKey: context.secrets.get("openai-api-key"),
-        defaultModel: "gpt-4",
-    });
+	const disposable = registerChatProvider("my-extension", {
+		provider: "openai",
+		apiKey: context.secrets.get("openai-api-key"),
+		defaultModel: "gpt-4",
+	});
 
-    context.subscriptions.push(disposable);
+	context.subscriptions.push(disposable);
 }
 ```
 
@@ -393,26 +393,26 @@ export function activate(context: vscode.ExtensionContext) {
 
 ```typescript
 export interface ExtensionConfig {
-    // 提供者设置
-    provider: {
-        id: string;
-        name: string;
-        apiFormat: "openai" | "anthropic";
-        baseUrl: string;
-    };
+	// 提供者设置
+	provider: {
+		id: string;
+		name: string;
+		apiFormat: "openai" | "anthropic";
+		baseUrl: string;
+	};
 
-    // 模型设置
-    model: {
-        id: string;
-        maxInputTokens: number;
-        maxOutputTokens: number;
-    };
+	// 模型设置
+	model: {
+		id: string;
+		maxInputTokens: number;
+		maxOutputTokens: number;
+	};
 
-    // UI 设置
-    ui: {
-        chatTitle: string;
-        welcomeMessage: string;
-    };
+	// UI 设置
+	ui: {
+		chatTitle: string;
+		welcomeMessage: string;
+	};
 }
 ```
 
@@ -443,11 +443,11 @@ import { describe, it, expect } from "vitest";
 import { fetchModels } from "../core/fetchers/myprovider";
 
 describe("MyProvider Fetcher", () => {
-    it("应该获取模型列表", async () => {
-        const models = await fetchModels("test-api-key");
-        expect(models).toBeInstanceOf(Array);
-        expect(models[0]).toHaveProperty("id");
-    });
+	it("应该获取模型列表", async () => {
+		const models = await fetchModels("test-api-key");
+		expect(models).toBeInstanceOf(Array);
+		expect(models[0]).toHaveProperty("id");
+	});
 });
 ```
 
@@ -540,4 +540,4 @@ A: 当然可以！请在 `package.json` 中添加本地化文件，并在 README
 
 ---
 
-*最后更新: 2026年1月*
+_最后更新: 2026年1月_
