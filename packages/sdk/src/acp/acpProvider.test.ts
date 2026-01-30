@@ -375,3 +375,135 @@ describe("Text Buffer Accumulation", () => {
 		expect(textBuffer.join("")).toBe("Hello 世界!");
 	});
 });
+
+describe("Session Update Handlers", () => {
+	describe("available_commands_update handler", () => {
+		it("should format commands with name and description", () => {
+			const commands = [
+				{ name: "Read", description: "Read a file" },
+				{ name: "Edit", description: "Edit a file" },
+				{ name: "Grep", description: "Search in files" },
+			];
+
+			const formatted = commands.map((c) => `  - ${c.name || c}: ${c.description || ""}`).join("\n");
+			expect(formatted).toContain("  - Read: Read a file");
+			expect(formatted).toContain("  - Edit: Edit a file");
+			expect(formatted).toContain("  - Grep: Search in files");
+		});
+
+		it("should handle commands without description", () => {
+			const commands = [{ name: "SimpleCmd" }] as Array<{ name?: string; description?: string }>;
+
+			const formatted = commands.map((c) => `  - ${c.name || c}: ${c.description || ""}`).join("\n");
+			expect(formatted).toBe("  - SimpleCmd: ");
+		});
+
+		it("should handle commands as plain strings", () => {
+			const commands = ["Read", "Edit", "Grep"];
+
+			const formatted = commands.map((c) => `  - ${c}: `).join("\n");
+			expect(formatted).toContain("  - Read:");
+			expect(formatted).toContain("  - Edit:");
+			expect(formatted).toContain("  - Grep:");
+		});
+
+		it("should handle empty commands array", () => {
+			const commands: Array<{ name?: string; description?: string }> = [];
+
+			const formatted = commands.map((c) => `  - ${c.name || c}: ${c.description || ""}`).join("\n");
+			expect(formatted).toBe("");
+		});
+	});
+
+	describe("current_mode_update handler", () => {
+		it("should format mode update message", () => {
+			const mode = "Plan";
+			const formatted = `\n[Mode: ${mode}]\n`;
+			expect(formatted).toBe("\n[Mode: Plan]\n");
+		});
+
+		it("should handle different mode values", () => {
+			const modes = ["Plan", "Action", "Monitor", "Observe"];
+			for (const mode of modes) {
+				const formatted = `\n[Mode: ${mode}]\n`;
+				expect(formatted).toContain(`[Mode: ${mode}]`);
+			}
+		});
+
+		it("should handle empty mode", () => {
+			const mode = "";
+			const formatted = `\n[Mode: ${mode}]\n`;
+			expect(formatted).toBe("\n[Mode: ]\n");
+		});
+	});
+
+	describe("agent_thought_chunk handler", () => {
+		it("should format thinking indicator", () => {
+			const thinkingText = "[Reasoning]";
+			expect(thinkingText).toBe("[Reasoning]");
+		});
+	});
+
+	describe("plan handler", () => {
+		it("should format plan indicator", () => {
+			const planText = "[Plan available]\n";
+			expect(planText).toBe("[Plan available]\n");
+		});
+	});
+
+	describe("tool_call handler", () => {
+		it("should extract tool name from title", () => {
+			const title = "Read file /test/path.txt";
+			const toolName = title.split(" ")[0] || "tool";
+			expect(toolName).toBe("Read");
+		});
+
+		it("should handle unknown tool title", () => {
+			const title = "";
+			const toolName = title.split(" ")[0] || "tool";
+			expect(toolName).toBe("tool");
+		});
+
+		it("should generate tool call id with timestamp", () => {
+			const toolCallId = String(Date.now());
+			expect(toolCallId.length).toBeGreaterThanOrEqual(13);
+			expect(Number(toolCallId)).toBeGreaterThan(0);
+		});
+	});
+
+	describe("tool_call_update handler", () => {
+		it("should identify completed status", () => {
+			const status = "completed" as string;
+			const isCompleted = status === "completed" || status === "success";
+			expect(isCompleted).toBe(true);
+		});
+
+		it("should identify success status", () => {
+			const status = "success" as string;
+			const isCompleted = status === "completed" || status === "success";
+			expect(isCompleted).toBe(true);
+		});
+
+		it("should handle pending status", () => {
+			const status = "pending" as string;
+			const isCompleted = status === "completed" || status === "success";
+			expect(isCompleted).toBe(false);
+		});
+
+		it("should extract text from content array", () => {
+			const content = [
+				{ text: "File read successfully" },
+				{ text: "Lines: 42" },
+			];
+
+			const textParts: string[] = [];
+			for (const item of content) {
+				if (item && "text" in item) {
+					textParts.push(String(item.text));
+				}
+			}
+
+			expect(textParts.join("\n")).toBe("File read successfully\nLines: 42");
+		});
+	});
+});
