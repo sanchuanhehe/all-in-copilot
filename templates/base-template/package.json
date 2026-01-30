@@ -16,6 +16,13 @@
     "AI",
     "Chat"
   ],
+  "keywords": [
+    "copilot",
+    "chat",
+    "ai",
+    "llm",
+    "language model"
+  ],
   "main": "./out/extension.js",
   "scripts": {
     "vscode:prepublish": "npm run package",

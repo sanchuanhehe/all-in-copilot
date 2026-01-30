@@ -16,6 +16,17 @@
     "AI",
     "Chat"
   ],
+  "keywords": [
+    "mimo",
+    "MiMo",
+    "xiaomi",
+    "小米",
+    "copilot",
+    "chat",
+    "ai",
+    "llm",
+    "language model"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "scripts": {

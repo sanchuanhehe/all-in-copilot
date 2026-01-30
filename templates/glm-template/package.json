@@ -16,6 +16,18 @@
     "AI",
     "Chat"
   ],
+  "keywords": [
+    "glm",
+    "GLM",
+    "zhipu",
+    "智谱",
+    "智谱AI",
+    "copilot",
+    "chat",
+    "ai",
+    "llm",
+    "language model"
+  ],
   "main": "./out/extension.js",
   "scripts": {
     "vscode:prepublish": "npm run package",

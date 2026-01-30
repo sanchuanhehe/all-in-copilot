@@ -16,6 +16,15 @@
     "AI",
     "Chat"
   ],
+  "keywords": [
+    "minimax",
+    "MiniMax",
+    "copilot",
+    "chat",
+    "ai",
+    "llm",
+    "language model"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "scripts": {

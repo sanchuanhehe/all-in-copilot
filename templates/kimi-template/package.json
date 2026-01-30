@@ -16,6 +16,18 @@
     "AI",
     "Chat"
   ],
+  "keywords": [
+    "kimi",
+    "Kimi",
+    "k2",
+    "moonshot",
+    "月之暗面",
+    "copilot",
+    "chat",
+    "ai",
+    "llm",
+    "language model"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "scripts": {
