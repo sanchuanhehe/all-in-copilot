@@ -5,7 +5,7 @@
  * All types and functionality are imported from @all-in-copilot/sdk
  */
 
-import type { ProviderConfig, ModelConfig } from '@all-in-copilot/sdk';
+import type { ProviderConfig, ModelConfig } from "@all-in-copilot/sdk";
 
 /**
  * Kimi Provider Configuration
@@ -48,43 +48,43 @@ export const PROVIDER_CONFIG: ProviderConfig = {
  * - kimi-k2-0711-preview: 原始版本
  */
 export const FALLBACK_MODELS: ModelConfig[] = [
-  {
-    id: 'kimi-k2-thinking-turbo',
-    name: 'Kimi K2 Thinking Turbo',
-    maxInputTokens: 256000,
-    maxOutputTokens: 32768,
-    supportsTools: true,
-    supportsVision: false,
-  },
-  {
-    id: 'kimi-k2-thinking',
-    name: 'Kimi K2 Thinking',
-    maxInputTokens: 256000,
-    maxOutputTokens: 32768,
-    supportsTools: true,
-    supportsVision: false,
-  },
-  {
-    id: 'kimi-k2-turbo-preview',
-    name: 'Kimi K2 Turbo',
-    maxInputTokens: 256000,
-    maxOutputTokens: 32768,
-    supportsTools: true,
-    supportsVision: false,
-  },
-  {
-    id: 'kimi-k2-0905-preview',
-    name: 'Kimi K2 (0905)',
-    maxInputTokens: 256000,
-    maxOutputTokens: 32768,
-    supportsTools: true,
-    supportsVision: false,
-  },
+	{
+		id: "kimi-k2-thinking-turbo",
+		name: "Kimi K2 Thinking Turbo",
+		maxInputTokens: 256000,
+		maxOutputTokens: 32768,
+		supportsTools: true,
+		supportsVision: false,
+	},
+	{
+		id: "kimi-k2-thinking",
+		name: "Kimi K2 Thinking",
+		maxInputTokens: 256000,
+		maxOutputTokens: 32768,
+		supportsTools: true,
+		supportsVision: false,
+	},
+	{
+		id: "kimi-k2-turbo-preview",
+		name: "Kimi K2 Turbo",
+		maxInputTokens: 256000,
+		maxOutputTokens: 32768,
+		supportsTools: true,
+		supportsVision: false,
+	},
+	{
+		id: "kimi-k2-0905-preview",
+		name: "Kimi K2 (0905)",
+		maxInputTokens: 256000,
+		maxOutputTokens: 32768,
+		supportsTools: true,
+		supportsVision: false,
+	},
 ];
 
 /**
  * Filter models (customize which models to show)
  */
 export function filterModels(models: ModelConfig[]): ModelConfig[] {
-  return models;
+	return models;
 }

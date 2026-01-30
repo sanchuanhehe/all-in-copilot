@@ -5,7 +5,7 @@
  * All types and functionality are imported from @all-in-copilot/sdk
  */
 
-import type { ProviderConfig, ModelConfig } from '@all-in-copilot/sdk';
+import type { ProviderConfig, ModelConfig } from "@all-in-copilot/sdk";
 
 /**
  * MiniMax Provider Configuration
@@ -46,35 +46,35 @@ export const PROVIDER_CONFIG: ProviderConfig = {
  * - MiniMax-M2: 上一代模型，性价比高
  */
 export const FALLBACK_MODELS: ModelConfig[] = [
-  {
-    id: 'MiniMax-M2.1',
-    name: 'MiniMax M2.1',
-    maxInputTokens: 100000,
-    maxOutputTokens: 8192,
-    supportsTools: true,
-    supportsVision: false,
-  },
-  {
-    id: 'MiniMax-M2.1-lightning',
-    name: 'MiniMax M2.1 Lightning',
-    maxInputTokens: 100000,
-    maxOutputTokens: 8192,
-    supportsTools: true,
-    supportsVision: false,
-  },
-  {
-    id: 'MiniMax-M2',
-    name: 'MiniMax M2',
-    maxInputTokens: 100000,
-    maxOutputTokens: 8192,
-    supportsTools: true,
-    supportsVision: false,
-  },
+	{
+		id: "MiniMax-M2.1",
+		name: "MiniMax M2.1",
+		maxInputTokens: 100000,
+		maxOutputTokens: 8192,
+		supportsTools: true,
+		supportsVision: false,
+	},
+	{
+		id: "MiniMax-M2.1-lightning",
+		name: "MiniMax M2.1 Lightning",
+		maxInputTokens: 100000,
+		maxOutputTokens: 8192,
+		supportsTools: true,
+		supportsVision: false,
+	},
+	{
+		id: "MiniMax-M2",
+		name: "MiniMax M2",
+		maxInputTokens: 100000,
+		maxOutputTokens: 8192,
+		supportsTools: true,
+		supportsVision: false,
+	},
 ];
 
 /**
  * Filter models (customize which models to show)
  */
 export function filterModels(models: ModelConfig[]): ModelConfig[] {
-  return models;
+	return models;
 }

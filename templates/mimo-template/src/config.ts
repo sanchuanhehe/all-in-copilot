@@ -5,7 +5,7 @@
  * All types and functionality are imported from @all-in-copilot/sdk
  */
 
-import type { ProviderConfig, ModelConfig } from '@all-in-copilot/sdk';
+import type { ProviderConfig, ModelConfig } from "@all-in-copilot/sdk";
 
 /**
  * MiMo Provider Configuration
@@ -51,19 +51,19 @@ export const PROVIDER_CONFIG: ProviderConfig = {
  * - mimo-v2-flash: 最新 Flash 模型，高性价比
  */
 export const FALLBACK_MODELS: ModelConfig[] = [
-  {
-    id: 'mimo-v2-flash',
-    name: 'MiMo V2 Flash',
-    maxInputTokens: 131072,
-    maxOutputTokens: 65536,
-    supportsTools: true,
-    supportsVision: false,
-  },
+	{
+		id: "mimo-v2-flash",
+		name: "MiMo V2 Flash",
+		maxInputTokens: 131072,
+		maxOutputTokens: 65536,
+		supportsTools: true,
+		supportsVision: false,
+	},
 ];
 
 /**
  * Filter models (customize which models to show)
  */
 export function filterModels(models: ModelConfig[]): ModelConfig[] {
-  return models;
+	return models;
 }

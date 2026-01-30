@@ -32,12 +32,12 @@ Kimi Copilot is a VS Code extension that integrates Moonshot AI's Kimi K2 large 
 
 ### Supported Models
 
-| Model | Context | Description |
-|-------|---------|-------------|
-| kimi-k2-thinking-turbo | 256K | Fast thinking model |
-| kimi-k2-thinking | 256K | Extended thinking with reasoning |
-| kimi-k2-turbo-preview | 256K | High-speed inference |
-| kimi-k2-0905-preview | 256K | Latest preview version |
+| Model                  | Context | Description                      |
+| ---------------------- | ------- | -------------------------------- |
+| kimi-k2-thinking-turbo | 256K    | Fast thinking model              |
+| kimi-k2-thinking       | 256K    | Extended thinking with reasoning |
+| kimi-k2-turbo-preview  | 256K    | High-speed inference             |
+| kimi-k2-0905-preview   | 256K    | Latest preview version           |
 
 ---
 
@@ -69,12 +69,12 @@ Kimi Copilot 是一个 VS Code 扩展，将月之暗面的 Kimi K2 大语言模�
 
 ### 支持的模型
 
-| 模型 | 上下文 | 描述 |
-|------|--------|------|
-| kimi-k2-thinking-turbo | 256K | 快速思考模型 |
-| kimi-k2-thinking | 256K | 带推理过程的扩展思考 |
-| kimi-k2-turbo-preview | 256K | 高速推理 |
-| kimi-k2-0905-preview | 256K | 最新预览版本 |
+| 模型                   | 上下文 | 描述                 |
+| ---------------------- | ------ | -------------------- |
+| kimi-k2-thinking-turbo | 256K   | 快速思考模型         |
+| kimi-k2-thinking       | 256K   | 带推理过程的扩展思考 |
+| kimi-k2-turbo-preview  | 256K   | 高速推理             |
+| kimi-k2-0905-preview   | 256K   | 最新预览版本         |
 
 ---
 

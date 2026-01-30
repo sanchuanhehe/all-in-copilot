@@ -1,30 +1,30 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "type": "npm",
-      "script": "compile",
-      "problemMatcher": "$esbuild",
-      "label": "npm: compile",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      }
-    },
-    {
-      "type": "npm",
-      "script": "watch",
-      "problemMatcher": "$esbuild-watch",
-      "label": "npm: watch",
-      "isBackground": true,
-      "group": "build"
-    },
-    {
-      "type": "npm",
-      "script": "package",
-      "problemMatcher": "$esbuild",
-      "label": "npm: package",
-      "group": "build"
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "compile",
+			"problemMatcher": "$esbuild",
+			"label": "npm: compile",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch",
+			"problemMatcher": "$esbuild-watch",
+			"label": "npm: watch",
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"type": "npm",
+			"script": "package",
+			"problemMatcher": "$esbuild",
+			"label": "npm: package",
+			"group": "build"
+		}
+	]
 }

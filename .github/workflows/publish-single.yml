@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       template:
-        description: 'Template to publish'
+        description: "Template to publish"
         required: true
         type: choice
         options:
@@ -13,16 +13,16 @@ on:
           - kimi-template
           - mimo-template
       version:
-        description: 'Version to publish (leave empty to use package.json version)'
+        description: "Version to publish (leave empty to use package.json version)"
         required: false
         type: string
       pre_release:
-        description: 'Publish as pre-release'
+        description: "Publish as pre-release"
         required: false
         default: false
         type: boolean
       publish_ovsx:
-        description: 'Also publish to Open VSX Registry'
+        description: "Also publish to Open VSX Registry"
         required: false
         default: false
         type: boolean
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - run: pnpm install
       - run: pnpm --filter @all-in-copilot/sdk build

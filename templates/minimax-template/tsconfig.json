@@ -1,21 +1,21 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "preserve",
-    "moduleResolution": "bundler",
-    "lib": ["ES2022", "DOM"],
-    "outDir": "./out",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "sourceMap": true,
-    "paths": {
-      "vscode": ["./vscode.d.ts"]
-    }
-  },
-  "include": ["src/**/*", "vscode.d.ts"],
-  "exclude": ["node_modules", "out"]
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "preserve",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022", "DOM"],
+		"outDir": "./out",
+		"rootDir": "./src",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"declaration": true,
+		"sourceMap": true,
+		"paths": {
+			"vscode": ["./vscode.d.ts"]
+		}
+	},
+	"include": ["src/**/*", "vscode.d.ts"],
+	"exclude": ["node_modules", "out"]
 }

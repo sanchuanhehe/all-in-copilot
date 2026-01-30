@@ -32,11 +32,11 @@ MiniMax Copilot is a VS Code extension that integrates MiniMax large language mo
 
 ### Supported Models
 
-| Model | Description |
-|-------|-------------|
-| MiniMax-M2.1 | Latest and most capable |
-| MiniMax-M2.1-lightning | Fast response version |
-| MiniMax-M2 | Stable and reliable |
+| Model                  | Description             |
+| ---------------------- | ----------------------- |
+| MiniMax-M2.1           | Latest and most capable |
+| MiniMax-M2.1-lightning | Fast response version   |
+| MiniMax-M2             | Stable and reliable     |
 
 ---
 
@@ -68,11 +68,11 @@ MiniMax Copilot 是一个 VS Code 扩展，将 MiniMax 大语言模型集成到 
 
 ### 支持的模型
 
-| 模型 | 描述 |
-|------|------|
-| MiniMax-M2.1 | 最新最强大 |
+| 模型                   | 描述         |
+| ---------------------- | ------------ |
+| MiniMax-M2.1           | 最新最强大   |
 | MiniMax-M2.1-lightning | 快速响应版本 |
-| MiniMax-M2 | 稳定可靠 |
+| MiniMax-M2             | 稳定可靠     |
 
 ---
 

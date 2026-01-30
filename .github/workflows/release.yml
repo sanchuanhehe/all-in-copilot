@@ -6,7 +6,7 @@ on:
       template:
         description: 'Template to release (or "all" for all templates)'
         required: true
-        default: 'all'
+        default: "all"
         type: choice
         options:
           - all
@@ -15,14 +15,14 @@ on:
           - kimi-template
           - mimo-template
       pre_release:
-        description: 'Pre-release version'
+        description: "Pre-release version"
         required: false
         default: false
         type: boolean
   push:
     tags:
-      - 'v*'
-      - '*-v*'
+      - "v*"
+      - "*-v*"
 
 env:
   TEMPLATES: glm-template minimax-template kimi-template mimo-template
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - run: pnpm install
       - run: pnpm --filter @all-in-copilot/sdk build
@@ -108,7 +108,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Download SDK dist
         uses: actions/download-artifact@v4
@@ -203,7 +203,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
-          pattern: '*-vsix'
+          pattern: "*-vsix"
           merge-multiple: true
 
       - name: Create GitHub Release

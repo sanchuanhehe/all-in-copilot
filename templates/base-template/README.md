@@ -39,14 +39,14 @@ Edit `src/config.ts`:
 
 ```typescript
 export const PROVIDER_CONFIG: ProviderConfig = {
-  id: 'your-provider-id',
-  name: 'Your Provider Name',
-  baseUrl: 'https://api.example.com/v1/chat/completions',
-  apiKeySecret: 'your-extension.apiKey',
-  family: 'your-family',
-  apiMode: 'openai',  // 'openai' | 'anthropic' | 'gemini' | 'ollama'
-  supportsTools: true,
-  supportsVision: false,
+	id: "your-provider-id",
+	name: "Your Provider Name",
+	baseUrl: "https://api.example.com/v1/chat/completions",
+	apiKeySecret: "your-extension.apiKey",
+	family: "your-family",
+	apiMode: "openai", // 'openai' | 'anthropic' | 'gemini' | 'ollama'
+	supportsTools: true,
+	supportsVision: false,
 };
 ```
 
@@ -98,14 +98,14 @@ export const PROVIDER_CONFIG: ProviderConfig = {
 
 ```typescript
 export const PROVIDER_CONFIG: ProviderConfig = {
-  id: 'your-provider-id',        // 提供者 ID
-  name: 'Your Provider Name',    // 显示名称
-  baseUrl: 'https://api.example.com/v1/chat/completions',  // API 地址
-  apiKeySecret: 'your-extension.apiKey',  // API 密钥存储键
-  family: 'your-family',         // 模型系列
-  apiMode: 'openai',             // API 模式：'openai' | 'anthropic' | 'gemini' | 'ollama'
-  supportsTools: true,           // 是否支持工具调用
-  supportsVision: false,         // 是否支持图像
+	id: "your-provider-id", // 提供者 ID
+	name: "Your Provider Name", // 显示名称
+	baseUrl: "https://api.example.com/v1/chat/completions", // API 地址
+	apiKeySecret: "your-extension.apiKey", // API 密钥存储键
+	family: "your-family", // 模型系列
+	apiMode: "openai", // API 模式：'openai' | 'anthropic' | 'gemini' | 'ollama'
+	supportsTools: true, // 是否支持工具调用
+	supportsVision: false, // 是否支持图像
 };
 ```
 

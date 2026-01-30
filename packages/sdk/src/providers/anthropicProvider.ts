@@ -9,10 +9,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import type {
-	MessageParam,
-	Tool
-} from "@anthropic-ai/sdk/resources/messages";
+import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages";
 import type {
 	ChatCompletionRequest,
 	ChatCompletionResponse,
@@ -26,29 +23,29 @@ import type {
 // ============================================================================
 
 interface TextBlockParam {
-	type: 'text';
+	type: "text";
 	text: string;
-	cache_control?: { type: 'ephemeral' };
+	cache_control?: { type: "ephemeral" };
 }
 
 interface ImageBlockParam {
-	type: 'image';
+	type: "image";
 	source: {
-		type: 'base64';
+		type: "base64";
 		data: string;
-		media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+		media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 	};
 }
 
 interface ToolUseBlockParam {
-	type: 'tool_use';
+	type: "tool_use";
 	id: string;
 	name: string;
 	input: Record<string, unknown>;
 }
 
 interface ToolResultBlockParam {
-	type: 'tool_result';
+	type: "tool_result";
 	tool_use_id: string;
 	content: (TextBlockParam | ImageBlockParam)[] | string;
 }
@@ -65,13 +62,13 @@ interface VsCodeMessage {
 }
 
 interface VsCodeContentPart {
-	value?: string;           // TextPart
-	callId?: string;          // ToolCallPart / ToolResultPart
-	name?: string;            // ToolCallPart
+	value?: string; // TextPart
+	callId?: string; // ToolCallPart / ToolResultPart
+	name?: string; // ToolCallPart
 	input?: Record<string, unknown>; // ToolCallPart
-	content?: VsCodeContentPart[];   // ToolResultPart
-	data?: Uint8Array;        // DataPart
-	mimeType?: string;        // DataPart
+	content?: VsCodeContentPart[]; // ToolResultPart
+	data?: Uint8Array; // DataPart
+	mimeType?: string; // DataPart
 }
 
 // VS Code role constants
@@ -86,19 +83,19 @@ const ROLE = {
 // ============================================================================
 
 function isTextPart(part: VsCodeContentPart): boolean {
-	return 'value' in part && typeof part.value === 'string' && !('callId' in part);
+	return "value" in part && typeof part.value === "string" && !("callId" in part);
 }
 
 function isToolCallPart(part: VsCodeContentPart): boolean {
-	return 'callId' in part && 'name' in part && 'input' in part;
+	return "callId" in part && "name" in part && "input" in part;
 }
 
 function isToolResultPart(part: VsCodeContentPart): boolean {
-	return 'callId' in part && 'content' in part && !('name' in part);
+	return "callId" in part && "content" in part && !("name" in part);
 }
 
 function isDataPart(part: VsCodeContentPart): boolean {
-	return 'data' in part && 'mimeType' in part;
+	return "data" in part && "mimeType" in part;
 }
 
 // ============================================================================
@@ -116,7 +113,7 @@ function apiContentToAnthropicContent(content: VsCodeContentPart[]): ContentBloc
 		if (isToolCallPart(part)) {
 			// tool_use blocks go in assistant messages
 			convertedContent.push({
-				type: 'tool_use',
+				type: "tool_use",
 				id: part.callId!,
 				input: part.input || {},
 				name: part.name!,
@@ -124,44 +121,46 @@ function apiContentToAnthropicContent(content: VsCodeContentPart[]): ContentBloc
 		} else if (isDataPart(part)) {
 			// Image data
 			convertedContent.push({
-				type: 'image',
+				type: "image",
 				source: {
-					type: 'base64',
-					data: Buffer.from(part.data!).toString('base64'),
-					media_type: part.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-				}
+					type: "base64",
+					data: Buffer.from(part.data!).toString("base64"),
+					media_type: part.mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+				},
 			} as ImageBlockParam);
 		} else if (isToolResultPart(part)) {
 			// tool_result blocks go in user messages
-			const resultContent = (part.content || []).map((p): TextBlockParam | ImageBlockParam | undefined => {
-				if (isTextPart(p)) {
-					return { type: 'text', text: p.value || '' };
-				} else if (isDataPart(p)) {
-					return {
-						type: 'image',
-						source: {
-							type: 'base64',
-							media_type: p.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-							data: Buffer.from(p.data!).toString('base64')
-						}
-					};
-				}
-				return undefined;
-			}).filter((p): p is TextBlockParam | ImageBlockParam => p !== undefined);
+			const resultContent = (part.content || [])
+				.map((p): TextBlockParam | ImageBlockParam | undefined => {
+					if (isTextPart(p)) {
+						return { type: "text", text: p.value || "" };
+					} else if (isDataPart(p)) {
+						return {
+							type: "image",
+							source: {
+								type: "base64",
+								media_type: p.mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+								data: Buffer.from(p.data!).toString("base64"),
+							},
+						};
+					}
+					return undefined;
+				})
+				.filter((p): p is TextBlockParam | ImageBlockParam => p !== undefined);
 
 			convertedContent.push({
-				type: 'tool_result',
+				type: "tool_result",
 				tool_use_id: part.callId!,
-				content: resultContent.length > 0 ? resultContent : [{ type: 'text', text: '' }],
+				content: resultContent.length > 0 ? resultContent : [{ type: "text", text: "" }],
 			} as ToolResultBlockParam);
 		} else if (isTextPart(part)) {
 			// Anthropic errors if we have text parts with empty string text content
-			if (part.value === '') {
+			if (part.value === "") {
 				continue;
 			}
 			convertedContent.push({
-				type: 'text',
-				text: part.value!
+				type: "text",
+				text: part.value!,
 			} as TextBlockParam);
 		}
 	}
@@ -175,8 +174,8 @@ function apiContentToAnthropicContent(content: VsCodeContentPart[]): ContentBloc
 function apiMessageToAnthropicMessage(messages: VsCodeMessage[]): { messages: MessageParam[]; system: TextBlockParam } {
 	const unmergedMessages: MessageParam[] = [];
 	const systemMessage: TextBlockParam = {
-		type: 'text',
-		text: ''
+		type: "text",
+		text: "",
 	};
 
 	for (const message of messages) {
@@ -184,7 +183,7 @@ function apiMessageToAnthropicMessage(messages: VsCodeMessage[]): { messages: Me
 			const content = apiContentToAnthropicContent(message.content || []);
 			if (content.length > 0) {
 				unmergedMessages.push({
-					role: 'assistant',
+					role: "assistant",
 					content,
 				});
 			}
@@ -192,18 +191,20 @@ function apiMessageToAnthropicMessage(messages: VsCodeMessage[]): { messages: Me
 			const content = apiContentToAnthropicContent(message.content || []);
 			if (content.length > 0) {
 				unmergedMessages.push({
-					role: 'user',
+					role: "user",
 					content,
 				});
 			}
 		} else {
 			// System message - extract text content
-			systemMessage.text += (message.content || []).map(p => {
-				if (isTextPart(p)) {
-					return p.value || '';
-				}
-				return '';
-			}).join('');
+			systemMessage.text += (message.content || [])
+				.map((p) => {
+					if (isTextPart(p)) {
+						return p.value || "";
+					}
+					return "";
+				})
+				.join("");
 		}
 	}
 
@@ -228,20 +229,24 @@ function apiMessageToAnthropicMessage(messages: VsCodeMessage[]): { messages: Me
 /**
  * Convert tools to Anthropic format
  */
-function convertToolsToAnthropic(tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>): Tool[] | undefined {
+function convertToolsToAnthropic(
+	tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>
+): Tool[] | undefined {
 	if (!tools || tools.length === 0) {
 		return undefined;
 	}
 
-	return tools.map((tool): Tool => ({
-		name: tool.name.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 64),
-		description: tool.description,
-		input_schema: {
-			type: 'object',
-			properties: (tool.inputSchema as { properties?: Record<string, unknown> })?.properties ?? {},
-			required: (tool.inputSchema as { required?: string[] })?.required ?? [],
-		},
-	}));
+	return tools.map(
+		(tool): Tool => ({
+			name: tool.name.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 64),
+			description: tool.description,
+			input_schema: {
+				type: "object",
+				properties: (tool.inputSchema as { properties?: Record<string, unknown> })?.properties ?? {},
+				required: (tool.inputSchema as { required?: string[] })?.required ?? [],
+			},
+		})
+	);
 }
 
 // ============================================================================
@@ -257,7 +262,7 @@ export class AnthropicProvider {
 		this.config = config;
 		this.anthropic = new Anthropic({
 			apiKey: options.apiKey,
-			baseURL: config.baseUrl
+			baseURL: config.baseUrl,
 		});
 	}
 
@@ -290,7 +295,7 @@ export class AnthropicProvider {
 		const { system, messages: convertedMessages } = apiMessageToAnthropicMessage(vsMessages);
 		return {
 			system: system.text || undefined,
-			messages: convertedMessages
+			messages: convertedMessages,
 		};
 	}
 
@@ -298,7 +303,9 @@ export class AnthropicProvider {
 	 * Convert tools to Anthropic API format
 	 */
 	static convertTools(tools?: unknown[]): Tool[] | undefined {
-		return convertToolsToAnthropic(tools as Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>);
+		return convertToolsToAnthropic(
+			tools as Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>
+		);
 	}
 
 	async complete(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
@@ -324,7 +331,7 @@ export class AnthropicProvider {
 					index: 0,
 					message: {
 						role: "assistant",
-						content: response.content[0]?.type === "text" ? response.content[0].text : ""
+						content: response.content[0]?.type === "text" ? response.content[0].text : "",
 					},
 					finish_reason: response.stop_reason ?? "complete",
 				},
@@ -346,41 +353,43 @@ export class AnthropicProvider {
 		});
 
 		// Tool call state for streaming
-		let pendingToolCall: {
-			toolId?: string;
-			name?: string;
-			jsonInput?: string;
-		} | undefined;
+		let pendingToolCall:
+			| {
+					toolId?: string;
+					name?: string;
+					jsonInput?: string;
+			  }
+			| undefined;
 
 		for await (const chunk of stream) {
-			if (chunk.type === 'content_block_start') {
-				if ('content_block' in chunk && chunk.content_block.type === 'tool_use') {
+			if (chunk.type === "content_block_start") {
+				if ("content_block" in chunk && chunk.content_block.type === "tool_use") {
 					pendingToolCall = {
 						toolId: chunk.content_block.id,
 						name: chunk.content_block.name,
-						jsonInput: ''
+						jsonInput: "",
 					};
 				}
-			} else if (chunk.type === 'content_block_delta') {
-				if (chunk.delta.type === 'text_delta') {
-					handler.onText(chunk.delta.text || '', true);
-				} else if (chunk.delta.type === 'input_json_delta' && pendingToolCall) {
-					pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + (chunk.delta.partial_json || '');
+			} else if (chunk.type === "content_block_delta") {
+				if (chunk.delta.type === "text_delta") {
+					handler.onText(chunk.delta.text || "", true);
+				} else if (chunk.delta.type === "input_json_delta" && pendingToolCall) {
+					pendingToolCall.jsonInput = (pendingToolCall.jsonInput || "") + (chunk.delta.partial_json || "");
 				}
-			} else if (chunk.type === 'content_block_stop') {
+			} else if (chunk.type === "content_block_stop") {
 				if (pendingToolCall) {
 					try {
-						const parsedJson = JSON.parse(pendingToolCall.jsonInput || '{}');
+						const parsedJson = JSON.parse(pendingToolCall.jsonInput || "{}");
 						handler.onToolCall({
 							id: pendingToolCall.toolId!,
-							type: 'function',
+							type: "function",
 							function: {
 								name: pendingToolCall.name!,
-								arguments: JSON.stringify(parsedJson)
-							}
+								arguments: JSON.stringify(parsedJson),
+							},
 						});
 					} catch (e) {
-						console.error('Failed to parse tool call JSON:', e);
+						console.error("Failed to parse tool call JSON:", e);
 					}
 					pendingToolCall = undefined;
 				}
@@ -388,4 +397,3 @@ export class AnthropicProvider {
 		}
 	}
 }
-

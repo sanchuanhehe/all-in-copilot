@@ -1,9 +1,7 @@
 {
-    "search.exclude": {
-        "out": true
-    },
-    "git.branchProtection": [
-        "main"
-    ],
-    "files.trimTrailingWhitespace": true
+	"search.exclude": {
+		"out": true
+	},
+	"git.branchProtection": ["main"],
+	"files.trimTrailingWhitespace": true
 }

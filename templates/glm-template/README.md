@@ -32,11 +32,11 @@ GLM Copilot is a VS Code extension that integrates GLM (智谱AI) large language
 
 ### Supported Models
 
-| Model | Description |
-|-------|-------------|
-| GLM-4 Plus | Most capable model |
-| GLM-4 | Balanced performance |
-| GLM-4V | Vision capabilities |
+| Model       | Description             |
+| ----------- | ----------------------- |
+| GLM-4 Plus  | Most capable model      |
+| GLM-4       | Balanced performance    |
+| GLM-4V      | Vision capabilities     |
 | GLM-3 Turbo | Fast and cost-effective |
 
 ---
@@ -69,12 +69,12 @@ GLM Copilot 是一个 VS Code 扩展，将智谱AI的 GLM 大语言模型集成�
 
 ### 支持的模型
 
-| 模型 | 描述 |
-|------|------|
-| GLM-4 Plus | 最强大的模型 |
-| GLM-4 | 性能均衡 |
-| GLM-4V | 支持图像理解 |
-| GLM-3 Turbo | 快速且经济 |
+| 模型        | 描述         |
+| ----------- | ------------ |
+| GLM-4 Plus  | 最强大的模型 |
+| GLM-4       | 性能均衡     |
+| GLM-4V      | 支持图像理解 |
+| GLM-3 Turbo | 快速且经济   |
 
 ---
 

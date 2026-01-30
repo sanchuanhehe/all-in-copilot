@@ -32,9 +32,9 @@ MiMo Copilot is a VS Code extension that integrates Xiaomi's MiMo large language
 
 ### Supported Models
 
-| Model | Context | Description |
-|-------|---------|-------------|
-| mimo-v2-flash | 131K | Fast and efficient |
+| Model         | Context | Description        |
+| ------------- | ------- | ------------------ |
+| mimo-v2-flash | 131K    | Fast and efficient |
 
 ---
 
@@ -66,9 +66,9 @@ MiMo Copilot 是一个 VS Code 扩展，将小米的 MiMo 大语言模型集成�
 
 ### 支持的模型
 
-| 模型 | 上下文 | 描述 |
-|------|--------|------|
-| mimo-v2-flash | 131K | 快速高效 |
+| 模型          | 上下文 | 描述     |
+| ------------- | ------ | -------- |
+| mimo-v2-flash | 131K   | 快速高效 |
 
 ---
 

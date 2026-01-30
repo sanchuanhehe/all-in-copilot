@@ -3,15 +3,15 @@ name: Pre-release
 on:
   push:
     branches:
-      - 'pre-release/**'
-      - 'beta/**'
-      - 'alpha/**'
+      - "pre-release/**"
+      - "beta/**"
+      - "alpha/**"
   workflow_dispatch:
     inputs:
       template:
         description: 'Template to pre-release (or "all" for all templates)'
         required: true
-        default: 'all'
+        default: "all"
         type: choice
         options:
           - all
@@ -20,9 +20,9 @@ on:
           - kimi-template
           - mimo-template
       bump_type:
-        description: 'Version bump type for pre-release'
+        description: "Version bump type for pre-release"
         required: false
-        default: 'none'
+        default: "none"
         type: choice
         options:
           - none
@@ -42,7 +42,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - run: pnpm install
       - run: pnpm --filter @all-in-copilot/sdk build
@@ -95,7 +95,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Download SDK dist
         uses: actions/download-artifact@v4
