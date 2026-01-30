@@ -19,7 +19,7 @@ export {
 } from "./convert";
 
 // Provider helpers (request building - only unique exports from providerHelpers)
-export { ROLE, buildRequest } from "./providerHelpers";
+export { ROLE, buildRequest, ensureValidMessageOrder } from "./providerHelpers";
 
 // Streaming processors
 export * from "./streaming";
