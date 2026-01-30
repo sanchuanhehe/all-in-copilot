@@ -2,8 +2,103 @@
 // for the documentation about the tasks.json format
 {
 	"version": "2.0.0",
+	"options": {
+		"env": {
+			"VSCODE_ENV": "development"
+		}
+	},
+	"presentation": {
+		"reveal": "silent",
+		"panel": "shared"
+	},
 	"tasks": [
+		// Build SDK
 		{
+			"label": "Build SDK",
+			"type": "shell",
+			"command": "pnpm --filter @all-in-copilot/sdk build",
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		// Build CLI
+		{
+			"label": "Build CLI",
+			"type": "shell",
+			"command": "pnpm --filter @all-in-copilot/cli build",
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		// Build All (SDK + CLI)
+		{
+			"label": "Build All",
+			"type": "shell",
+			"command": "pnpm build",
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		// Lint
+		{
+			"label": "Lint",
+			"type": "shell",
+			"command": "pnpm lint",
+			"group": "none",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		// Test
+		{
+			"label": "Test",
+			"type": "shell",
+			"command": "pnpm test",
+			"group": "none",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		// Compile template (requires SDK build first)
+		{
+			"label": "Compile Template",
+			"type": "shell",
+			"command": "pnpm compile",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"dependsOn": "Build SDK",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		// Package VSIX
+		{
+			"label": "Package VSIX",
+			"type": "shell",
+			"command": "npx @vscode/vsce package --no-dependencies",
+			"group": "none",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		// Build & Package (full CI simulation)
+		{
+			"label": "Build & Package",
+			"type": "shell",
+			"command": "pnpm build && npx @vscode/vsce package --no-dependencies",
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		// Watch mode for SDK
+		{
+			"label": "Watch SDK",
 			"type": "npm",
 			"script": "watch",
 			"problemMatcher": "$tsc-watch",
@@ -17,7 +112,9 @@
 				"isDefault": true
 			}
 		},
+		// Watch tests
 		{
+			"label": "Watch Tests",
 			"type": "npm",
 			"script": "watch-tests",
 			"problemMatcher": "$tsc-watch",
@@ -30,7 +127,7 @@
 		},
 		{
 			"label": "tasks: watch-tests",
-			"dependsOn": ["npm: watch", "npm: watch-tests"],
+			"dependsOn": ["Watch SDK", "Watch Tests"],
 			"problemMatcher": []
 		}
 	]
