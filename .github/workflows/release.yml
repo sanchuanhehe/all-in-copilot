@@ -178,6 +178,7 @@ jobs:
             echo "Publishing as stable release..."
             npx @vscode/vsce publish --pat ${{ secrets.VSCE_PAT }} --packagePath ${{ steps.vsix.outputs.file }}
           fi
+        continue-on-error: true
 
       - name: Publish to Open VSX Registry
         if: ${{ vars.PUBLISH_OVSX == 'true' }}
