@@ -76,22 +76,77 @@
 				"reveal": "always"
 			}
 		},
-		// Package VSIX
+		// Package All Templates
 		{
-			"label": "Package VSIX",
+			"label": "Package All Templates",
 			"type": "shell",
-			"command": "npx @vscode/vsce package --no-dependencies",
+			"command": "pnpm package:all",
 			"group": "none",
 			"presentation": {
 				"reveal": "always"
 			}
 		},
-		// Build & Package (full CI simulation)
+		// Build & Package All Templates (full CI simulation)
 		{
-			"label": "Build & Package",
+			"label": "Build & Package All",
 			"type": "shell",
-			"command": "pnpm build && npx @vscode/vsce package --no-dependencies",
+			"command": "pnpm build-and-package",
 			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		// Package individual templates
+		{
+			"label": "Package: Base Template",
+			"type": "shell",
+			"command": "pnpm package:base",
+			"group": "none",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Package: GLM Template",
+			"type": "shell",
+			"command": "pnpm package:glm",
+			"group": "none",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Package: Kimi Template",
+			"type": "shell",
+			"command": "pnpm package:kimi",
+			"group": "none",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Package: Kimi Coding Template",
+			"type": "shell",
+			"command": "pnpm package:kimi-coding",
+			"group": "none",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Package: Mimo Template",
+			"type": "shell",
+			"command": "pnpm package:mimo",
+			"group": "none",
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Package: MiniMax Template",
+			"type": "shell",
+			"command": "pnpm package:minimax",
+			"group": "none",
 			"presentation": {
 				"reveal": "always"
 			}
