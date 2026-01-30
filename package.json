@@ -29,7 +29,7 @@
 		"watch:cli": "pnpm --filter @all-in-copilot/cli watch",
 		"lint": "eslint packages/sdk/src --ext .ts",
 		"format": "prettier --write . --ignore-path .gitignore",
-		"test": "echo 'SDK tests not configured yet'",
+		"test": "pnpm --filter @all-in-copilot/sdk test",
 		"clean": "rm -rf packages/sdk/dist cli/dist templates/*/out",
 		"create": "node cli/dist/index.js"
 	},

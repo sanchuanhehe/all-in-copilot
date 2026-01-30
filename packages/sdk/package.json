@@ -18,11 +18,16 @@
   },
   "scripts": {
     "build": "tsc",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
     "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.1"
   },
   "keywords": [
     "llm",
