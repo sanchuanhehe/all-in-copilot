@@ -176,7 +176,7 @@ npm run build
 #### Build VS Code Extension
 
 ```bash
-cd packages/vscode
+cd templates/minimax-template
 npm run compile
 ```
 
@@ -187,7 +187,7 @@ npm run compile
 cd packages/sdk && npm run watch
 
 # Terminal 2
-cd packages/vscode && npm run watch
+cd templates/minimax-template && npm run watch
 ```
 
 ### CI/CD & Publishing
@@ -450,7 +450,7 @@ npm run build
 #### 构建 VS Code 扩展
 
 ```bash
-cd packages/vscode
+cd templates/minimax-template
 npm run compile
 ```
 
@@ -461,7 +461,7 @@ npm run compile
 cd packages/sdk && npm run watch
 
 # 终端 2
-cd packages/vscode && npm run watch
+cd templates/minimax-template && npm run watch
 ```
 
 ### CI/CD 和发布

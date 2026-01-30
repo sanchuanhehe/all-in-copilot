@@ -49,8 +49,29 @@ interface ProjectConfig {
 // ============================================================================
 // Preset Provider Configurations
 // ============================================================================
+//
+// API Key Secret System:
+// ---------------------
+// API keys are stored securely in VS Code's SecretStorage (Ctrl+Shift+P: "Preferences: Open User Settings" > Applications > Secret Storage)
+// The secret key format is: `${projectName}.apiKey` (e.g., "glm-copilot.apiKey")
+//
+// Users need to configure their API key after installing the extension:
+// 1. Click the status bar button or run the manage command
+// 2. Select "Configure API Key"
+// 3. Enter their API key from the provider's platform
+//
+// Provider API Key获取地址:
+// - GLM (智谱AI): https://open.bigmodel.cn/usercenter/apikeys
+// - MiniMax: https://platform.minimaxi.com/usercenter/apikeys
+// - DeepSeek: https://platform.deepseek.com/api-keys
+// - Qwen (通义千问): https://dashscope.console.aliyun.com/api-key
+// - OpenAI: https://platform.openai.com/api-keys
+// - Anthropic: https://console.anthropic.com/api-keys
+// - Kimi (Moonshot): https://platform.moonshot.cn/usercenter/apikeys
+// - Ollama: 本地运行，无需 API Key
+// ============================================================================
 
-const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] }> = {
+const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[]; apiKeyUrl: string }> = {
   glm: {
     provider: {
       id: 'glm',
@@ -72,6 +93,7 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
       { id: 'glm-4v', name: 'GLM-4V (Vision)', maxInputTokens: 8000, maxOutputTokens: 4096, supportsTools: false, supportsVision: true },
       { id: 'glm-3-turbo', name: 'GLM-3 Turbo', maxInputTokens: 16000, maxOutputTokens: 4096, supportsTools: true, supportsVision: false },
     ],
+    apiKeyUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
   },
   minimax: {
     provider: {
@@ -95,6 +117,7 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
       { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', maxInputTokens: 100000, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
       { id: 'MiniMax-M2', name: 'MiniMax M2', maxInputTokens: 100000, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
     ],
+    apiKeyUrl: 'https://platform.minimaxi.com/usercenter/apikeys',
   },
   deepseek: {
     provider: {
@@ -116,6 +139,7 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
       { id: 'deepseek-coder', name: 'DeepSeek Coder', maxInputTokens: 64000, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
       { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', maxInputTokens: 64000, maxOutputTokens: 8192, supportsTools: false, supportsVision: false },
     ],
+    apiKeyUrl: 'https://platform.deepseek.com/api-keys',
   },
   qwen: {
     provider: {
@@ -138,6 +162,7 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
       { id: 'qwen-turbo', name: 'Qwen Turbo', maxInputTokens: 131072, maxOutputTokens: 8192, supportsTools: true, supportsVision: false },
       { id: 'qwen-vl-max', name: 'Qwen VL Max', maxInputTokens: 32000, maxOutputTokens: 4096, supportsTools: false, supportsVision: true },
     ],
+    apiKeyUrl: 'https://dashscope.console.aliyun.com/api-key',
   },
   openai: {
     provider: {
@@ -159,6 +184,7 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini', maxInputTokens: 128000, maxOutputTokens: 16384, supportsTools: true, supportsVision: true },
       { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', maxInputTokens: 128000, maxOutputTokens: 4096, supportsTools: true, supportsVision: true },
     ],
+    apiKeyUrl: 'https://platform.openai.com/api-keys',
   },
   anthropic: {
     provider: {
@@ -180,6 +206,7 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
       { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku', maxInputTokens: 200000, maxOutputTokens: 8192, supportsTools: true, supportsVision: true },
       { id: 'claude-3-opus-latest', name: 'Claude 3 Opus', maxInputTokens: 200000, maxOutputTokens: 4096, supportsTools: true, supportsVision: true },
     ],
+    apiKeyUrl: 'https://console.anthropic.com/api-keys',
   },
   kimi: {
     provider: {
@@ -204,6 +231,7 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
       { id: 'kimi-k2-turbo-preview', name: 'Kimi K2 Turbo', maxInputTokens: 256000, maxOutputTokens: 32768, supportsTools: true, supportsVision: false },
       { id: 'kimi-k2-0905-preview', name: 'Kimi K2 (0905)', maxInputTokens: 256000, maxOutputTokens: 32768, supportsTools: true, supportsVision: false },
     ],
+    apiKeyUrl: 'https://platform.moonshot.cn/usercenter/apikeys',
   },
   mimo: {
     provider: {
@@ -225,6 +253,7 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
     models: [
       { id: 'mimo-v2-flash', name: 'MiMo V2 Flash', maxInputTokens: 131072, maxOutputTokens: 65536, supportsTools: true, supportsVision: false },
     ],
+    apiKeyUrl: 'https://platform.xiaomimimo.com/',
   },
   custom: {
     provider: {
@@ -244,6 +273,7 @@ const PRESETS: Record<string, { provider: ProviderConfig; models: ModelConfig[] 
     models: [
       { id: 'model-1', name: 'Model 1', maxInputTokens: 30000, maxOutputTokens: 4096, supportsTools: true, supportsVision: false },
     ],
+    apiKeyUrl: 'Your API provider platform',
   },
 };
 
@@ -332,7 +362,8 @@ Presets: glm, minimax, deepseek, qwen, openai, anthropic, custom
     for (const [key, preset] of Object.entries(PRESETS)) {
       console.log(`  ${key.padEnd(12)} - ${preset.provider.name}`);
       console.log(`               API: ${preset.provider.baseUrl}`);
-      console.log(`               Models: ${preset.models.map(m => m.id).join(', ')}\n`);
+      console.log(`               Models: ${preset.models.map(m => m.id).join(', ')}`);
+      console.log(`               Get API Key: ${preset.apiKeyUrl}\n`);
     }
   }
 
