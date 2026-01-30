@@ -29,7 +29,7 @@ export interface ACPProviderOptions {
  */
 export class ACPProvider implements vscode.LanguageModelChatProvider {
 	private readonly options: ACPProviderOptions;
-	private clients: Map<string, { connection: ClientSideConnection; sessionId: string }> = new Map();
+	private clients = new Map<string, { readonly connection: ClientSideConnection; sessionId: string }>();
 
 	constructor(options: ACPProviderOptions) {
 		this.options = options;
@@ -67,7 +67,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		}
 
 		// Get or create client and session
-		let connection = this.clients.get(modelInfo.id);
+		const connection = this.clients.get(modelInfo.id);
 		if (!connection) {
 			// Note: Actual implementation would create a ClientSideConnection here
 			// For now, we just show the API structure

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { ACPClientManager, type ACPClientConfig, type AgentInfo } from "./clientManager";
+import type { ClientSideConnection } from "@agentclientprotocol/sdk";
 
 describe("ACPClientManager", () => {
 	describe("constructor", () => {
@@ -34,7 +35,7 @@ describe("ACPClientManager", () => {
 		it("should throw error indicating SDK direct usage", async () => {
 			const manager = new ACPClientManager();
 			// Mock client for testing
-			const mockClient = {} as any;
+			const mockClient = {} as unknown as ClientSideConnection;
 
 			await expect(manager.initialize(mockClient)).rejects.toThrow("Use the SDK directly for initialization");
 		});
@@ -43,7 +44,7 @@ describe("ACPClientManager", () => {
 	describe("newSession", () => {
 		it("should throw error indicating SDK direct usage", async () => {
 			const manager = new ACPClientManager();
-			const mockClient = {} as any;
+			const mockClient = {} as unknown as ClientSideConnection;
 
 			await expect(manager.newSession(mockClient, { cwd: "/test/path" })).rejects.toThrow(
 				"Use the SDK directly for sessions"
@@ -54,7 +55,7 @@ describe("ACPClientManager", () => {
 	describe("prompt", () => {
 		it("should throw error indicating SDK direct usage", async () => {
 			const manager = new ACPClientManager();
-			const mockClient = {} as any;
+			const mockClient = {} as unknown as ClientSideConnection;
 
 			await expect(
 				manager.prompt(mockClient, {

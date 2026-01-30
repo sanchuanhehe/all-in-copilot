@@ -63,13 +63,13 @@ describe("ACPProvider Interface Types", () => {
 
 describe("Message Conversion Logic", () => {
 	it("should extract text from string content", () => {
-		const content: string | any[] = "Hello, world!";
+		const content: string | Array<{ kind: string; text: string }> = "Hello, world!";
 		const result = typeof content === "string" ? content : "";
 		expect(result).toBe("Hello, world!");
 	});
 
 	it("should join text parts from array content", () => {
-		const parts: any[] = [
+		const parts: Array<{ kind: string; text: string }> = [
 			{ kind: "text", text: "Hello" },
 			{ kind: "text", text: " World" },
 		];
@@ -80,7 +80,7 @@ describe("Message Conversion Logic", () => {
 	});
 
 	it("should handle empty messages", () => {
-		const messages: any[] = [];
+		const messages: Array<{ role: number; content: string | Array<{ kind: string; text: string }> }> = [];
 
 		const textParts = messages
 			.filter((m) => m.role === 2) // User role
@@ -88,7 +88,9 @@ describe("Message Conversion Logic", () => {
 				if (typeof m.content === "string") {
 					return [m.content];
 				} else if (Array.isArray(m.content)) {
-					return m.content.filter((p: any) => p.kind === "text" && p.text).map((p: any) => p.text);
+					return m.content
+						.filter((p: { kind: string; text: string }) => p.kind === "text" && p.text)
+						.map((p: { kind: string; text: string }) => p.text);
 				}
 				return [];
 			});
@@ -111,7 +113,9 @@ describe("Message Conversion Logic", () => {
 				if (typeof message.content === "string") {
 					prompt.push({ type: "text", text: message.content });
 				} else if (Array.isArray(message.content)) {
-					const textParts = message.content.filter((p: any) => p.kind === "text" && p.text).map((p: any) => p.text);
+					const textParts = message.content
+						.filter((p: { kind: string; text: string }) => p.kind === "text" && p.text)
+						.map((p: { kind: string; text: string }) => p.text);
 					if (textParts.length > 0) {
 						prompt.push({ type: "text", text: textParts.join("\n") });
 					}

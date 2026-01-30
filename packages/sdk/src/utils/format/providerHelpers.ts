@@ -3,8 +3,8 @@
  * Type guards, message conversion, and request building for VS Code provider integration
  */
 
-import type { VsCodeContentPart, VsCodeMessage } from "./types";
-import { OpenAIMessage, OpenAITool } from "./types";
+import type { VsCodeMessage } from "./types";
+import { OpenAIMessage } from "./types";
 import { convertToOpenAI } from "./convert";
 import { convertToolsToOpenAI, convertToolsToAnthropic } from "../toolConverter";
 
