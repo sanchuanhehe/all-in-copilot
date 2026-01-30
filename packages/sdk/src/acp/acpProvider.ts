@@ -461,5 +461,5 @@ export function registerACPProvider(
 		clientInfo,
 	});
 
-	return vscode.lm.registerLanguageModelChatProvider(`acp.${id}`, provider);
+	return vscode.lm.registerLanguageModelChatProvider(id.replace(/[^a-zA-Z0-9]/g, ""), provider);
 }

@@ -12,7 +12,7 @@ import {
 	type ACPModelInfo,
 	type ContentBlock,
 } from "@all-in-copilot/sdk";
-import { AGENT_CONFIG, getACPModels, getWorkspaceFolder, toACPClientConfig } from "./config";
+import { AGENT_CONFIG, getACPModels, getOpenCodeConfig, getWorkspaceFolder, toACPClientConfig } from "./config";
 
 /**
  * Extension context singleton
@@ -89,8 +89,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		});
 
 		// Register with VS Code's language model system
+		// Vendor must be globally unique - use simple ID without dots
+		const vendorId = opencodeConfig.id.replace(/[^a-zA-Z0-9]/g, "");
 		const providerDisposable = vscode.lm.registerLanguageModelChatProvider(
-			`acp.${opencodeConfig.id}`,
+			vendorId,
 			acpProvider
 		);
 		context.subscriptions.push(providerDisposable);
