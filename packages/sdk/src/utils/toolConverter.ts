@@ -234,7 +234,11 @@ export function parseToolArguments<T = Record<string, unknown>>(args: string): T
  * VS Code tool format: { name, description?, inputSchema }
  * OpenAI tool format: { type: "function", function: { name, description?, parameters } }
  */
-export function convertToolsToOpenAI(tools: readonly unknown[] | undefined): { type: "function"; function: { name: string; description?: string; parameters?: Record<string, unknown> } }[] | undefined {
+export function convertToolsToOpenAI(
+	tools: readonly unknown[] | undefined
+):
+	| { type: "function"; function: { name: string; description?: string; parameters?: Record<string, unknown> } }[]
+	| undefined {
 	if (!tools || tools.length === 0) {
 		return undefined;
 	}
@@ -257,7 +261,9 @@ export function convertToolsToOpenAI(tools: readonly unknown[] | undefined): { t
  * VS Code tool format: { name, description?, inputSchema }
  * Anthropic tool format: { name, description?, input_schema }
  */
-export function convertToolsToAnthropic(tools: readonly unknown[] | undefined): { name: string; description?: string; input_schema: Record<string, unknown> }[] | undefined {
+export function convertToolsToAnthropic(
+	tools: readonly unknown[] | undefined
+): { name: string; description?: string; input_schema: Record<string, unknown> }[] | undefined {
 	if (!tools || tools.length === 0) {
 		return undefined;
 	}

@@ -27,7 +27,9 @@ import {
  * Check if part is a text part
  */
 export function isTextPart(part: unknown): part is VsCodeTextPart {
-	return part !== null && typeof part === "object" && "value" in part && typeof (part as VsCodeTextPart).value === "string";
+	return (
+		part !== null && typeof part === "object" && "value" in part && typeof (part as VsCodeTextPart).value === "string"
+	);
 }
 
 /**
@@ -62,7 +64,11 @@ export function isCacheControlPart(part: unknown): boolean {
  * Check if part is a real image (not a cache control marker)
  */
 export function isImagePart(part: unknown): part is VsCodeDataPart {
-	return isDataPart(part) && (part as VsCodeDataPart).mimeType !== "cache_control" && (part as VsCodeDataPart).mimeType.startsWith("image/");
+	return (
+		isDataPart(part) &&
+		(part as VsCodeDataPart).mimeType !== "cache_control" &&
+		(part as VsCodeDataPart).mimeType.startsWith("image/")
+	);
 }
 
 // ============================================================================

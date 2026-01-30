@@ -123,9 +123,8 @@ class ExtensionProvider implements LanguageModelChatProvider {
 		}
 
 		// Determine which API format to use
-		const apiMode = PROVIDER_CONFIG.apiMode === "gemini" || PROVIDER_CONFIG.apiMode === "ollama"
-			? "openai"
-			: PROVIDER_CONFIG.apiMode;
+		const apiMode =
+			PROVIDER_CONFIG.apiMode === "gemini" || PROVIDER_CONFIG.apiMode === "ollama" ? "openai" : PROVIDER_CONFIG.apiMode;
 
 		// Build request using SDK helper
 		const requestBody = buildRequest(

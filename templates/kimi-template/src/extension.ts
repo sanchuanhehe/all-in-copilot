@@ -123,9 +123,8 @@ class ExtensionProvider implements LanguageModelChatProvider {
 		}
 
 		// 只允许 openai/anthropic 传给 buildRequest
-		const apiMode = PROVIDER_CONFIG.apiMode === "gemini" || PROVIDER_CONFIG.apiMode === "ollama"
-			? "openai"
-			: PROVIDER_CONFIG.apiMode;
+		const apiMode =
+			PROVIDER_CONFIG.apiMode === "gemini" || PROVIDER_CONFIG.apiMode === "ollama" ? "openai" : PROVIDER_CONFIG.apiMode;
 
 		const requestBody = buildRequest(
 			apiMode,

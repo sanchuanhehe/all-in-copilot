@@ -33,7 +33,9 @@ export function isTextPart(part: unknown): part is { value: string } {
 	return typeof p.value === "string";
 }
 
-export function isToolCallPart(part: unknown): part is { callId: string; name: string; input: Record<string, unknown> } {
+export function isToolCallPart(
+	part: unknown
+): part is { callId: string; name: string; input: Record<string, unknown> } {
 	if (!part || typeof part !== "object") {
 		return false;
 	}
@@ -62,7 +64,11 @@ export function isCacheControlPart(part: unknown): boolean {
 }
 
 export function isImagePart(part: unknown): part is { mimeType: string; data: Uint8Array } {
-	return isDataPart(part) && (part as { mimeType?: string }).mimeType !== "cache_control" && (part as { mimeType?: string }).mimeType?.startsWith("image/") === true;
+	return (
+		isDataPart(part) &&
+		(part as { mimeType?: string }).mimeType !== "cache_control" &&
+		(part as { mimeType?: string }).mimeType?.startsWith("image/") === true
+	);
 }
 
 // ============================================================================
@@ -209,7 +215,11 @@ export function buildRequest(
 		};
 
 		if (systemMessage) {
-			const text = systemMessage.content?.filter(isTextPart).map((p) => p.value).join("\n") ?? "";
+			const text =
+				systemMessage.content
+					?.filter(isTextPart)
+					.map((p) => p.value)
+					.join("\n") ?? "";
 			request.system = text;
 		}
 

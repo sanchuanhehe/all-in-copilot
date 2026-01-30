@@ -3,12 +3,7 @@
  */
 
 // Message conversion (explicit exports to avoid conflicts)
-export {
-	ROLE,
-	mapVsCodeRole,
-	convertVsCodeContent,
-	convertToProviderFormat,
-} from "./messageConverter";
+export { ROLE, mapVsCodeRole, convertVsCodeContent, convertToProviderFormat } from "./messageConverter";
 
 // Tool conversion
 export * from "./toolConverter";
