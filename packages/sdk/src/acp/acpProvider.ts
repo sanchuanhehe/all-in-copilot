@@ -388,6 +388,40 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 	}
 
 	/**
+	 * Decodes UTF-8 bytes to string (pure JS implementation).
+	 */
+	private decodeUtf8(bytes: number[]): string {
+		let result = "";
+		for (let i = 0; i < bytes.length; ) {
+			const byte = bytes[i];
+			let charCount = 0;
+			let codepoint = 0;
+
+			if (byte < 0x80) {
+				codepoint = byte;
+				charCount = 1;
+			} else if (byte < 0xe0) {
+				codepoint = byte & 0x1f;
+				charCount = 2;
+			} else if (byte < 0xf0) {
+				codepoint = byte & 0x0f;
+				charCount = 3;
+			} else {
+				codepoint = byte & 0x07;
+				charCount = 4;
+			}
+
+			for (let j = 1; j < charCount; j++) {
+				codepoint = (codepoint << 6) | (bytes[i + j] & 0x3f);
+			}
+
+			result += String.fromCodePoint(codepoint);
+			i += charCount;
+		}
+		return result;
+	}
+
+	/**
 	 * Extracts text content from a user message.
 	 */
 	private extractUserContent(message: vscode.LanguageModelChatRequestMessage): string | null {
@@ -408,16 +442,43 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		if (Array.isArray(message.content)) {
 			const textParts: string[] = [];
 			console.log("[ACPProvider] extractUserContent: array content with", message.content.length, "parts");
+
+			// Join all parts together, handling different formats
+			const allPartsText: string[] = [];
+
 			for (const part of message.content) {
 				if (part && typeof part === "object") {
-					const partAny = part as { kind?: string; text?: string };
-					if (partAny.kind === "text" && partAny.text) {
-						console.log("[ACPProvider] extractUserContent: found text part =", partAny.text);
-						textParts.push(partAny.text);
+					// VS Code MarkdownString format: {"$mid":21,"value":"..."}
+					// Or cache_control format: {"$mid":24,"mimeType":"cache_control","data":{"type":"Buffer","data":[...]}}
+					const partAny = part as { value?: string; data?: { type: string; data: number[] } };
+
+					// Try different ways to extract text
+					if (partAny.value) {
+						allPartsText.push(String(partAny.value));
+					} else if (partAny.data && partAny.data.type === "Buffer" && Array.isArray(partAny.data.data)) {
+						// Decode Buffer data using pure JS UTF-8 decoder
+						const decoded = this.decodeUtf8(partAny.data.data);
+						if (decoded) {
+							allPartsText.push(decoded);
+						}
+					} else {
+						// Try to get any string property
+						const jsonStr = JSON.stringify(part);
+						// Extract value field from the JSON
+						const valueMatch = jsonStr.match(/"value":"([^"]*)"/);
+						if (valueMatch) {
+							allPartsText.push(valueMatch[1]);
+						}
 					}
 				}
 			}
-			return textParts.join("\n") || null;
+
+			// Join all parts
+			const fullText = allPartsText.join("");
+			console.log("[ACPProvider] extractUserContent: full text length =", fullText.length);
+			console.log("[ACPProvider] extractUserContent: full text preview =", fullText.slice(0, 100));
+
+			return fullText || null;
 		}
 
 		console.log("[ACPProvider] extractUserContent: unknown content type");
