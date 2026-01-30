@@ -128,10 +128,10 @@ response.confirm({ title: "Allow", command: "allow" });
 ### 2.5 终端管理
 
 **ACP 功能**：
-- `terminal/create`: 创建终端
-- `terminal/output`: 获取终端输出
-- `terminal/input`: 发送输入
-- `terminal/kill`: 终止终端
+- `terminal/create`: Agent 请求创建终端
+- `terminal/output`: Agent 请求获取终端输出
+- `terminal/kill`: Agent 请求终止终端
+- `terminal/release`: Agent 请求释放终端资源
 
 **VS Code API 映射**：
 ```typescript
@@ -141,10 +141,28 @@ terminal.show();
 terminal.sendText("npm test");
 ```
 
-**SDK 提供**：
-- `ClientSideConnection.terminalCreate()` 方法
-- 终端输出通过 `streamPrompt` 的 `terminal` 类型更新传递
-- 自动终端生命周期管理
+**SDK 实现方式**：
+- 终端方法由 **Agent 调用**，不是客户端调用
+- SDK 在 `createClientImplementation` 中实现了这些方法的处理程序
+- 实际终端管理由用户/Agent 控制，SDK 仅负责转发消息
+- 文件操作（`readTextFile`, `writeTextFile`）也是类似的处理方式
+
+### 2.6 MCP 支持
+
+**ACP 功能**：
+- 通过 `newSession` 的 `mcpServers` 参数传递 MCP 服务器配置
+- Agent 负责启动和管理 MCP 服务器连接
+
+**VS Code API 映射**：
+```typescript
+// VS Code MCP API (VS Code 自身管理 MCP)
+vscode.lm.registerMcpServerDefinitionProvider(id, provider);
+```
+
+**SDK 实现方式**：
+- SDK 在 `newSession` 时自动传递 MCP 服务器配置
+- Agent 负责实际的 MCP 服务器连接和管理
+- 工具调用通过标准的 `session/update` 流程处理
 
 ---
 
@@ -369,13 +387,10 @@ await manager.dispose();
 | 文件读取 | `fs/read_text_file` | ✅ 已完成 | SDK 自动处理 |
 | 文件写入 | `fs/write_text_file` | ✅ 已完成 | SDK 自动处理 |
 | 权限请求 | `session/request_permission` | ✅ 已完成 | 集成 confirm API |
-| 终端创建 | `terminal/create` | ✅ 已完成 | 完整支持 |
-| 终端输出 | `terminal/output` | ✅ 已完成 | 完整支持 |
-| 终端输入 | `terminal/input` | ✅ 已完成 | 完整支持 |
-| 终端终止 | `terminal/kill` | ✅ 已完成 | 完整支持 |
-| MCP 服务器列表 | `mcp/list_servers` | ✅ 已完成 | 完整支持 |
-| MCP 工具列表 | `mcp/list_tools` | ✅ 已完成 | 完整支持 |
-| MCP 工具调用 | `mcp/call_tool` | ✅ 已完成 | 完整支持 |
+| 终端创建 | `terminal/create` | ✅ 已完成 | Agent 调用，客户端实现处理 |
+| 终端输出 | `terminal/output` | ✅ 已完成 | Agent 调用，客户端实现处理 |
+| 终端终止 | `terminal/kill` | ✅ 已完成 | Agent 调用，客户端实现处理 |
+| MCP 服务器 | `mcp/*` | ✅ 已完成 | 通过 `newSession` 的 mcpServers 参数 |
 
 ### 5.2 待支持功能
 

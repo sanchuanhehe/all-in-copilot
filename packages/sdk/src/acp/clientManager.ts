@@ -83,6 +83,35 @@ export interface PromptResult {
 }
 
 /**
+ * Result of a terminal creation attempt.
+ */
+export interface TerminalCreateResult {
+	success: boolean;
+	terminalId?: string;
+	error?: string;
+}
+
+/**
+ * Result of a terminal output request.
+ */
+export interface TerminalOutputResult {
+	success: boolean;
+	output?: string;
+	error?: string;
+}
+
+/**
+ * MCP server configuration for session creation.
+ */
+export interface MCPServerConfig {
+	name: string;
+	type: "stdio";
+	command: string;
+	args?: string[];
+	env?: Array<{ name: string; value: string }>;
+}
+
+/**
  * Complete ACP client manager that provides a high-level API over the SDK.
  * This class manages the full lifecycle of ACP connections including:
  * - Process spawning and management

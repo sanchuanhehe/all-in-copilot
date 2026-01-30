@@ -7,6 +7,9 @@ export {
 	type NewSessionResponse,
 	type PromptResult,
 	type PromptResponse,
+	type TerminalCreateResult,
+	type TerminalOutputResult,
+	type MCPServerConfig,
 } from "./clientManager";
 export type {
 	ClientSideConnection,

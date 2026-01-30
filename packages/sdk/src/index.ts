@@ -75,6 +75,9 @@ export {
 	type ACPModelInfo,
 	type ACPProviderOptions,
 	type ContentBlock,
+	type TerminalCreateResult,
+	type TerminalOutputResult,
+	type MCPServerConfig,
 } from "./acp";
 
 // Utilities
