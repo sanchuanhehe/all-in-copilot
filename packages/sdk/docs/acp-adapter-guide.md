@@ -38,10 +38,12 @@
 ### 2.1 初始化阶段
 
 **ACP 功能**：
+
 - `initialize`: 协商协议版本，交换客户端/Agent 能力
 - `authenticate`: 可选的认证流程
 
 **VS Code API 映射**：
+
 ```typescript
 // ACPClientManager.initialize() -> 无直接对应 API
 // 在内部完成协议握手，外部通过 InitResult 获取结果
@@ -50,6 +52,7 @@ const initResult = await clientManager.initialize(connection);
 ```
 
 **SDK 提供**：
+
 - `InitResult` 接口：标准化初始化结果
 - 自动协议版本协商
 - 客户端能力自动设置（fs, terminal）
@@ -57,12 +60,14 @@ const initResult = await clientManager.initialize(connection);
 ### 2.2 会话管理
 
 **ACP 功能**：
+
 - `session/new`: 创建新会话
 - `session/load`: 加载已有会话（可选）
 - `session/set_mode`: 设置会话模式（可选）
 - `session/list`: 列出所有会话（可选）
 
 **VS Code API 映射**：
+
 ```typescript
 // VS Code 没有直接的会话管理 API
 // SDK 在内部管理会话状态
@@ -74,6 +79,7 @@ const sessionResult = await clientManager.newSession(connection, {
 ```
 
 **SDK 提供**：
+
 - `ACPProvider` 自动管理会话生命周期
 - `NewSessionResult` 接口
 - `getSession()`, `addSession()`, `listSessions()` 方法
@@ -81,11 +87,13 @@ const sessionResult = await clientManager.newSession(connection, {
 ### 2.3 对话交互
 
 **ACP 功能**：
+
 - `session/prompt`: 发送用户消息
 - `session/update`: 流式更新通知（内容、工具调用、进度）
 - `session/cancel`: 中断处理
 
 **VS Code API 映射**：
+
 ```typescript
 // VS Code Chat API
 vscode.chat.createChatParticipant(participantId, handler);
@@ -99,6 +107,7 @@ const response = await provider.provideLanguageModelChatResponse(
 ```
 
 **SDK 提供**：
+
 - `ACPProvider.provideLanguageModelChatResponse()` 实现
 - `ACPClientManager.streamPrompt()` 异步迭代器
 - 自动消息格式转换
@@ -106,12 +115,14 @@ const response = await provider.provideLanguageModelChatResponse(
 ### 2.4 工具调用
 
 **ACP 功能**：
+
 - `session/update` (tool_call): 工具调用请求
 - `session/request_permission`: 权限请求
 - `fs/read_text_file`: 读取文件
 - `fs/write_text_file`: 写入文件
 
 **VS Code API 映射**：
+
 ```typescript
 // VS Code 没有直接的工具调用 API
 // 工具执行由 Agent 负责，SDK 仅负责传输
@@ -121,6 +132,7 @@ response.confirm({ title: "Allow", command: "allow" });
 ```
 
 **SDK 提供**：
+
 - `ClientSideConnection` 方法自动处理工具调用
 - 权限请求的 `confirm()` API 集成
 - 文件操作自动转发给 VS Code 环境
@@ -128,12 +140,14 @@ response.confirm({ title: "Allow", command: "allow" });
 ### 2.5 终端管理
 
 **ACP 功能**：
+
 - `terminal/create`: Agent 请求创建终端
 - `terminal/output`: Agent 请求获取终端输出
 - `terminal/kill`: Agent 请求终止终端
 - `terminal/release`: Agent 请求释放终端资源
 
 **VS Code API 映射**：
+
 ```typescript
 // VS Code Terminal API
 const terminal = vscode.window.createTerminal("Agent Terminal");
@@ -142,6 +156,7 @@ terminal.sendText("npm test");
 ```
 
 **SDK 实现方式**：
+
 - 终端方法由 **Agent 调用**，不是客户端调用
 - SDK 在 `createClientImplementation` 中实现了这些方法的处理程序
 - 实际终端管理由用户/Agent 控制，SDK 仅负责转发消息
@@ -150,16 +165,19 @@ terminal.sendText("npm test");
 ### 2.6 MCP 支持
 
 **ACP 功能**：
+
 - 通过 `newSession` 的 `mcpServers` 参数传递 MCP 服务器配置
 - Agent 负责启动和管理 MCP 服务器连接
 
 **VS Code API 映射**：
+
 ```typescript
 // VS Code MCP API (VS Code 自身管理 MCP)
 vscode.lm.registerMcpServerDefinitionProvider(id, provider);
 ```
 
 **SDK 实现方式**：
+
 - SDK 在 `newSession` 时自动传递 MCP 服务器配置
 - Agent 负责实际的 MCP 服务器连接和管理
 - 工具调用通过标准的 `session/update` 流程处理
@@ -216,6 +234,7 @@ interface ACPClientConfig {
     agentArgs?: string[];        // 启动参数
     env?: Record<string, string>; // 环境变量
     cwd?: string;                // 工作目录
+    callbacks?: ClientCallbacks; // VS Code API 回调（可选）
 }
 
 interface ACPModelInfo {
@@ -232,6 +251,85 @@ interface ACPProviderOptions {
     models: ACPModelInfo[];      // 可用模型列表
     clientConfig: ACPClientConfig; // 客户端配置
     clientInfo?: { name?: string; version?: string }; // 客户端信息
+}
+
+/**
+ * VS Code API 回调接口
+ * 用于将 ACP 协议事件映射到 VS Code API
+ */
+interface ClientCallbacks {
+    /**
+     * 创建终端
+     * 当 Agent 调用 terminal/create 时触发
+     */
+    createTerminal?: (
+        sessionId: string,
+        command: string,
+        args?: string[],
+        cwd?: string
+    ) => Promise<IVsCodeTerminal>;
+
+    /**
+     * 获取终端输出
+     * 当 Agent 调用 terminal/output 时触发
+     */
+    getTerminalOutput?: (terminalId: string) => Promise<{
+        output: string;
+        exitCode?: number;
+    }>;
+
+    /**
+     * 释放终端
+     * 当 Agent 调用 terminal/release 时触发
+     */
+    releaseTerminal?: (terminalId: string) => Promise<void>;
+
+    /**
+     * 等待终端退出
+     * 当 Agent 调用 terminal/wait_for_exit 时触发
+     */
+    waitForTerminalExit?: (terminalId: string) => Promise<{
+        exitCode?: number;
+    }>;
+
+    /**
+     * 终止终端命令
+     * 当 Agent 调用 terminal/kill 时触发
+     */
+    killTerminal?: (terminalId: string) => Promise<void>;
+
+    /**
+     * 读取文件
+     * 当 Agent 调用 fs/read_text_file 时触发
+     */
+    readTextFile?: (path: string) => Promise<string>;
+
+    /**
+     * 写入文件
+     * 当 Agent 调用 fs/write_text_file 时触发
+     */
+    writeTextFile?: (path: string, content: string) => Promise<void>;
+
+    /**
+     * 请求权限
+     * 当 Agent 调用 session/request_permission 时触发
+     */
+    requestPermission?: (request: {
+        toolCall: { title: string; description?: string };
+        options: Array<{ optionId: string; label: string }>;
+    }) => Promise<string>;
+}
+
+/**
+ * VS Code 终端接口
+ */
+interface IVsCodeTerminal {
+    readonly terminalId: string;
+    readonly name: string;
+    sendText(text: string, shouldExecute?: boolean): void;
+    show(preserveFocus?: boolean): void;
+    hide(): void;
+    dispose(): void;
 }
 ```
 
@@ -268,6 +366,8 @@ export type {
     ACPClientConfig,
     ACPModelInfo,
     ACPProviderOptions,
+    ClientCallbacks,
+    IVsCodeTerminal,
 };
 
 // ACP 协议类型
@@ -280,6 +380,17 @@ export type {
     ReadTextFileResponse,
     WriteTextFileRequest,
     WriteTextFileResponse,
+    CreateTerminalRequest,
+    CreateTerminalResponse,
+    TerminalOutputRequest,
+    TerminalOutputResponse,
+    ReleaseTerminalRequest,
+    ReleaseTerminalResponse,
+    WaitForTerminalExitRequest,
+    WaitForTerminalExitResponse,
+    KillTerminalCommandRequest,
+    KillTerminalCommandResponse,
+};
 };
 ```
 
@@ -328,16 +439,70 @@ context.subscriptions.push(disposable);
 ### 4.2 高级用法
 
 ```typescript
-import { ACPClientManager } from "@all-in-copilot/sdk";
+import { ACPClientManager, ClientCallbacks } from "@all-in-copilot/sdk";
 
-// 自定义客户端管理
-const manager = new ACPClientManager({ name: "custom", version: "2.0.0" });
+// 定义 VS Code API 回调
+const callbacks: ClientCallbacks = {
+    // 创建终端时调用
+    createTerminal: async (sessionId, command, args, cwd) => {
+        const terminal = vscode.window.createTerminal(
+            `Agent - ${sessionId.slice(0, 8)}`
+        );
+        terminal.show();
+        // 发送命令到终端
+        if (command) {
+            terminal.sendText([command, ...(args ?? [])].join(" "));
+        }
+        return {
+            terminalId: terminal.name,
+            name: terminal.name,
+            sendText: (text, shouldExecute) => terminal.sendText(text, shouldExecute),
+            show: (preserveFocus) => terminal.show(preserveFocus),
+            hide: () => terminal.hide(),
+            dispose: () => terminal.dispose(),
+        };
+    },
 
-// 获取连接
+    // 获取终端输出时调用
+    getTerminalOutput: async (terminalId) => {
+        const terminal = vscode.window.terminals.find(t => t.name === terminalId);
+        if (terminal && terminal.shellIntegration) {
+            // 使用 shell integration 获取输出
+            const output = await getTerminalBuffer(terminal);
+            return { output };
+        }
+        return { output: "" };
+    },
+
+    // 读取文件时调用
+    readTextFile: async (path) => {
+        const uri = vscode.Uri.file(path);
+        const bytes = await vscode.workspace.fs.readFile(uri);
+        return new TextDecoder().decode(bytes);
+    },
+
+    // 写入文件时调用
+    writeTextFile: async (path, content) => {
+        const uri = vscode.Uri.file(path);
+        await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
+    },
+
+    // 请求权限时调用
+    requestPermission: async ({ toolCall, options }) => {
+        const selected = await vscode.window.showQuickPick(
+            options.map(opt => ({ label: opt.label, id: opt.optionId })),
+            { title: toolCall.title, placeHolder: "Select permission" }
+        );
+        return selected?.id ?? "reject";
+    },
+};
+
+// 使用回调配置客户端
 const connection = await manager.getClient({
     transport: "stdio",
     agentPath: "/path/to/agent",
     agentArgs: ["--verbose"],
+    callbacks,  // 传入回调
 });
 
 // 初始化
@@ -369,6 +534,80 @@ for await (const update of manager.streamPrompt(connection, {
 
 // 清理
 await manager.dispose();
+```
+
+### 4.3 终端管理示例
+
+当 Agent 需要执行终端命令时（如运行测试、构建项目等），SDK 会调用终端相关的回调：
+
+```typescript
+const callbacks: ClientCallbacks = {
+    createTerminal: async (sessionId, command, args, cwd) => {
+        const terminal = vscode.window.createTerminal(
+            `Agent - ${sessionId.slice(0, 8)}`
+        );
+        terminal.show();
+
+        // 执行命令
+        const fullCommand = [command, ...(args ?? [])].join(" ");
+        terminal.sendText(`cd ${cwd ?? "~"} && ${fullCommand}`);
+
+        return {
+            terminalId: terminal.name,
+            name: terminal.name,
+            sendText: (text) => terminal.sendText(text),
+            show: (preserveFocus) => terminal.show(preserveFocus),
+            hide: () => terminal.hide(),
+            dispose: () => terminal.dispose(),
+        };
+    },
+
+    getTerminalOutput: async (terminalId) => {
+        const terminal = vscode.window.terminals.find(t => t.name === terminalId);
+        if (!terminal) {
+            return { output: "Terminal not found" };
+        }
+        // 获取终端缓冲区内容
+        const output = getTerminalBuffer(terminal);
+        return { output };
+    },
+
+    releaseTerminal: async (terminalId) => {
+        const terminal = vscode.window.terminals.find(t => t.name === terminalId);
+        terminal?.dispose();
+    },
+};
+```
+
+### 4.4 文件系统操作示例
+
+当 Agent 需要读写文件时，SDK 会调用文件系统回调：
+
+```typescript
+const callbacks: ClientCallbacks = {
+    readTextFile: async (path) => {
+        try {
+            const uri = vscode.Uri.file(path);
+            const bytes = await vscode.workspace.fs.readFile(uri);
+            return new TextDecoder().decode(bytes);
+        } catch (error) {
+            console.error(`Failed to read ${path}:`, error);
+            return "";  // 返回空内容表示文件不存在
+        }
+    },
+
+    writeTextFile: async (path, content) => {
+        const uri = vscode.Uri.file(path);
+        // 确保目录存在
+        const dir = vscode.Uri.file(path.substring(0, path.lastIndexOf("/")));
+        try {
+            await vscode.workspace.fs.stat(dir);
+        } catch {
+            await vscode.workspace.fs.createDirectory(dir);
+        }
+        await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
+    },
+};
 ```
 
 ---

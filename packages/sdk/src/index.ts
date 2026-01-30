@@ -78,6 +78,8 @@ export {
 	type TerminalCreateResult,
 	type TerminalOutputResult,
 	type MCPServerConfig,
+	type ClientCallbacks,
+	type IVsCodeTerminal,
 } from "./acp";
 
 // Utilities

@@ -10,6 +10,8 @@ export {
 	type TerminalCreateResult,
 	type TerminalOutputResult,
 	type MCPServerConfig,
+	type ClientCallbacks,
+	type IVsCodeTerminal,
 } from "./clientManager";
 export type {
 	ClientSideConnection,
@@ -20,6 +22,16 @@ export type {
 	ReadTextFileResponse,
 	WriteTextFileRequest,
 	WriteTextFileResponse,
+	CreateTerminalRequest,
+	CreateTerminalResponse,
+	TerminalOutputRequest,
+	TerminalOutputResponse,
+	ReleaseTerminalRequest,
+	ReleaseTerminalResponse,
+	WaitForTerminalExitRequest,
+	WaitForTerminalExitResponse,
+	KillTerminalCommandRequest,
+	KillTerminalCommandResponse,
 } from "@agentclientprotocol/sdk";
 
 // VS Code ACP Integration

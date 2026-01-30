@@ -13,6 +13,16 @@ import {
 	WriteTextFileRequest,
 	WriteTextFileResponse,
 	SessionNotification,
+	CreateTerminalRequest,
+	CreateTerminalResponse,
+	TerminalOutputRequest,
+	TerminalOutputResponse,
+	ReleaseTerminalRequest,
+	ReleaseTerminalResponse,
+	WaitForTerminalExitRequest,
+	WaitForTerminalExitResponse,
+	KillTerminalCommandRequest,
+	KillTerminalCommandResponse,
 } from "@agentclientprotocol/sdk";
 import { ndJsonStream } from "@agentclientprotocol/sdk";
 
@@ -29,23 +39,17 @@ export type {
 	ReadTextFileResponse,
 	WriteTextFileRequest,
 	WriteTextFileResponse,
+	CreateTerminalRequest,
+	CreateTerminalResponse,
+	TerminalOutputRequest,
+	TerminalOutputResponse,
+	ReleaseTerminalRequest,
+	ReleaseTerminalResponse,
+	WaitForTerminalExitRequest,
+	WaitForTerminalExitResponse,
+	KillTerminalCommandRequest,
+	KillTerminalCommandResponse,
 };
-
-/**
- * Configuration for creating an ACP client.
- */
-export interface ACPClientConfig {
-	/** Transport type (currently only "stdio" supported) */
-	transport: "stdio";
-	/** Path to the agent executable */
-	agentPath: string;
-	/** Arguments to pass to the agent */
-	agentArgs?: string[];
-	/** Environment variables for the agent process */
-	env?: Record<string, string>;
-	/** Working directory for the agent */
-	cwd?: string;
-}
 
 /**
  * Information about an agent.
@@ -101,6 +105,24 @@ export interface TerminalOutputResult {
 }
 
 /**
+ * Configuration for creating an ACP client.
+ */
+export interface ACPClientConfig {
+	/** Transport type (currently only "stdio" supported) */
+	transport: "stdio";
+	/** Path to the agent executable */
+	agentPath: string;
+	/** Arguments to pass to the agent */
+	agentArgs?: string[];
+	/** Environment variables for the agent process */
+	env?: Record<string, string>;
+	/** Working directory for the agent */
+	cwd?: string;
+	/** Callbacks for VS Code API integration */
+	callbacks?: ClientCallbacks;
+}
+
+/**
  * MCP server configuration for session creation.
  */
 export interface MCPServerConfig {
@@ -109,6 +131,66 @@ export interface MCPServerConfig {
 	command: string;
 	args?: string[];
 	env?: Array<{ name: string; value: string }>;
+}
+
+/**
+ * VS Code Terminal instance interface (for terminal management).
+ * This provides a platform-agnostic interface for terminal operations.
+ */
+export interface IVsCodeTerminal {
+	readonly terminalId: string;
+	readonly name: string;
+	sendText(text: string, shouldExecute?: boolean): void;
+	show(preserveFocus?: boolean): void;
+	hide(): void;
+	dispose(): void;
+}
+
+/**
+ * Callbacks for client implementation.
+ * These allow the SDK to integrate with VS Code APIs.
+ */
+export interface ClientCallbacks {
+	/**
+	 * Creates a new terminal.
+	 * @param sessionId The session ID for context
+	 * @param command The command to execute
+	 * @param args Command arguments
+	 * @param cwd Working directory
+	 */
+	createTerminal?: (sessionId: string, command: string, args?: string[], cwd?: string) => Promise<IVsCodeTerminal>;
+	/**
+	 * Gets terminal output.
+	 */
+	getTerminalOutput?: (terminalId: string) => Promise<{ output: string; exitCode?: number }>;
+	/**
+	 * Releases a terminal.
+	 */
+	releaseTerminal?: (terminalId: string) => Promise<void>;
+	/**
+	 * Waits for terminal to exit.
+	 */
+	waitForTerminalExit?: (terminalId: string) => Promise<{ exitCode?: number }>;
+	/**
+	 * Kills a terminal command.
+	 */
+	killTerminal?: (terminalId: string) => Promise<void>;
+	/**
+	 * Reads a text file.
+	 */
+	readTextFile?: (path: string) => Promise<string>;
+	/**
+	 * Writes a text file.
+	 */
+	writeTextFile?: (path: string, content: string) => Promise<void>;
+	/**
+	 * Handles permission requests from the agent.
+	 * Should return the approved option or throw to deny.
+	 */
+	requestPermission?: (request: {
+		toolCall: { title: string; description?: string };
+		options: Array<{ optionId: string; label: string }>;
+	}) => Promise<string>;
 }
 
 /**
@@ -387,34 +469,69 @@ export class ACPClientManager {
 
 	/**
 	 * Creates a client implementation for the SDK connection.
+	 * This implements the full Client interface for the ACP protocol.
 	 */
-	private createClientImplementation(_config: ACPClientConfig): {
-		requestPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse>;
-		sessionUpdate(params: SessionNotification): Promise<void>;
-		readTextFile?(params: ReadTextFileRequest): Promise<ReadTextFileResponse>;
-		writeTextFile?(params: WriteTextFileRequest): Promise<WriteTextFileResponse>;
-	} {
-		return {
-			async requestPermission(params) {
-				console.log(`[ACP Client] Permission requested: ${params.toolCall.title}`);
+	private createClientImplementation(config: ACPClientConfig) {
+		const callbacks = config.callbacks ?? {};
+		const terminalIdToHandle = new Map<string, { name: string; command: string; args?: string[]; cwd?: string }>();
 
-				// Auto-approve for now - in a real implementation, this would show a UI
+		return {
+			/**
+			 * Handles permission requests from the agent.
+			 * Uses callback if provided, otherwise auto-approves.
+			 */
+			async requestPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {
+				const toolCall = params.toolCall;
+				const options = params.options.map((opt) => ({
+					optionId: opt.optionId,
+					label: opt.name,
+				}));
+
+				if (callbacks.requestPermission) {
+					const optionId = await callbacks.requestPermission({
+						toolCall: {
+							title: toolCall.title ?? "Unknown",
+							// description is not available in ToolCallUpdate, use content as fallback
+						},
+						options,
+					});
+					return {
+						outcome: { outcome: "selected", optionId },
+					};
+				}
+
+				// Default: auto-approve first option
+				console.log(`[ACP Client] Permission requested: ${toolCall.title ?? "Unknown"}`);
 				return {
 					outcome: {
 						outcome: "selected",
-						optionId: params.options[0]?.optionId ?? "default",
+						optionId: options[0]?.optionId ?? "default",
 					},
 				};
 			},
 
-			async sessionUpdate(params) {
+			/**
+			 * Handles session update notifications from the agent.
+			 * Logs message chunks to stdout.
+			 */
+			async sessionUpdate(params: SessionNotification): Promise<void> {
 				const update = params.update;
 				if (update.sessionUpdate === "agent_message_chunk" && update.content && "text" in update.content) {
 					process.stdout.write(String(update.content.text));
 				}
 			},
 
-			async readTextFile(params) {
+			/**
+			 * Reads a text file.
+			 * Uses callback if provided, otherwise falls back to node:fs.
+			 */
+			async readTextFile(params: ReadTextFileRequest): Promise<ReadTextFileResponse> {
+				if (callbacks.readTextFile) {
+					const content = await callbacks.readTextFile(params.path);
+					return { content };
+				}
+
+				// Default: use node:fs
 				const { readFileSync } = await import("node:fs");
 				try {
 					const content = readFileSync(params.path, "utf-8");
@@ -425,10 +542,105 @@ export class ACPClientManager {
 				}
 			},
 
-			async writeTextFile(params) {
+			/**
+			 * Writes a text file.
+			 * Uses callback if provided, otherwise falls back to node:fs.
+			 */
+			async writeTextFile(params: WriteTextFileRequest): Promise<WriteTextFileResponse> {
+				if (callbacks.writeTextFile) {
+					await callbacks.writeTextFile(params.path, params.content);
+					return {};
+				}
+
+				// Default: use node:fs
 				const { writeFileSync } = await import("node:fs");
 				writeFileSync(params.path, params.content);
 				return {};
+			},
+
+			/**
+			 * Creates a new terminal for executing commands.
+			 * Uses callback if provided, otherwise stores terminal info for later use.
+			 */
+			async createTerminal(params: CreateTerminalRequest): Promise<CreateTerminalResponse> {
+				const terminalId = `terminal-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+				const cwd = params.cwd ?? undefined;
+
+				if (callbacks.createTerminal) {
+					const terminal = await callbacks.createTerminal(
+						params.sessionId,
+						params.command,
+						params.args,
+						cwd
+					);
+					terminalIdToHandle.set(terminal.terminalId, {
+						name: terminal.name,
+						command: params.command,
+						args: params.args,
+						cwd,
+					});
+					return { terminalId: terminal.terminalId };
+				}
+
+				// Store terminal info for potential use with terminalOutput
+				terminalIdToHandle.set(terminalId, {
+					name: params.sessionId,
+					command: params.command,
+					args: params.args,
+					cwd,
+				});
+
+				console.log(`[ACP Client] Terminal created: ${params.command} ${(params.args ?? []).join(" ")}`);
+				return { terminalId };
+			},
+
+			/**
+			 * Gets the current output and exit status of a terminal.
+			 */
+			async terminalOutput(params: TerminalOutputRequest): Promise<TerminalOutputResponse> {
+				if (callbacks.getTerminalOutput) {
+					const result = await callbacks.getTerminalOutput(params.terminalId);
+					return {
+						output: result.output,
+						truncated: false,
+						exitStatus: result.exitCode !== undefined ? { exitCode: result.exitCode } : undefined,
+					};
+				}
+
+				// Default: return empty output
+				return { output: "", truncated: true };
+			},
+
+			/**
+			 * Releases a terminal and frees all associated resources.
+			 */
+			async releaseTerminal(params: ReleaseTerminalRequest): Promise<ReleaseTerminalResponse | void> {
+				if (callbacks.releaseTerminal) {
+					await callbacks.releaseTerminal(params.terminalId);
+				}
+				terminalIdToHandle.delete(params.terminalId);
+			},
+
+			/**
+			 * Waits for a terminal command to exit and returns its exit status.
+			 */
+			async waitForTerminalExit(params: WaitForTerminalExitRequest): Promise<WaitForTerminalExitResponse> {
+				if (callbacks.waitForTerminalExit) {
+					const result = await callbacks.waitForTerminalExit(params.terminalId);
+					return { exitCode: result.exitCode };
+				}
+
+				// Default: return undefined exit status
+				return { exitCode: undefined };
+			},
+
+			/**
+			 * Kills a terminal command without releasing the terminal.
+			 */
+			async killTerminal(params: KillTerminalCommandRequest): Promise<KillTerminalCommandResponse | void> {
+				if (callbacks.killTerminal) {
+					await callbacks.killTerminal(params.terminalId);
+				}
 			},
 		};
 	}
