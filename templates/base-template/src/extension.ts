@@ -31,6 +31,7 @@ class ExtensionProvider implements LanguageModelChatProvider {
 	private secrets: vscode.SecretStorage;
 	private statusBar: vscode.StatusBarItem;
 	private modelCache = { models: null as ModelConfig[] | null, lastFetch: 0 };
+	private disposables: vscode.Disposable[] = [];
 
 	constructor(secrets: vscode.SecretStorage) {
 		this.secrets = secrets;
@@ -40,6 +41,15 @@ class ExtensionProvider implements LanguageModelChatProvider {
 		this.statusBar.text = `$(ai) ${PROVIDER_CONFIG.name}`;
 		this.statusBar.command = `${PROVIDER_CONFIG.id}.manage`;
 		this.statusBar.show();
+	}
+
+	/**
+	 * Dispose of resources
+	 */
+	dispose(): void {
+		this.statusBar.dispose();
+		this.disposables.forEach(d => d.dispose());
+		this.disposables = [];
 	}
 
 	/**
@@ -223,11 +233,19 @@ export function activate(context: vscode.ExtensionContext) {
 	const registration = vscode.lm.registerLanguageModelChatProvider(PROVIDER_CONFIG.id, provider);
 	context.subscriptions.push(registration);
 
+	// Register provider disposal on deactivation
+	context.subscriptions.push({
+		dispose: () => provider.dispose(),
+	});
+
 	// Register management command
 	const manageCommand = vscode.commands.registerCommand(`${PROVIDER_CONFIG.id}.manage`, async () => {
-		const action = await vscode.window.showQuickPick(["Configure API Key", "View Provider Info"], {
-			placeHolder: `Manage ${PROVIDER_CONFIG.name}`,
-		});
+		const action = await vscode.window.showQuickPick(
+			["Configure API Key", "Delete API Key", "View Provider Info"],
+			{
+				placeHolder: `Manage ${PROVIDER_CONFIG.name}`,
+			}
+		);
 
 		if (action === "Configure API Key") {
 			const apiKey = await vscode.window.showInputBox({
@@ -239,9 +257,28 @@ export function activate(context: vscode.ExtensionContext) {
 				await context.secrets.store(PROVIDER_CONFIG.apiKeySecret, apiKey);
 				vscode.window.showInformationMessage(`${PROVIDER_CONFIG.name} API key saved`);
 			}
+		} else if (action === "Delete API Key") {
+			const apiKey = await context.secrets.get(PROVIDER_CONFIG.apiKeySecret);
+			if (!apiKey) {
+				vscode.window.showInformationMessage(`${PROVIDER_CONFIG.name} API key is not configured`);
+				return;
+			}
+			const confirm = await vscode.window.showWarningMessage(
+				`Are you sure you want to delete the ${PROVIDER_CONFIG.name} API key?`,
+				{ modal: true },
+				"Delete"
+			);
+			if (confirm === "Delete") {
+				await context.secrets.delete(PROVIDER_CONFIG.apiKeySecret);
+				vscode.window.showInformationMessage(`${PROVIDER_CONFIG.name} API key deleted`);
+			}
 		} else if (action === "View Provider Info") {
+			const apiKey = await context.secrets.get(PROVIDER_CONFIG.apiKeySecret);
 			vscode.window.showInformationMessage(
-				`${PROVIDER_CONFIG.name}\n` + `API Mode: ${PROVIDER_CONFIG.apiMode}\n` + `Base URL: ${PROVIDER_CONFIG.baseUrl}`
+				`${PROVIDER_CONFIG.name}\n` +
+					`API Mode: ${PROVIDER_CONFIG.apiMode}\n` +
+					`Base URL: ${PROVIDER_CONFIG.baseUrl}\n` +
+					`API Key: ${apiKey ? "Configured ✓" : "Not configured ✗"}`
 			);
 		}
 	});
@@ -251,5 +288,6 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-	// Cleanup handled by VS Code
+	// Cleanup is handled by context.subscriptions
+	console.log(`[${PROVIDER_CONFIG.name}] Extension deactivated`);
 }
