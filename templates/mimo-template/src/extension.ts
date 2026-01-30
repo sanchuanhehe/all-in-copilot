@@ -127,46 +127,60 @@ class ExtensionProvider implements LanguageModelChatProvider {
     // Build request based on API mode
     const requestBody = this.buildRequest(model, messages, options) as Record<string, unknown>;
 
-    // Make streaming request
-    const controller = new AbortController();
-    token.onCancellationRequested(() => controller.abort());
-
-    const response = await fetch(PROVIDER_CONFIG.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Use appropriate auth header based on API mode
-        ...(PROVIDER_CONFIG.apiMode === 'anthropic'
-          ? {
-              'x-api-key': apiKey,
-              'anthropic-version': '2023-06-01',
-            }
-          : { 'Authorization': `Bearer ${apiKey}` }),
-        ...PROVIDER_CONFIG.headers,
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
+    // Make streaming request with error handling
+    let response: Response;
+    try {
+      response = await fetch(PROVIDER_CONFIG.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Use appropriate auth header based on API mode
+          ...(PROVIDER_CONFIG.apiMode === 'anthropic'
+            ? {
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+              }
+            : { 'Authorization': `Bearer ${apiKey}` }),
+          ...PROVIDER_CONFIG.headers,
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Request was cancelled');
+      }
+      throw new Error(`Failed to connect to ${PROVIDER_CONFIG.name}: ${errorMessage}`);
+    }
 
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       throw new Error(`API request failed: ${response.status} ${response.statusText}${text ? `\n${text}` : ''}`);
     }
 
-    // Process streaming response using SDK helpers
+    // Process streaming response using SDK helpers with error handling
     const apiMode = PROVIDER_CONFIG.apiMode;
     const processStream = apiMode === 'anthropic' ? processAnthropicStream : processOpenAIStream;
 
-    await processStream(
-      response,
-      (text) => {
-        progress.report(new vscode.LanguageModelTextPart(text));
-      },
-      (callId, name, args) => {
-        progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
-      },
-      controller.signal
-    );
+    try {
+      await processStream(
+        response,
+        (text) => {
+          progress.report(new vscode.LanguageModelTextPart(text));
+        },
+        (callId, name, args) => {
+          progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
+        },
+        controller.signal
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Response stream was cancelled');
+      }
+      throw new Error(`Failed to process response: ${errorMessage}`);
+    }
   }
 
   /**
