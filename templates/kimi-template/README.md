@@ -2,6 +2,8 @@
 
 [English](#english) | [中文](#中文)
 
+> **Note:** This is the **Standard** version of Kimi Copilot. For the coding-optimized version with dynamic model fetching, see [kimi-coding-template](../kimi-coding-template/).
+
 ---
 
 ## English
@@ -9,6 +11,16 @@
 ### What is Kimi Copilot?
 
 Kimi Copilot is a VS Code extension that integrates Moonshot AI's Kimi K2 large language models into GitHub Copilot Chat. It allows you to use Kimi K2's powerful reasoning capabilities, including extended thinking models, as an alternative AI assistant directly within VS Code's native chat interface.
+
+#### Difference from Kimi Copilot (Coding Plan)
+
+| Feature | Standard Kimi Copilot | Kimi Copilot (Coding Plan) |
+|---------|----------------------|---------------------------|
+| **API Endpoint** | `https://api.moonshot.cn/anthropic/v1/messages` | `https://api.kimi.com/coding/v1/messages` |
+| **Optimized For** | General-purpose conversations | Coding tasks with enhanced capabilities |
+| **Dynamic Models** | ❌ Disabled - Uses static model list | ✅ Enabled - Auto-fetches available models |
+| **Provider ID** | `kimi` | `kimi-coding` |
+| **Extension Name** | `kimi-copilot` | `kimi-coding-copilot` |
 
 ### Features
 
@@ -46,6 +58,16 @@ Kimi Copilot is a VS Code extension that integrates Moonshot AI's Kimi K2 large 
 ### 什么是 Kimi Copilot？
 
 Kimi Copilot 是一个 VS Code 扩展，将月之暗面的 Kimi K2 大语言模型集成到 GitHub Copilot Chat 中。它允许你在 VS Code 原生的聊天界面中直接使用 Kimi K2 强大的推理能力（包括扩展思考模型）作为替代的 AI 助手。
+
+#### 与 Kimi Copilot（编程版）的区别
+
+| 特性 | 标准版 Kimi Copilot | Kimi Copilot（编程版） |
+|------|-------------------|----------------------|
+| **API 端点** | `https://api.moonshot.cn/anthropic/v1/messages` | `https://api.kimi.com/coding/v1/messages` |
+| **优化方向** | 通用对话场景 | 针对编程任务的增强能力 |
+| **动态模型** | ❌ 禁用 - 使用静态模型列表 | ✅ 启用 - 自动获取可用模型 |
+| **Provider ID** | `kimi` | `kimi-coding` |
+| **扩展名称** | `kimi-copilot` | `kimi-coding-copilot` |
 
 ### 功能特性
 
