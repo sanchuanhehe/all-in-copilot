@@ -90,18 +90,37 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			return;
 		}
 
-		try {
-			// Get or create connection
-			if (!this.connection) {
-				console.log("[ACPProvider] Connecting to agent...");
-				this.connection = await this.clientManager.getClient(this.options.clientConfig);
-
-				// Initialize the connection
-				console.log("[ACPProvider] Initializing...");
-				const initResult = await this.initializeConnection(this.connection);
-				if (!initResult.success) {
-					throw new Error(`Failed to initialize: ${initResult.error}`);
+		// DEBUG: Log incoming messages to diagnose input issues
+		console.log("[ACPProvider] ===== INCOMING MESSAGES =====");
+		for (let i = 0; i < messages.length; i++) {
+			const msg = messages[i];
+			const role =
+				msg.role === vscode.LanguageModelChatMessageRole.User
+					? "USER"
+					: msg.role === vscode.LanguageModelChatMessageRole.Assistant
+						? "ASSISTANT"
+						: "OTHER";
+			let contentPreview = "EMPTY";
+			const content = (msg as any).content;
+			if (content) {
+				if (typeof content === "string") {
+					contentPreview = content.slice(0, 100);
+				} else {
+					contentPreview = JSON.stringify(content).slice(0, 100);
 				}
+			}
+			console.log(`[ACPProvider] Message[${i}] Role=${role}, Content=${contentPreview}...`);
+		}
+		console.log("[ACPProvider] ===== END MESSAGES =====");
+
+		try {
+			this.connection = await this.clientManager.getClient(this.options.clientConfig);
+
+			// Initialize the connection
+			console.log("[ACPProvider] Initializing...");
+			const initResult = await this.initializeConnection(this.connection);
+			if (!initResult.success) {
+				throw new Error(`Failed to initialize: ${initResult.error}`);
 			}
 
 			// Check for cancellation
@@ -131,13 +150,29 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			// Convert VS Code messages to ACP format
 			const prompt = this.convertMessagesToPrompt(messages);
 
+			// DEBUG: Log the converted prompt
+			console.log("[ACPProvider] ===== CONVERTED PROMPT =====");
+			console.log("[ACPProvider] Prompt has", prompt.length, "content blocks:");
+			for (let i = 0; i < prompt.length; i++) {
+				const block = prompt[i];
+				if ("text" in block) {
+					console.log(`[ACPProvider] Block[${i}] type=${block.type}, text="${String(block.text).slice(0, 100)}..."`);
+				} else {
+					console.log(`[ACPProvider] Block[${i}] type=${block.type}`);
+				}
+			}
+			console.log("[ACPProvider] ===== END PROMPT =====");
+
 			// Send the prompt and stream results
 			await this.streamResponse(session!, prompt, progress, token);
 		} catch (error) {
 			// Log the error but don't report it to the chat response
-			const errorMessage = error instanceof Error
-				? (typeof error.message === 'string' ? error.message : JSON.stringify(error.message))
-				: String(error);
+			const errorMessage =
+				error instanceof Error
+					? typeof error.message === "string"
+						? error.message
+						: JSON.stringify(error.message)
+					: String(error);
 			console.error(`[ACPProvider] Error: ${errorMessage}`);
 			throw error;
 		}
@@ -175,9 +210,12 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			};
 		} catch (error) {
 			// Safely extract error message from any type of error
-			const errorMessage = error instanceof Error
-				? (typeof error.message === 'string' ? error.message : JSON.stringify(error.message))
-				: String(error);
+			const errorMessage =
+				error instanceof Error
+					? typeof error.message === "string"
+						? error.message
+						: JSON.stringify(error.message)
+					: String(error);
 			const errorStack = error instanceof Error ? error.stack : "";
 
 			console.error(`[ACPProvider] Initialization error: ${errorMessage}`);
@@ -270,7 +308,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				}
 				const chunk = collectedText.slice(i, i + CHUNK_SIZE);
 				progress.report(new vscode.LanguageModelTextPart(chunk));
-				await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+				await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY));
 			}
 
 			// Report completion with stop reason
@@ -358,19 +396,23 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		}
 
 		if (!message.content) {
+			console.log("[ACPProvider] extractUserContent: message.content is null/undefined");
 			return null;
 		}
 
 		if (typeof message.content === "string") {
+			console.log("[ACPProvider] extractUserContent: string content =", message.content);
 			return message.content;
 		}
 
 		if (Array.isArray(message.content)) {
 			const textParts: string[] = [];
+			console.log("[ACPProvider] extractUserContent: array content with", message.content.length, "parts");
 			for (const part of message.content) {
 				if (part && typeof part === "object") {
 					const partAny = part as { kind?: string; text?: string };
 					if (partAny.kind === "text" && partAny.text) {
+						console.log("[ACPProvider] extractUserContent: found text part =", partAny.text);
 						textParts.push(partAny.text);
 					}
 				}
@@ -378,6 +420,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			return textParts.join("\n") || null;
 		}
 
+		console.log("[ACPProvider] extractUserContent: unknown content type");
 		return null;
 	}
 
