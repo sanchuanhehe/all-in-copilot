@@ -203,68 +203,26 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		token: vscode.CancellationToken
 	): Promise<void> {
 		// Typewriter configuration
-		const CHUNK_SIZE = 3; // Characters per chunk for typewriter effect
-		const CHUNK_DELAY = 8; // ms between chunks
+		const CHUNK_SIZE = 3;
+		const CHUNK_DELAY = 8;
 
-		// Queue for text chunks to stream
-		const textQueue: string[] = [];
-		let queueResolve: (() => void) | null = null;
-
-		// Helper to add text to queue and trigger processing
-		const queueText = (text: string) => {
-			textQueue.push(text);
-			if (queueResolve) {
-				queueResolve();
-				queueResolve = null;
-			}
-		};
-
-		// Background task to stream text from queue
-		const streamTask = async () => {
-			while (!token.isCancellationRequested) {
-				// Wait for text to be available
-				while (textQueue.length === 0 && !token.isCancellationRequested) {
-					await new Promise<void>((resolve) => {
-						queueResolve = resolve;
-					});
-				}
-
-				if (token.isCancellationRequested) break;
-
-				// Process all queued text
-				while (textQueue.length > 0 && !token.isCancellationRequested) {
-					const text = textQueue.shift()!;
-					// Send in small chunks for typewriter effect
-					for (let i = 0; i < text.length; i += CHUNK_SIZE) {
-						if (token.isCancellationRequested) break;
-						const chunk = text.slice(i, i + CHUNK_SIZE);
-						progress.report(new vscode.LanguageModelTextPart(chunk));
-						await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
-					}
-				}
-			}
-		};
-
-		// Start the streaming task
-		const streamPromise = streamTask();
+		// Collect all text first, then stream with typewriter effect
+		let collectedText = "";
 
 		// Register listener for session updates BEFORE calling prompt
 		const unsubscribe = this.clientManager.onSessionUpdate(session.sessionId, (update) => {
-			// Handle the update based on its type
 			const updateData = update.update;
 
 			switch (updateData.sessionUpdate) {
 				case "agent_message_chunk": {
-					// Add text to queue for streaming
 					const content = updateData.content;
 					if (content && "text" in content) {
-						queueText(String(content.text));
+						collectedText += String(content.text);
 					}
 					break;
 				}
 
 				case "tool_call": {
-					// Report tool call for user confirmation
 					const toolCallId = (updateData as any).toolCallId ?? String(Date.now());
 					const title = (updateData as any).title ?? "Unknown Tool";
 					const toolName = title.split(" ")[0] || "tool";
@@ -274,14 +232,13 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				}
 
 				case "tool_call_update": {
-					// Tool call result - queue it for streaming
 					const status = (updateData as any).status;
 					if (status === "completed" || status === "success") {
 						const content = (updateData as any).content;
 						if (content && Array.isArray(content)) {
 							for (const item of content) {
 								if (item && "text" in item) {
-									queueText(String(item.text));
+									collectedText += String(item.text);
 								}
 							}
 						}
@@ -290,7 +247,6 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				}
 
 				default:
-					// Other update types are internal, ignore in chat
 					break;
 			}
 		});
@@ -307,12 +263,14 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				return;
 			}
 
-			// Wait for streaming to complete
-			await streamPromise;
-
-			// Check for cancellation again after streaming
-			if (token.isCancellationRequested) {
-				return;
+			// Stream the collected text with typewriter effect
+			for (let i = 0; i < collectedText.length; i += CHUNK_SIZE) {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				const chunk = collectedText.slice(i, i + CHUNK_SIZE);
+				progress.report(new vscode.LanguageModelTextPart(chunk));
+				await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
 			}
 
 			// Report completion with stop reason
