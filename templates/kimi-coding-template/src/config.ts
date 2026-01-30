@@ -20,7 +20,7 @@ export const PROVIDER_CONFIG: ProviderConfig = {
 
 	// API configuration - Anthropic compatible endpoint
 	// https://platform.moonshot.cn/docs/guide/agent-support
-	baseUrl: "https://api.kimi.com/coding/",
+	baseUrl: "https://api.kimi.com/coding/v1/messages",
 	apiKeySecret: "kimi-coding-copilot.apiKey",
 	apiMode: "anthropic", // Kimi Anthropic-compatible API
 
