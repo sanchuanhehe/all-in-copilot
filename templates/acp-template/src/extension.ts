@@ -35,6 +35,7 @@ let extensionContext: vscode.ExtensionContext | null = null;
 let clientManager: ACPClientManager | null = null;
 let acpProvider: ACPProvider | null = null;
 let opencodeProcess: ChildProcess | null = null;
+let opencodeOutputChannel: vscode.OutputChannel | null = null;
 
 /**
  * Get the extension context (lazy initialization)
@@ -54,10 +55,24 @@ export function getClientManager(): ACPClientManager | null {
 }
 
 /**
+ * Log message to output channel and console
+ */
+function logToChannel(message: string): void {
+	const timestamp = new Date().toLocaleTimeString();
+	const logMessage = `[${timestamp}] ${message}`;
+	console.log(logMessage);
+	opencodeOutputChannel?.appendLine(logMessage);
+}
+
+/**
  * Extension activation
  */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	extensionContext = context;
+
+	// Create output channel for OpenCode logs
+	opencodeOutputChannel = vscode.window.createOutputChannel("OpenCode Agent");
+	context.subscriptions.push(opencodeOutputChannel);
 
 	// Check if OpenCode is available
 	const opencodeConfig = getOpenCodeConfig();
@@ -74,7 +89,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/download"));
 		}
 
-		console.log("[ACP Agent] OpenCode not found in PATH, extension not activated");
+		logToChannel("[ACP Agent] OpenCode not found in PATH, extension not activated");
 		return;
 	}
 
@@ -86,111 +101,114 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const agentCwd = opencodeConfig.cwd;
 	const agentId = opencodeConfig.id;
 
-	console.log(`[${agentName}] Activating ACP extension...`);
+	logToChannel(`[${agentName}] Activating ACP extension...`);
 
 	/**
 	 * Start OpenCode ACP server and wait for it to be ready.
 	 * OpenCode ACP runs as a TCP server and uses CLAUDE_CODE_SSE_PORT env var.
 	 */
 	async function startOpenCodeACP(): Promise<{ port: number; hostname: string }> {
-		console.log(`[${agentName}] Starting OpenCode ACP server...`);
+		logToChannel(`[${agentName}] Starting OpenCode ACP server...`);
 
 		// Prepare environment with a unique port for this session
-		const ssePort = 30000 + Math.floor(Math.random() * 10000);
 		const envWithPort = {
 			...process.env,
 			...agentEnv,
-			CLAUDE_CODE_SSE_PORT: ssePort.toString(),
 		};
 
 		// Start OpenCode as a background process
-		// Use explicit port and hostname for reliable connection
-		const acpPort = 31000 + Math.floor(Math.random() * 10000);
-		const acpHostname = "127.0.0.1";
-		
-		opencodeProcess = spawn(agentCommand, ["acp", "--print-logs", "--port", acpPort.toString(), "--hostname", acpHostname], {
+		opencodeProcess = spawn(agentCommand, ["acp", "--print-logs"], {
 			stdio: ["ignore", "pipe", "pipe"],
 			env: envWithPort,
 			cwd: agentCwd ?? getWorkspaceFolder(),
 			detached: false,
 		});
 
-		// Log stdout/stderr for debugging
+		// Log stdout/stderr to output channel
 		opencodeProcess.stdout?.on("data", (data: Buffer) => {
 			const message = data.toString().trim();
 			if (message) {
-				console.log(`[${agentName}] ${message}`);
+				logToChannel(message);
 			}
 		});
 
 		opencodeProcess.stderr?.on("data", (data: Buffer) => {
 			const message = data.toString().trim();
 			if (message) {
-				console.error(`[${agentName}] ${message}`);
+				logToChannel(`[STDERR] ${message}`);
 			}
 		});
 
 		// Handle process exit
 		opencodeProcess.on("error", (error) => {
-			console.error(`[${agentName}] Process error: ${error.message}`);
+			logToChannel(`[ERROR] Process error: ${error.message}`);
 		});
 
 		opencodeProcess.on("exit", (code) => {
 			if (code !== 0) {
-				console.error(`[${agentName}] Process exited with code ${code}`);
+				logToChannel(`[WARN] Process exited with code ${code}`);
+			} else {
+				logToChannel(`[INFO] Process exited normally`);
 			}
 		});
 
 		// Wait for the server to be ready
-		// OpenCode uses --port and --hostname to specify the listen address
+		// OpenCode outputs "Set CLAUDE_CODE_SSE_PORT=XXXXX" when it starts listening
 		const port = await new Promise<number>((resolve, reject) => {
 			const timeout = setTimeout(() => {
+				logToChannel(`[ERROR] Timeout waiting for OpenCode ACP server to start`);
 				reject(new Error("Timeout waiting for OpenCode ACP server to start"));
 			}, 30000);
 
 			const dataHandler = (data: Buffer) => {
 				const message = data.toString();
 				
-				// Check for server startup indicators
-				if (message.includes("acp-command") && message.includes("setup connection")) {
-					// Server is setting up - we can resolve with our explicit port
+				// Look for "Set CLAUDE_CODE_SSE_PORT=XXXXX" - this is the actual port being used
+				const portMatch = message.match(/Set CLAUDE_CODE_SSE_PORT=(\d+)/);
+				if (portMatch) {
+					const port = parseInt(portMatch[1], 10);
+					logToChannel(`[INFO] Detected SSE port: ${port}`);
 					clearTimeout(timeout);
 					opencodeProcess?.stdout?.off("data", dataHandler);
-					resolve(acpPort);
+					opencodeProcess?.stderr?.off("data", dataHandler);
+					resolve(port);
 					return;
 				}
 				
-				// Check for "status=started" which indicates server is ready
+				// Check for "acp-command setup connection" - server is initializing
+				if (message.includes("acp-command") && message.includes("setup connection")) {
+					logToChannel(`[INFO] ACP server connection setup started`);
+				}
+				
+				// Check for "status=started" - server is ready
 				if (message.includes("status=started")) {
-					clearTimeout(timeout);
-					opencodeProcess?.stdout?.off("data", dataHandler);
-					resolve(acpPort);
-					return;
+					logToChannel(`[INFO] Server status: started`);
 				}
 
-				// Check for server listening
-				if (message.includes("Listening on") || message.includes("server started")) {
-					clearTimeout(timeout);
-					opencodeProcess?.stdout?.off("data", dataHandler);
-					resolve(acpPort);
+				// Check for "global event connected" - client can connect
+				if (message.includes("global event connected")) {
+					logToChannel(`[INFO] Global event connection established`);
 				}
 			};
 
 			opencodeProcess?.stdout?.on("data", dataHandler);
 
-			// Also check stderr for ready signals
+			// Also check stderr for port information
 			const stderrHandler = (data: Buffer) => {
 				const message = data.toString();
-				if (message.includes("acp-command") && message.includes("setup connection")) {
+				const portMatch = message.match(/Set CLAUDE_CODE_SSE_PORT=(\d+)/);
+				if (portMatch) {
+					const port = parseInt(portMatch[1], 10);
+					logToChannel(`[INFO] Detected SSE port from stderr: ${port}`);
 					clearTimeout(timeout);
 					opencodeProcess?.stderr?.off("data", stderrHandler);
-					resolve(acpPort);
+					resolve(port);
 				}
 			};
 			opencodeProcess?.stderr?.on("data", stderrHandler);
 		});
 
-		console.log(`[${agentName}] OpenCode ACP server started on port ${port}`);
+		logToChannel(`[${agentName}] OpenCode ACP server started on port ${port}`);
 		return { port, hostname: "127.0.0.1" };
 	}
 
@@ -266,11 +284,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		});
 		context.subscriptions.push(restartCommand);
 
-		console.log(`[${agentName}] Extension activated successfully`);
-		console.log(`[${agentName}] Registered models: ${models.map((m) => m.id).join(", ")}`);
+		logToChannel(`[${agentName}] Extension activated successfully`);
+		logToChannel(`[${agentName}] Registered models: ${models.map((m) => m.id).join(", ")}`);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : "Unknown error";
-		console.error(`[${agentName}] Activation failed: ${errorMessage}`);
+		logToChannel(`[${agentName}] Activation failed: ${errorMessage}`);
 
 		// Show error notification
 		vscode.window.showErrorMessage(`Failed to initialize ${agentName}: ${errorMessage}`, "View Logs");
@@ -284,7 +302,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
  */
 export async function deactivate(): Promise<void> {
 	const agentName = getAgentConfig().name;
-	console.log(`[${agentName}] Deactivating extension...`);
+	logToChannel(`[${agentName}] Deactivating extension...`);
 
 	// Clean up provider first
 	if (acpProvider) {
@@ -300,13 +318,17 @@ export async function deactivate(): Promise<void> {
 
 	// Kill OpenCode ACP process
 	if (opencodeProcess) {
-		console.log(`[${agentName}] Stopping OpenCode ACP server...`);
+		logToChannel(`[${agentName}] Stopping OpenCode ACP server...`);
 		opencodeProcess.kill("SIGTERM");
 		opencodeProcess = null;
 	}
 
 	extensionContext = null;
-	console.log(`[${agentName}] Extension deactivated`);
+	logToChannel(`[${agentName}] Extension deactivated`);
+	
+	// Dispose output channel
+	opencodeOutputChannel?.dispose();
+	opencodeOutputChannel = null;
 }
 
 /**

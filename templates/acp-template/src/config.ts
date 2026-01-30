@@ -8,6 +8,51 @@
 import type { ACPClientConfig, ACPModelInfo } from "@all-in-copilot/sdk";
 import * as vscode from "vscode";
 import { execSync } from "child_process";
+import { existsSync } from "fs";
+
+// Common installation paths for OpenCode
+const COMMON_OPENCODE_PATHS = [
+	"/home/sanchuanhehe/.opencode/bin/opencode",
+	"/usr/local/bin/opencode",
+	"/opt/opencode/bin/opencode",
+];
+
+// Expand HOME in path
+function expandPath(path: string): string {
+	return path.replace("$HOME", process.env.HOME || "/home/sanchuanhehe");
+}
+
+/**
+ * Find OpenCode executable path with multiple fallback strategies
+ */
+function findOpenCodePath(): string | null {
+	// First try which command with extended PATH
+	try {
+		const extendedEnv = { 
+			...process.env, 
+			PATH: (process.env.PATH || "") + ":/usr/local/bin:/home/sanchuanhehe/.opencode/bin"
+		};
+		const path = execSync("which opencode 2>/dev/null || echo ''", { 
+			encoding: "utf-8",
+			env: extendedEnv
+		}).trim();
+		if (path && existsSync(path)) {
+			return path;
+		}
+	} catch {
+		// continue with common paths
+	}
+
+	// Try common installation paths
+	for (const rawPath of COMMON_OPENCODE_PATHS) {
+		const expandedPath = expandPath(rawPath);
+		if (existsSync(expandedPath)) {
+			return expandedPath;
+		}
+	}
+
+	return null;
+}
 
 /**
  * Agent configuration - EDIT THIS TO CHANGE YOUR AGENT
@@ -86,24 +131,21 @@ export function toACPClientConfig(config: AgentConfig): ACPClientConfig {
 // OpenCode AI - Use system PATH to find "opencode" executable
 // Run: which opencode (or add to PATH if not found)
 export function getOpenCodeConfig(): AgentConfig | null {
-	// Try to find opencode in system PATH
-	try {
-		const opencodePath = execSync("which opencode", { encoding: "utf-8" }).trim();
-		if (opencodePath) {
-			return {
-				id: "opencode",
-				name: "OpenCode Agent",
-				participantId: "opencode.agent",
-				command: opencodePath,
-				args: ["acp"],
-				env: {},
-				cwd: undefined, // Will use workspace folder at runtime
-			};
-		}
-	} catch {
-		// opencode not found in PATH
-		return null;
+	// Try to find opencode using multiple strategies
+	const opencodePath = findOpenCodePath();
+	
+	if (opencodePath) {
+		return {
+			id: "opencode",
+			name: "OpenCode Agent",
+			participantId: "opencode.agent",
+			command: opencodePath,
+			args: ["acp", "--print-logs"],
+			env: {},
+			cwd: undefined, // Will use workspace folder at runtime
+		};
 	}
+
 	return null;
 }
 
