@@ -11,6 +11,7 @@ on:
           - glm-template
           - minimax-template
           - kimi-template
+          - kimi-coding-template
           - mimo-template
       version:
         description: "Version to publish (leave empty to use package.json version)"

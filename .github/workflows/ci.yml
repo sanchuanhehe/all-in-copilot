@@ -40,7 +40,7 @@ jobs:
     needs: build
     strategy:
       matrix:
-        template: [glm-template, minimax-template, kimi-template, mimo-template]
+        template: [glm-template, minimax-template, kimi-template, kimi-coding-template, mimo-template]
 
     steps:
       - uses: actions/checkout@v4

@@ -18,6 +18,7 @@ on:
           - glm-template
           - minimax-template
           - kimi-template
+          - kimi-coding-template
           - mimo-template
       bump_type:
         description: "Version bump type for pre-release"
