@@ -3,6 +3,7 @@
   "publisher": "sanchuan",
   "displayName": "MiniMax Copilot",
   "description": "MiniMax provider for VS Code Chat",
+  "icon": "assets/logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/sanchuanhehe/all-in-copilot"

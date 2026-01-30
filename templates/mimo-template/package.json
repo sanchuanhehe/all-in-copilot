@@ -3,6 +3,7 @@
   "publisher": "sanchuan",
   "displayName": "MiMo Copilot",
   "description": "Xiaomi MiMo provider for VS Code Chat",
+  "icon": "assets/logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/sanchuanhehe/all-in-copilot"
