@@ -4,6 +4,7 @@
  */
 
 import type { ApiMode, ProviderConfig, ModelConfig } from '../core/types';
+import { sanitizeFunctionName } from '../utils/toolConverter';
 
 // ============================================================================
 // OpenAI Format Types
@@ -487,13 +488,6 @@ export function convertToAnthropic(messages: readonly VsCodeMessage[]): { system
 // ============================================================================
 // Tool Conversion Functions
 // ============================================================================
-
-/**
- * Sanitize function name for API compatibility
- */
-function sanitizeFunctionName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 64);
-}
 
 /**
  * Convert VS Code tools to OpenAI format
