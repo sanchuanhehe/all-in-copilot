@@ -172,10 +172,10 @@ class ExtensionProvider implements LanguageModelChatProvider {
     try {
       await processStream(
         response,
-        (text) => {
+        (text: string) => {
           progress.report(new vscode.LanguageModelTextPart(text));
         },
-        (callId, name, args) => {
+        (callId: string, name: string, args: object) => {
           progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
         },
         controller.signal

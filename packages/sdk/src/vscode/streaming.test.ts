@@ -2,7 +2,7 @@
  * Integration tests for streaming processing functions
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { processOpenAIStream, processAnthropicStream } from './providerHelpers';
 
 // Helper to create a mock ReadableStream

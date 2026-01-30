@@ -9,6 +9,7 @@
     "url": "https://github.com/sanchuanhehe/all-in-copilot"
   },
   "version": "1.0.4",
+  "type": "module",
   "engines": {
     "vscode": "^1.104.0"
   },
