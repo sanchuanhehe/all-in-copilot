@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ACPClientManager, type ACPClientConfig, type AgentInfo } from "./clientManager";
 import type { ClientSideConnection } from "@agentclientprotocol/sdk";
 
@@ -19,7 +19,7 @@ describe("ACPClientManager", () => {
 	});
 
 	describe("getClient", () => {
-		it("should throw error indicating SDK direct usage", async () => {
+		it("should return a ClientSideConnection for stdio transport", async () => {
 			const manager = new ACPClientManager();
 			const config: ACPClientConfig = {
 				transport: "stdio",
@@ -27,42 +27,74 @@ describe("ACPClientManager", () => {
 				agentArgs: ["--test"],
 			};
 
-			await expect(manager.getClient(config)).rejects.toThrow("Use the SDK directly for client connections");
+			// Note: This will fail to actually spawn a process since /path/to/agent doesn't exist
+			// but it should return a ClientSideConnection object (not throw)
+			const result = await manager.getClient(config);
+			expect(result).toBeDefined();
+			expect(result.initialize).toBeDefined();
+		});
+
+		it("should throw error for unsupported transport", async () => {
+			const manager = new ACPClientManager();
+			const config: ACPClientConfig = {
+				transport: "websocket",
+				agentPath: "/path/to/agent",
+			} as unknown as ACPClientConfig;
+
+			await expect(manager.getClient(config)).rejects.toThrow("Unsupported transport type");
 		});
 	});
 
 	describe("initialize", () => {
-		it("should throw error indicating SDK direct usage", async () => {
+		it("should return InitResult with success false for invalid client", async () => {
 			const manager = new ACPClientManager();
-			// Mock client for testing
-			const mockClient = {} as unknown as ClientSideConnection;
+			const mockClient = {
+				initialize: undefined,
+			} as unknown as ClientSideConnection;
 
-			await expect(manager.initialize(mockClient)).rejects.toThrow("Use the SDK directly for initialization");
+			const result = await manager.initialize(mockClient);
+			expect(result.success).toBe(false);
+			expect(result.error).toContain("not a function");
+		});
+
+		it("should return InitResult with success false on error", async () => {
+			const manager = new ACPClientManager();
+			const mockClient = {
+				initialize: vi.fn().mockRejectedValue(new Error("Connection failed")),
+			} as unknown as ClientSideConnection;
+
+			const result = await manager.initialize(mockClient);
+			expect(result.success).toBe(false);
+			expect(result.error).toBe("Connection failed");
 		});
 	});
 
 	describe("newSession", () => {
-		it("should throw error indicating SDK direct usage", async () => {
+		it("should return NewSessionResult with success false for invalid client", async () => {
 			const manager = new ACPClientManager();
-			const mockClient = {} as unknown as ClientSideConnection;
+			const mockClient = {
+				newSession: undefined,
+			} as unknown as ClientSideConnection;
 
-			await expect(manager.newSession(mockClient, { cwd: "/test/path" })).rejects.toThrow(
-				"Use the SDK directly for sessions"
-			);
+			const result = await manager.newSession(mockClient, { cwd: "/test/path" });
+			expect(result.success).toBe(false);
+			expect(result.error).toBe("Client does not support newSession");
 		});
 	});
 
 	describe("prompt", () => {
-		it("should throw error indicating SDK direct usage", async () => {
+		it("should return PromptResult with success false for invalid client", async () => {
 			const manager = new ACPClientManager();
-			const mockClient = {} as unknown as ClientSideConnection;
+			const mockClient = {
+				prompt: undefined,
+			} as unknown as ClientSideConnection;
 
-			await expect(
-				manager.prompt(mockClient, {
-					sessionId: "test-session",
-					prompt: [{ type: "text", text: "Hello" }],
-				})
-			).rejects.toThrow("Use the SDK directly for prompting");
+			const result = await manager.prompt(mockClient, {
+				sessionId: "test-session",
+				prompt: [{ type: "text", text: "Hello" }],
+			});
+			expect(result.success).toBe(false);
+			expect(result.error).toBe("Client does not support prompt");
 		});
 	});
 

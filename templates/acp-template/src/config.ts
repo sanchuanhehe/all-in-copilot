@@ -5,18 +5,8 @@
  * Supports Claude Code, Gemini CLI, OpenAI Codex, and custom agents.
  */
 
-/**
- * Information about an ACP model.
- */
-export interface ACPModelInfo {
-        id: string;
-        name: string;
-        version: string;
-        maxInputTokens?: number;
-        maxOutputTokens?: number;
-        supportsToolCalls?: boolean;
-        supportsImageInput?: boolean;
-}
+import type { ACPClientConfig, ACPModelInfo } from "@all-in-copilot/sdk";
+import * as vscode from "vscode";
 
 /**
  * Agent configuration - EDIT THIS TO CHANGE YOUR AGENT
@@ -34,6 +24,9 @@ export interface AgentConfig {
         // Environment variables for the agent process
         env?: Record<string, string>;
 
+        // Working directory
+        cwd?: string;
+
         // Default session mode (agent-specific)
         defaultMode?: string;
 
@@ -42,6 +35,19 @@ export interface AgentConfig {
 
         // Favorite models for quick selection
         favoriteModels?: string[];
+}
+
+/**
+ * Convert AgentConfig to ACPClientConfig for SDK usage
+ */
+export function toACPClientConfig(config: AgentConfig): ACPClientConfig {
+        return {
+                transport: "stdio",
+                agentPath: config.command,
+                agentArgs: config.args,
+                env: config.env,
+                cwd: config.cwd,
+        };
 }
 
 /**
@@ -87,13 +93,22 @@ export const AGENT_CONFIG: AgentConfig = {
         command: "npx",
         args: ["-y", "@anthropic-ai/claude-agent-sdk"],
         env: {},
-        defaultMode: "Primary",
-        defaultModel: "sonnet-4-20250514",
-        favoriteModels: ["sonnet-4-20250514"],
+        cwd: undefined, // Will use workspace folder at runtime
 };
 
 /**
- * Get available models for this agent
+ * Get workspace folder path for the agent
+ */
+export function getWorkspaceFolder(): string {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+                return workspaceFolders[0].uri.fsPath;
+        }
+        return "/workspace";
+}
+
+/**
+ * Get list of available ACP models
  */
 export function getACPModels(): ACPModelInfo[] {
         return [

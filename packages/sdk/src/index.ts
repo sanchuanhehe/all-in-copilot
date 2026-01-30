@@ -67,10 +67,15 @@ export { OpenAIProvider } from "./providers/openaiProvider";
 export { AnthropicProvider } from "./providers/anthropicProvider";
 
 // ACP Protocol (Agent Client Protocol)
-export { ACPClientManager } from "./acp";
-
-// VS Code ACP Integration
-export { ACPProvider, registerACPProvider, type ACPModelInfo, type ACPProviderOptions } from "./acp/acpProvider";
+export {
+	ACPClientManager,
+	ACPProvider,
+	registerACPProvider,
+	type ACPClientConfig,
+	type ACPModelInfo,
+	type ACPProviderOptions,
+	type ContentBlock,
+} from "./acp";
 
 // Utilities
 export { mapVsCodeRole, convertVsCodeContent } from "./utils/messageConverter";

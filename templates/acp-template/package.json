@@ -40,7 +40,8 @@
                 "test": "pnpm run compile && vscode-test"
         },
         "dependencies": {
-                "@all-in-copilot/sdk": "workspace:*"
+                "@all-in-copilot/sdk": "workspace:*",
+                "@agentclientprotocol/sdk": "^0.13.1"
         },
         "devDependencies": {
                 "@eslint/js": "^9.13.0",
