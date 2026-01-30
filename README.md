@@ -99,34 +99,34 @@ Edit `src/config.ts` to customize your provider:
 
 ```typescript
 export const PROVIDER_CONFIG: ProviderConfig = {
-	id: "provider-id",
-	name: "Provider Name",
-	baseUrl: "https://api.example.com/v1/chat/completions",
-	apiKeySecret: "extension-name.apiKey",
-	family: "provider-family",
-	apiMode: "openai", // 'openai' | 'anthropic' | 'gemini' | 'ollama'
-	supportsTools: true,
-	supportsVision: false,
-	defaultMaxOutputTokens: 4096,
-	defaultContextLength: 32768,
-	dynamicModels: true,
-	modelsCacheTTL: 5 * 60 * 1000,
+ id: "provider-id",
+ name: "Provider Name",
+ baseUrl: "https://api.example.com/v1/chat/completions",
+ apiKeySecret: "extension-name.apiKey",
+ family: "provider-family",
+ apiMode: "openai", // 'openai' | 'anthropic' | 'gemini' | 'ollama'
+ supportsTools: true,
+ supportsVision: false,
+ defaultMaxOutputTokens: 4096,
+ defaultContextLength: 32768,
+ dynamicModels: true,
+ modelsCacheTTL: 5 * 60 * 1000,
 };
 
 export const FALLBACK_MODELS: ModelConfig[] = [
-	{
-		id: "model-1",
-		name: "Model 1",
-		maxInputTokens: 30000,
-		maxOutputTokens: 4096,
-		supportsTools: true,
-		supportsVision: false,
-	},
+ {
+  id: "model-1",
+  name: "Model 1",
+  maxInputTokens: 30000,
+  maxOutputTokens: 4096,
+  supportsTools: true,
+  supportsVision: false,
+ },
 ];
 
 // Optional: Filter which models to display
 export function filterModels(models: ModelConfig[]): ModelConfig[] {
-	return models.filter((m) => m.id.includes("chat"));
+ return models.filter((m) => m.id.includes("chat"));
 }
 ```
 
@@ -134,19 +134,19 @@ export function filterModels(models: ModelConfig[]): ModelConfig[] {
 
 ```typescript
 import {
-	convertToOpenAI,
-	convertToolsToOpenAI,
-	processOpenAIStream,
-	fetchModelsFromAPI,
-	estimateTokens,
+ convertToOpenAI,
+ convertToolsToOpenAI,
+ processOpenAIStream,
+ fetchModelsFromAPI,
+ estimateTokens,
 } from "@all-in-copilot/sdk";
 
 // Dynamic model fetching
 const providerConfig: ProviderConfig = {
-	id: "my-provider",
-	name: "My Provider",
-	baseUrl: "https://api.example.com/v1",
-	// ... other config
+ id: "my-provider",
+ name: "My Provider",
+ baseUrl: "https://api.example.com/v1",
+ // ... other config
 };
 
 const models = await fetchModels(providerConfig, { apiKey: "your-api-key" });
@@ -155,12 +155,12 @@ console.log("Available models:", models);
 // Use OpenAI-compatible provider
 const provider = new OpenAIProvider(providerConfig, { apiKey: "your-api-key" });
 for (const model of models) {
-	provider.registerModel(model);
+ provider.registerModel(model);
 }
 
 const response = await provider.complete({
-	model: models[0].id,
-	messages: [{ role: "user", content: "Hello!" }],
+ model: models[0].id,
+ messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
@@ -373,34 +373,34 @@ all-in-copilot help         # 显示帮助
 
 ```typescript
 export const PROVIDER_CONFIG: ProviderConfig = {
-	id: "provider-id", // 提供者 ID
-	name: "Provider Name", // 显示名称
-	baseUrl: "https://api.example.com/v1/chat/completions", // API 地址
-	apiKeySecret: "extension-name.apiKey", // API 密钥存储键
-	family: "provider-family", // 模型系列
-	apiMode: "openai", // API 模式：'openai' | 'anthropic' | 'gemini' | 'ollama'
-	supportsTools: true, // 是否支持工具调用
-	supportsVision: false, // 是否支持图像
-	defaultMaxOutputTokens: 4096,
-	defaultContextLength: 32768,
-	dynamicModels: true, // 是否动态获取模型
-	modelsCacheTTL: 5 * 60 * 1000, // 模型缓存时间
+ id: "provider-id", // 提供者 ID
+ name: "Provider Name", // 显示名称
+ baseUrl: "https://api.example.com/v1/chat/completions", // API 地址
+ apiKeySecret: "extension-name.apiKey", // API 密钥存储键
+ family: "provider-family", // 模型系列
+ apiMode: "openai", // API 模式：'openai' | 'anthropic' | 'gemini' | 'ollama'
+ supportsTools: true, // 是否支持工具调用
+ supportsVision: false, // 是否支持图像
+ defaultMaxOutputTokens: 4096,
+ defaultContextLength: 32768,
+ dynamicModels: true, // 是否动态获取模型
+ modelsCacheTTL: 5 * 60 * 1000, // 模型缓存时间
 };
 
 export const FALLBACK_MODELS: ModelConfig[] = [
-	{
-		id: "model-1",
-		name: "Model 1",
-		maxInputTokens: 30000,
-		maxOutputTokens: 4096,
-		supportsTools: true,
-		supportsVision: false,
-	},
+ {
+  id: "model-1",
+  name: "Model 1",
+  maxInputTokens: 30000,
+  maxOutputTokens: 4096,
+  supportsTools: true,
+  supportsVision: false,
+ },
 ];
 
 // 可选：过滤要显示的模型
 export function filterModels(models: ModelConfig[]): ModelConfig[] {
-	return models.filter((m) => m.id.includes("chat"));
+ return models.filter((m) => m.id.includes("chat"));
 }
 ```
 
@@ -408,19 +408,19 @@ export function filterModels(models: ModelConfig[]): ModelConfig[] {
 
 ```typescript
 import {
-	convertToOpenAI,
-	convertToolsToOpenAI,
-	processOpenAIStream,
-	fetchModelsFromAPI,
-	estimateTokens,
+ convertToOpenAI,
+ convertToolsToOpenAI,
+ processOpenAIStream,
+ fetchModelsFromAPI,
+ estimateTokens,
 } from "@all-in-copilot/sdk";
 
 // 动态模型获取
 const providerConfig: ProviderConfig = {
-	id: "my-provider",
-	name: "My Provider",
-	baseUrl: "https://api.example.com/v1",
-	// ... 其他配置
+ id: "my-provider",
+ name: "My Provider",
+ baseUrl: "https://api.example.com/v1",
+ // ... 其他配置
 };
 
 const models = await fetchModels(providerConfig, { apiKey: "your-api-key" });
@@ -429,12 +429,12 @@ console.log("可用模型:", models);
 // 使用 OpenAI 兼容的提供者
 const provider = new OpenAIProvider(providerConfig, { apiKey: "your-api-key" });
 for (const model of models) {
-	provider.registerModel(model);
+ provider.registerModel(model);
 }
 
 const response = await provider.complete({
-	model: models[0].id,
-	messages: [{ role: "user", content: "Hello!" }],
+ model: models[0].id,
+ messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
