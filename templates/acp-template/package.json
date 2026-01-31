@@ -41,7 +41,8 @@
 	},
 	"enabledApiProposals": [
 		"chatParticipantAdditions",
-		"chatParticipantPrivate"
+		"chatParticipantPrivate",
+		"defaultChatParticipant"
 	],
 	"dependencies": {
 		"@all-in-copilot/sdk": "workspace:*",

@@ -129,7 +129,6 @@ export class ACPChatParticipant {
 
 		// Configure participant properties if supported
 		if (options.description) {
-			// @ts-expect-error - ChatParticipant is a proposed API
 			this.participant.helpTextPrefix = options.description;
 		}
 		if (options.iconPath) {

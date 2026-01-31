@@ -28,6 +28,7 @@
 	"enabledApiProposals": [
 		"chatParticipantAdditions",
 		"chatParticipantPrivate",
+		"defaultChatParticipant",
 		"terminalDataWriteEvent",
 		"terminalExecuteCommandEvent"
 	],
