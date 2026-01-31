@@ -42,12 +42,7 @@ const terminalStateMap = new Map<string, TerminalState>();
 /**
  * Get or create a terminal for the given session
  */
-function getOrCreateTerminal(
-	sessionId: string,
-	shellName?: string,
-	cwd?: string,
-	env?: Record<string, string | undefined>
-): vscode.Terminal {
+function getOrCreateTerminal(sessionId: string, shellName?: string): vscode.Terminal {
 	const terminalName = `ACP-${shellName || "Agent"}-${sessionId.slice(0, 8)}`;
 
 	// Look for existing terminal with same name
@@ -62,13 +57,6 @@ function getOrCreateTerminal(
 		name: terminalName,
 		shellIntegration: true,
 	};
-
-	if (cwd) {
-		terminalOptions.cwd = cwd;
-	}
-	if (env && Object.keys(env).length > 0) {
-		terminalOptions.env = env;
-	}
 
 	const terminal = vscode.window.createTerminal(terminalOptions);
 
@@ -116,22 +104,8 @@ const clientCallbacks: ClientCallbacks = {
 	 * Creates a new terminal and executes a command.
 	 * Uses VS Code's native run_in_terminal tool for execution.
 	 */
-	async createTerminal(
-		_sessionId: string,
-		command: string,
-		_args?: string[],
-		_cwd?: string,
-		_env?: Array<{ name: string; value: string }>
-	): Promise<IVsCodeTerminal> {
+	async createTerminal(_sessionId: string, command: string, _args?: string[]): Promise<IVsCodeTerminal> {
 		const terminalId = randomUUID();
-
-		// Convert env array to Record<string, string | undefined> for VS Code
-		const terminalEnv: Record<string, string | undefined> = {};
-		if (_env) {
-			for (const envVar of _env) {
-				terminalEnv[envVar.name] = envVar.value;
-			}
-		}
 
 		// Determine if this should be a background process
 		// Check for common background patterns in the command
@@ -146,8 +120,8 @@ const clientCallbacks: ClientCallbacks = {
 			command.includes("nodemon") ||
 			command.includes("ts-node --watch");
 
-		// Create terminal with env support
-		const terminal = getOrCreateTerminal(terminalId, "Agent", _cwd, terminalEnv);
+		// Create terminal (cwd and env not supported in current protocol)
+		const terminal = getOrCreateTerminal(terminalId, "Agent");
 		const terminalState: TerminalState = {
 			terminal,
 			command,
@@ -160,7 +134,7 @@ const clientCallbacks: ClientCallbacks = {
 	},
 
 	/**
-	 * Gets terminal output by invoking VS Code's run_in_terminal tool.
+	 * Gets terminal output by invoking VS Code's terminal tool.
 	 * For background processes, waits for completion and returns output.
 	 */
 	async getTerminalOutput(terminalId: string): Promise<{ output: string; exitCode?: number }> {
@@ -183,7 +157,8 @@ const clientCallbacks: ClientCallbacks = {
 			state.terminal.sendText(state.command);
 		}
 
-		const output = state.output ?? "";
+		let output = state.output ?? "";
+
 		const exitCode = state.exitCode;
 
 		// Clean up if not a persistent terminal
@@ -246,11 +221,27 @@ const clientCallbacks: ClientCallbacks = {
 
 	/**
 	 * Reads a text file using VS Code API.
+	 * Supports optional line and limit parameters for partial file reads.
 	 */
-	async readTextFile(path: string): Promise<string> {
+	async readTextFile(path: string, line?: number, limit?: number): Promise<string> {
 		const uri = vscode.Uri.file(path);
 		const document = await vscode.workspace.openTextDocument(uri);
-		return document.getText();
+		const fullText = document.getText();
+
+		// Apply line and limit if specified
+		if (line !== undefined || limit !== undefined) {
+			const lines = fullText.split("\n");
+			const startLine = line ?? 1; // 1-indexed
+			const endLine = limit !== undefined ? startLine + limit : undefined;
+			const startIndex = startLine - 1; // Convert to 0-indexed
+			const slicedLines = lines.slice(startIndex, endLine);
+			const content = slicedLines.join("\n");
+
+			// Return with line number indicator for transparency
+			return `// Lines ${startLine}-${startLine + slicedLines.length - 1}\n${content}`;
+		}
+
+		return fullText;
 	},
 
 	/**
@@ -258,6 +249,8 @@ const clientCallbacks: ClientCallbacks = {
 	 */
 	async writeTextFile(path: string, content: string): Promise<void> {
 		const uri = vscode.Uri.file(path);
+
+		// Overwrite mode (append not supported in current protocol)
 		const wsEdit = new vscode.WorkspaceEdit();
 		wsEdit.create(uri, { content });
 		await vscode.workspace.applyEdit(wsEdit);

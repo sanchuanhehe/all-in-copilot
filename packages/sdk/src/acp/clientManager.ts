@@ -172,6 +172,7 @@ export interface ClientCallbacks {
 	) => Promise<IVsCodeTerminal>;
 	/**
 	 * Gets terminal output.
+	 * @param terminalId The terminal ID to get output from
 	 */
 	getTerminalOutput?: (terminalId: string) => Promise<{ output: string; exitCode?: number }>;
 	/**
@@ -188,10 +189,15 @@ export interface ClientCallbacks {
 	killTerminal?: (terminalId: string) => Promise<void>;
 	/**
 	 * Reads a text file.
+	 * @param path The file path to read
+	 * @param line Optional starting line number (1-indexed)
+	 * @param limit Optional maximum number of lines to read
 	 */
-	readTextFile?: (path: string) => Promise<string>;
+	readTextFile?: (path: string, line?: number | null, limit?: number | null) => Promise<string>;
 	/**
 	 * Writes a text file.
+	 * @param path The file path to write
+	 * @param content The content to write
 	 */
 	writeTextFile?: (path: string, content: string) => Promise<void>;
 	/**
@@ -754,14 +760,32 @@ export class ACPClientManager {
 			 */
 			async readTextFile(params: ReadTextFileRequest): Promise<ReadTextFileResponse> {
 				if (callbacks.readTextFile) {
-					const content = await callbacks.readTextFile(params.path);
+					// Pass complete protocol parameters: path, line, limit (may be null)
+					const content = await callbacks.readTextFile(params.path, params.line ?? undefined, params.limit ?? undefined);
 					return { content };
 				}
 
-				// Default: use node:fs
+				// Default: use node:fs with line/limit support
 				const { readFileSync } = await import("node:fs");
 				try {
-					const content = readFileSync(params.path, "utf-8");
+					let content = readFileSync(params.path, "utf-8");
+
+					// Apply line and limit if specified (convert null to undefined)
+					const line = params.line ?? undefined;
+					const limit = params.limit ?? undefined;
+					if (line !== undefined || limit !== undefined) {
+						const lines = content.split("\n");
+						const startLine = line ?? 1; // 1-indexed, default to 1
+						const endLine = limit !== undefined ? startLine + limit : undefined;
+						const startIndex = startLine - 1; // Convert to 0-indexed
+						const slicedLines = lines.slice(startIndex, endLine);
+						content = slicedLines.join("\n");
+						// Prepend line number indicator for transparency
+						if (line !== undefined) {
+							content = `// Lines ${startLine}-${startLine + slicedLines.length - 1}\n${content}`;
+						}
+					}
+
 					return { content };
 				} catch {
 					// Return empty content if file doesn't exist
@@ -775,11 +799,12 @@ export class ACPClientManager {
 			 */
 			async writeTextFile(params: WriteTextFileRequest): Promise<WriteTextFileResponse> {
 				if (callbacks.writeTextFile) {
+					// Pass complete protocol parameters: path, content
 					await callbacks.writeTextFile(params.path, params.content);
 					return {};
 				}
 
-				// Default: use node:fs
+				// Default: use node:fs (no append support in current protocol)
 				const { writeFileSync } = await import("node:fs");
 				writeFileSync(params.path, params.content);
 				return {};
@@ -824,6 +849,7 @@ export class ACPClientManager {
 			 */
 			async terminalOutput(params: TerminalOutputRequest): Promise<TerminalOutputResponse> {
 				if (callbacks.getTerminalOutput) {
+					// Pass complete protocol parameters: terminalId
 					const result = await callbacks.getTerminalOutput(params.terminalId);
 					return {
 						output: result.output,
