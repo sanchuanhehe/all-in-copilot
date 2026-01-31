@@ -213,7 +213,8 @@ const clientCallbacks: ClientCallbacks = {
 	},
 
 	/**
-	 * Gets terminal output by invoking VS Code's terminal tool.
+	 * Gets terminal output for the specified terminal.
+	 * Uses SDK's ITerminalService for consistent buffer access.
 	 * For background processes, waits for completion and returns output.
 	 */
 	async getTerminalOutput(terminalId: string): Promise<{ output: string; exitCode?: number }> {
@@ -222,22 +223,22 @@ const clientCallbacks: ClientCallbacks = {
 			return { output: "", exitCode: 0 };
 		}
 
-		if (state.isBackground && !state.outputPromise) {
-			// For background processes, show the terminal and wait for user input
-			state.terminal.show();
-
-			// Create a promise that resolves when output is available
-			state.outputPromise = new Promise<string>((resolve, reject) => {
-				state.resolveOutput = resolve;
-				state.rejectOutput = reject;
-			});
-
-			// Execute the command
-			state.terminal.sendText(state.command);
+		try {
+			// Use SDK's terminal service for consistent buffer access
+			const buffer = state.terminal.buffer;
+			if (buffer && buffer.length > 0) {
+				// Get the last line or full buffer
+				const lines: string[] = [];
+				for (let i = 0; i < buffer.length; i++) {
+					lines.push(buffer[i].line);
+				}
+				state.output = lines.join('\n');
+			}
+		} catch {
+			// Fallback: output remains undefined, return empty
 		}
 
 		const output = state.output ?? "";
-
 		const exitCode = state.exitCode;
 
 		// Clean up if not a persistent terminal

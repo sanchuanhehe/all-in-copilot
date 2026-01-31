@@ -190,7 +190,11 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Uses proposed API - may be undefined in some VS Code versions
 	 */
 	get terminalLastCommand(): TerminalExecutedCommand | undefined {
-		return getActiveTerminalLastCommand();
+		try {
+			return getActiveTerminalLastCommand();
+		} catch {
+			return undefined;
+		}
 	}
 
 	/**

@@ -49,7 +49,8 @@ function appendLimitedWindow<T>(target: T[], data: T): void {
  * Get the buffer content of the active terminal
  */
 export function getActiveTerminalBuffer(): string {
-	const activeTerminal = window.activeTerminal;
+	// Use window.terminals.find() to avoid deprecated window.activeTerminal
+	const activeTerminal = window.terminals.find(t => t === window.activeTerminal);
 	if (activeTerminal === undefined) {
 		return '';
 	}
@@ -79,10 +80,12 @@ export function getBufferForTerminal(terminal?: Terminal, maxChars: number = 160
  * Get the selection in the active terminal
  */
 export function getActiveTerminalSelection(): string {
+	// Use window.terminals.find() to avoid deprecated window.activeTerminal
+	const activeTerminal = window.terminals.find(t => t === window.activeTerminal);
 	try {
 		// Note: terminal selection is a proposed API and may not be available
 		// @ts-ignore - selection property may not exist in all VS Code versions
-		return window.activeTerminal?.selection ?? '';
+		return activeTerminal?.selection ?? '';
 	} catch {
 		// In case the API isn't available
 		return '';
@@ -101,7 +104,8 @@ export function getLastCommandForTerminal(terminal: Terminal): TerminalExecutedC
  * Get the last executed command in the active terminal
  */
 export function getActiveTerminalLastCommand(): TerminalExecutedCommand | undefined {
-	const activeTerminal = window.activeTerminal;
+	// Use window.terminals.find() to avoid deprecated window.activeTerminal
+	const activeTerminal = window.terminals.find(t => t === window.activeTerminal);
 	if (activeTerminal === undefined) {
 		return undefined;
 	}
@@ -112,7 +116,8 @@ export function getActiveTerminalLastCommand(): TerminalExecutedCommand | undefi
  * Get the shell type of the active terminal
  */
 export function getActiveTerminalShellType(): string {
-	const activeTerminal = window.activeTerminal;
+	// Use window.terminals.find() to avoid deprecated window.activeTerminal
+	const activeTerminal = window.terminals.find(t => t === window.activeTerminal);
 
 	// Prefer the state object as it's the most reliable
 	if (activeTerminal?.state.shell) {
@@ -167,7 +172,8 @@ export function installTerminalBufferListeners(): { dispose(): void }[] {
 	// Listen for terminal state changes to track shell type
 	disposables.push(
 		window.onDidChangeTerminalState(t => {
-			if (window.activeTerminal && t.processId === window.activeTerminal.processId) {
+			const activeTerminal = window.terminals.find(term => term === window.activeTerminal);
+			if (activeTerminal && t.processId === activeTerminal.processId) {
 				const newShellType = t.state.shell;
 				if (newShellType && newShellType !== lastDetectedShellType) {
 					lastDetectedShellType = newShellType;

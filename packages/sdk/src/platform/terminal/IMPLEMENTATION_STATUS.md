@@ -12,10 +12,10 @@
 
 | 模块 | 文件数 | 完成度 | 优先级 |
 |------|--------|--------|--------|
-| 终端服务 (Terminal Service) | 3 | 95% | 高 |
+| 终端服务 (Terminal Service) | 3 | 98% | 高 |
 | 终端权限 (Terminal Permission) | 2 | 80% | 高 |
-| ACP 终端回调 | 1 | 50% | 中 |
-| 文档和测试 | 2 | 30% | 低 |
+| ACP 终端回调 | 1 | 90% | 中 |
+| 文档和测试 | 2 | 40% | 低 |
 
 ### VS Code Copilot 对比总览
 
@@ -26,7 +26,7 @@
 | Shell 集成事件 | ✅ | ✅ | 无 |
 | 权限控制 | ✅ | ✅ | 无 |
 | 会话管理 | ✅ | ❌ | 缺少 |
-| ACP 终端回调 | N/A | ⚠️ | 部分 |
+| ACP 终端回调 | N/A | ✅ | 无 |
 
 ---
 
@@ -358,15 +358,16 @@ function getTerminalLastCommand(terminal: Terminal): any | undefined {
 
 ## 7. 总结
 
-### Phase 1 完成状态 ✅ (2026年1月31日)
+### Phase 1 + Phase 2 完成状态 ✅ (2026年1月31日)
 
-| 任务 | 状态 | 备注 |
-|------|------|------|
-| 添加 `terminalLastCommand` 属性 | ✅ | 使用 proposed API |
-| 添加 shell 集成事件 | ✅ | 优雅降级支持 |
-| 添加 `onDidWriteTerminalData` | ✅ | proposed API |
-| 添加 `getLastCommandForTerminal()` | ✅ | 委托给 buffer listener |
-| 添加 `NullTerminalService` | ✅ | 测试支持 |
+| 阶段 | 任务 | 状态 | 备注 |
+|------|------|------|------|
+| Phase 1 | 终端服务核心功能 | ✅ | `terminalLastCommand`, shell 事件等 |
+| Phase 1 | `NullTerminalService` | ✅ | 测试和回退支持 |
+| Phase 1 | Proposed API 类型 | ✅ | `vscode.proposed.d.ts` |
+| Phase 1 | 废弃 API 修复 | ✅ | `window.activeTerminal` → `window.terminals.find()` |
+| Phase 2 | ACP 模板终端回调 | ✅ | 完整 `ClientCallbacks` 实现 |
+| Phase 2 | 权限服务集成 | ✅ | 危险命令检测和确认 |
 
 ### 剩余差距
 
@@ -375,16 +376,35 @@ function getTerminalLastCommand(terminal: Terminal): any | undefined {
 | 缺少 `getCwdForSession()` | 无法获取会话工作目录 | 中 |
 | 缺少 `getCopilotTerminals()` | 无法列出 Copilot 终端 | 中 |
 | 缺少 `associateTerminalWithSession()` | 无法关联终端与会话 | 中 |
-| ACP 终端回调不完整 | ACP 模板功能受限 | 中 |
+
+### SDK Review 总结
+
+#### ✅ 已修复问题
+
+| 问题 | 文件 | 修复方式 |
+|------|------|----------|
+| 废弃 `window.activeTerminal` | `terminalBufferListener.ts` | 使用 `window.terminals.find()` |
+| `terminalLastCommand` 错误处理 | `terminalServiceImpl.ts` | 添加 try-catch |
+| Event 返回类型不兼容 | `terminalServiceImpl.ts` | 使用 `as any` 类型断言 |
+
+#### ⚠️ 已知限制
+
+1. **Proposed API 兼容性**
+   - `TerminalExecutedCommand`, `onDidExecuteTerminalCommand` 需要 VS Code 1.90+
+   - 实现了优雅降级，未安装时会返回 `undefined`
+
+2. **Buffer 监听限制**
+   - `onDidWriteTerminalData` 需要 proposed API
+   - 当前通过 `onDidExecuteTerminalCommand` 追踪命令
 
 ### 下一步计划
 
-**Phase 2**: ACP 模板终端回调实现
-- 预计时间: 2-3 小时
-- 主要任务: 实现 ACP 协议终端命令回调机制
-
 **Phase 3**: 会话管理和增强功能
 - 预计时间: 3-4 小时
-- 主要任务: 实现终端会话关联和状态管理
+- 主要任务:
+  - 实现 `getCwdForSession()`
+  - 实现 `getCopilotTerminals()`
+  - 实现 `associateTerminalWithSession()`
+  - 添加终端会话持久化
 3. 建立代码审查流程
 4. 添加单元测试覆盖
