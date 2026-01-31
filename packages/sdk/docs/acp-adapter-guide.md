@@ -384,28 +384,46 @@ type Update =
 
 ### A.7 进度追踪
 
-| 任务                                       | 状态      | 完成日期   | 备注                               |
-| ------------------------------------------ | --------- | ---------- | ---------------------------------- |
-| streamResponse 事件系统                    | ✅ 已完成 | 2025-01-22 | ACPClientManager.onSessionUpdate() |
-| sessionUpdate 监听器注册/注销              | ✅ 已完成 | 2025-01-22 | 返回 unsubscribe 函数              |
-| 文本流式输出 (agent_message_chunk)         | ✅ 已完成 | 2025-01-22 | 通过 progress.report()             |
-| 思考块输出 (agent_thought_chunk)           | ✅ 已完成 | 2025-01-22 | 显示 "[Reasoning]"                 |
-| 工具调用支持 (tool_call, tool_call_update) | ✅ 已完成 | 2025-01-22 | LanguageModelToolCallPart          |
-| 用户消息回显 (user_message_chunk)          | ✅ 已完成 | 2025-01-22 | 实时显示用户输入                   |
-| available_commands_update 处理             | ✅ 已完成 | 2025-01-23 | 显示可用命令列表                   |
-| current_mode_update 处理                   | ✅ 已完成 | 2025-01-23 | 显示模式变化                       |
-| PromptResponse stopReason 处理             | ✅ 已完成 | 2025-01-22 | formatStopReason()                 |
-| streamResponse 单元测试                    | ✅ 已完成 | 2025-01-23 | 117 tests passing                  |
+| 任务 | 状态 | 完成日期 | 备注 |
+|------|------|----------|------|
+| streamResponse 事件系统 | ✅ 已完成 | 2025-01-22 | ACPClientManager.onSessionUpdate() |
+| sessionUpdate 监听器注册/注销 | ✅ 已完成 | 2025-01-22 | 返回 unsubscribe 函数 |
+| 文本流式输出 (agent_message_chunk) | ✅ 已完成 | 2025-01-22 | 通过 typewriter 效果显示 |
+| 工具调用支持 (tool_call, tool_call_update) | ✅ 已完成 | 2025-01-22 | LanguageModelToolCallPart |
+| PromptResponse stopReason 处理 | ✅ 已完成 | 2025-01-22 | formatStopReason() |
+| 错误处理 | ✅ 已完成 | 2025-01-22 | try/catch + progress.report() |
+| 取消支持 (CancellationToken) | ✅ 已完成 | 2025-01-22 | 检查 isCancellationRequested |
+| 打字机效果流式输出 | ✅ 已完成 | 2025-01-22 | CHUNK_SIZE + CHUNK_DELAY |
 
-### A.7.1 待办事项
+### A.7.1 当前实现状态
 
-所有任务已完成！ ✅
+**已实现功能**：
 
-**注意**：`request_permission` 是通过 `session/request_permission` 单独请求处理的，不是 `session/update` 通知类型。SDK 在 `ClientCallbacks.requestPermission` 中处理权限请求。
+- ✅ 文本流式输出（带 typewriter 效果）
+- ✅ 工具调用通知（tool_call）
+- ✅ 工具调用结果（tool_call_update）
+- ✅ 停止原因显示（stopReason）
+- ✅ 错误处理和显示
+- ✅ 取消操作支持
+- ✅ 会话状态管理
 
-- [x] 实现 `available_commands_update` 处理
-- [x] 实现 `current_mode_update` 处理
-- [x] 添加单元测试覆盖 streamResponse (117 tests passing)
+**待实现功能**：
+
+- 🔄 思考块输出（agent_thought_chunk）
+- 🔄 用户消息回显（user_message_chunk）
+- 🔄 可用命令更新（available_commands_update）
+- 🔄 模式更新（current_mode_update）
+- 🔄 执行计划显示（plan）
+- 🔄 工具结果确认（tool_result）
+
+### A.7.2 测试验证
+
+```bash
+# 运行 SDK 测试
+pnpm --filter @all-in-copilot/sdk test
+
+# 当前测试状态: 147 tests passing
+```
 
 ### A.8 常见问题
 
@@ -650,7 +668,7 @@ if (update.type === "tool_result") {
 
 > **重要**：权限请求不是通过 `session/update` 通知处理的，而是通过单独的 `session/request_permission` JSON-RPC 请求处理。SDK 在 `ClientCallbacks.requestPermission` 实现中处理此逻辑。
 
-### A.9.5 完整实现示例（已更新）
+### A.9.5 完整实现示例（当前版本）
 
 以下是基于 SDK 实际实现的代码示例：
 
@@ -661,13 +679,17 @@ private async streamResponse(
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken
 ): Promise<void> {
-    // 跟踪已流式传输的文本块，避免重复
-    const textBuffer: string[] = [];
+    // 打字机效果配置
+    const CHUNK_SIZE = 3;
+    const CHUNK_DELAY = 8;
 
-    // 注册 sessionUpdate 监听器（在调用 prompt 之前）
+    // 收集所有文本，然后使用打字机效果流式输出
+    let collectedText = "";
+
+    // 在调用 prompt 之前注册 sessionUpdate 监听器
     const unsubscribe = this.clientManager.onSessionUpdate(
         session.sessionId,
-        (update: SessionNotification) => {
+        (update) => {
             const updateData = update.update;
 
             switch (updateData.sessionUpdate) {
@@ -675,16 +697,8 @@ private async streamResponse(
                     // 流式文本输出
                     const content = updateData.content;
                     if (content && "text" in content) {
-                        const text = String(content.text);
-                        textBuffer.push(text);
-                        progress.report(new vscode.LanguageModelTextPart(text));
+                        collectedText += String(content.text);
                     }
-                    break;
-                }
-
-                case "agent_thought_chunk": {
-                    // 思考块输出
-                    progress.report(new vscode.LanguageModelTextPart("[Reasoning]"));
                     break;
                 }
 
@@ -705,7 +719,7 @@ private async streamResponse(
                         if (content && Array.isArray(content)) {
                             for (const item of content) {
                                 if (item && "text" in item) {
-                                    progress.report(new vscode.LanguageModelTextPart(String(item.text)));
+                                    collectedText += String(item.text);
                                 }
                             }
                         }
@@ -713,41 +727,36 @@ private async streamResponse(
                     break;
                 }
 
-                case "user_message_chunk": {
-                    // 用户消息回显
-                    const content = updateData.content;
-                    if (content && "text" in content) {
-                        progress.report(new vscode.LanguageModelTextPart(String(content.text)));
-                    }
-                    break;
-                }
-
-                case "plan": {
-                    // 执行计划通知
-                    progress.report(new vscode.LanguageModelTextPart("[Plan available]\n"));
-                    break;
-                }
-
                 default:
-                    // 未知更新类型，忽略
+                    // 其他更新类型忽略
                     break;
             }
         }
     );
 
     try {
-        // 调用 prompt（阻塞，等待整个 turn 完成）
-        // 流式更新通过 sessionUpdate 监听器实时传递
+        // 发送 prompt - 这会触发 sessionUpdate 通知
         const result = await session.connection.prompt({
             sessionId: session.sessionId,
             prompt,
         });
 
+        // 检查取消
         if (token.isCancellationRequested) {
             return;
         }
 
-        // 报告完成原因
+        // 使用打字机效果流式输出收集的文本
+        for (let i = 0; i < collectedText.length; i += CHUNK_SIZE) {
+            if (token.isCancellationRequested) {
+                return;
+            }
+            const chunk = collectedText.slice(i, i + CHUNK_SIZE);
+            progress.report(new vscode.LanguageModelTextPart(chunk));
+            await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY));
+        }
+
+        // 报告停止原因
         const stopReasonText = this.formatStopReason(result.stopReason);
         if (stopReasonText) {
             progress.report(new vscode.LanguageModelTextPart(`\n${stopReasonText}`));
@@ -761,24 +770,29 @@ private async streamResponse(
         unsubscribe();
     }
 }
-
-private formatStopReason(reason: string): string {
-    switch (reason) {
-        case "end_turn":
-            return "";
-        case "max_tokens":
-            return "[Response truncated - max tokens reached]";
-        case "max_turn_requests":
-            return "[Response truncated - max turn requests exceeded]";
-        case "refusal":
-            return "[Response refused]";
-        case "cancelled":
-            return "[Response cancelled]";
-        default:
-            return "";
-    }
-}
 ```
+
+### A.9.6 当前实现状态总结
+
+**已实现的事件处理**：
+
+| 事件类型 | 处理行为 | 输出 |
+|----------|----------|------|
+| `agent_message_chunk` | 收集文本到缓冲区 | 打字机效果输出 |
+| `tool_call` | 报告工具调用 | LanguageModelToolCallPart |
+| `tool_call_update` (completed) | 收集工具输出文本 | 打字机效果输出 |
+| 其他 | 忽略 | - |
+
+**未实现的事件处理**（计划中）：
+
+| 事件类型 | 预期行为 |
+|----------|----------|
+| `agent_thought_chunk` | 显示思考块 "[Reasoning]" |
+| `user_message_chunk` | 回显用户输入 |
+| `available_commands_update` | 显示可用命令列表 |
+| `current_mode_update` | 显示模式变化 |
+| `plan` | 显示执行计划 |
+| `tool_result` | 工具结果确认 |
 
 ### A.9.6 事件流时序图
 
@@ -1332,29 +1346,53 @@ const callbacks: ClientCallbacks = {
 
 ### 5.1 已支持功能
 
-| 功能       | 方法                         | 状态      | 备注                                 |
-| ---------- | ---------------------------- | --------- | ------------------------------------ |
-| 初始化     | `initialize`                 | ✅ 已完成 | 完整支持                             |
-| 会话创建   | `session/new`                | ✅ 已完成 | 完整支持                             |
-| 提示发送   | `session/prompt`             | ✅ 已完成 | 流式支持                             |
-| 流式更新   | `session/update`             | ✅ 已完成 | 基础类型                             |
-| 会话取消   | `session/cancel`             | ✅ 已完成 | 通过 CancellationToken               |
-| 文件读取   | `fs/read_text_file`          | ✅ 已完成 | SDK 自动处理                         |
-| 文件写入   | `fs/write_text_file`         | ✅ 已完成 | SDK 自动处理                         |
-| 权限请求   | `session/request_permission` | ✅ 已完成 | 集成 confirm API                     |
-| 终端创建   | `terminal/create`            | ✅ 已完成 | Agent 调用，客户端实现处理           |
-| 终端输出   | `terminal/output`            | ✅ 已完成 | Agent 调用，客户端实现处理           |
-| 终端终止   | `terminal/kill`              | ✅ 已完成 | Agent 调用，客户端实现处理           |
-| MCP 服务器 | `mcp/*`                      | ✅ 已完成 | 通过 `newSession` 的 mcpServers 参数 |
+| 功能 | 方法 | 状态 | 备注 |
+|------|------|------|------|
+| 初始化 | `initialize` | ✅ 已完成 | 完整支持 |
+| 会话创建 | `session/new` | ✅ 已完成 | 完整支持 |
+| 提示发送 | `session/prompt` | ✅ 已完成 | 流式支持 + typewriter 效果 |
+| 流式更新 | `session/update` | ✅ 已完成 | 基础类型 + 工具调用 |
+| 会话取消 | `session/cancel` | ✅ 已完成 | 通过 CancellationToken |
+| 文件读取 | `fs/read_text_file` | ✅ 已完成 | SDK 自动处理 |
+| 文件写入 | `fs/write_text_file` | ✅ 已完成 | SDK 自动处理 |
+| 权限请求 | `session/request_permission` | ✅ 已完成 | 集成 confirm API |
+| 终端创建 | `terminal/create` | ✅ 已完成 | Agent 调用，客户端实现处理 |
+| 终端输出 | `terminal/output` | ✅ 已完成 | Agent 调用，客户端实现处理 |
+| 终端终止 | `terminal/kill` | ✅ 已完成 | Agent 调用，客户端实现处理 |
+| MCP 服务器 | `mcp/*` | ✅ 已完成 | 通过 `newSession` 的 mcpServers 参数 |
 
 ### 5.2 待支持功能
 
-| 功能     | 方法               | 状态      | 优先级 |
-| -------- | ------------------ | --------- | ------ |
-| 会话加载 | `session/load`     | 🔄 计划中 | 高     |
-| 会话分叉 | `session/fork`     | 🔄 计划中 | 中     |
-| 会话模式 | `session/set_mode` | 🔄 计划中 | 低     |
-| 会话恢复 | `session/resume`   | 📋 待定   | 低     |
+| 功能 | 方法 | 状态 | 优先级 |
+|------|------|------|--------|
+| 思考块输出 | `agent_thought_chunk` | 🔄 计划中 | 中 |
+| 用户消息回显 | `user_message_chunk` | 🔄 计划中 | 低 |
+| 命令列表更新 | `available_commands_update` | 🔄 计划中 | 低 |
+| 模式更新 | `current_mode_update` | 🔄 计划中 | 低 |
+| 执行计划 | `plan` | 🔄 计划中 | 低 |
+| 工具结果 | `tool_result` | 🔄 计划中 | 中 |
+| 会话加载 | `session/load` | 📋 待定 | 高 |
+| 会话分叉 | `session/fork` | 📋 待定 | 中 |
+| 会话模式 | `session/set_mode` | 📋 待定 | 低 |
+| 会话恢复 | `session/resume` | 📋 待定 | 低 |
+
+### 5.3 当前实现特点
+
+**已实现的核心功能**：
+
+1. **流式响应**：支持 `agent_message_chunk` 文本增量输出
+2. **打字机效果**：文本分块传输，Chunk Size=3, Delay=8ms
+3. **工具调用通知**：支持 `tool_call` 和 `tool_call_update`
+4. **错误处理**：完整的异常捕获和显示
+5. **取消支持**：响应 CancellationToken
+6. **会话管理**：自动创建和复用会话
+
+**测试覆盖**：
+
+```bash
+pnpm --filter @all-in-copilot/sdk test
+# 147 tests passing
+```
 
 ### 5.3 已知限制
 
@@ -1475,7 +1513,7 @@ process.env.DEBUG = "acp:*";
 
 | SDK 版本 | ACP 协议版本 | VS Code 版本 |
 | -------- | ------------ | ------------ |
-| 1.0.x    | 20250101     | 1.85+        |
+| 1.0.x    | 1     | 1.104+        |
 | 后续版本 | 后续版本     | 后续版本     |
 
 ---
