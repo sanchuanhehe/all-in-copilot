@@ -71,6 +71,8 @@ export {
 	ACPClientManager,
 	ACPProvider,
 	registerACPProvider,
+	ACPChatParticipant,
+	registerACPChatParticipant,
 	type ACPClientConfig,
 	type ACPModelInfo,
 	type ACPProviderOptions,
@@ -80,6 +82,7 @@ export {
 	type MCPServerConfig,
 	type ClientCallbacks,
 	type IVsCodeTerminal,
+	type ACPChatParticipantOptions,
 } from "./acp";
 
 // Utilities
