@@ -164,8 +164,7 @@ jobs:
         if: github.event_name == 'push'
         uses: codecov/codecov-action@v4
         with:
-          directory: ./packages/sdk/coverage
-          files: lcov.info
+          directory: packages/sdk/coverage
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
