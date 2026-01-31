@@ -255,7 +255,6 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		const pendingTools = new Map<string, {
 			name: string;
 			result: string;
-			command?: string;
 			listener?: () => void;
 		}>();
 
@@ -284,17 +283,24 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 
 					const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
 					const title = (updateData as { title?: string }).title ?? "Unknown Tool";
-					const command = (updateData as { command?: string }).command ?? "";
+					const rawInput = (updateData as { rawInput?: unknown }).rawInput;
 					const toolName = title.split(" ")[0] || "tool";
 
 					console.log(`[ACPProvider] Tool call received: ${toolName} (${toolCallId})`);
+					if (rawInput !== undefined) {
+						console.log(`[ACPProvider] Tool input: ${JSON.stringify(rawInput)}`);
+					}
+
+					// Extract input parameters for the LanguageModelToolCallPart
+					// VS Code expects an object for the input parameter
+					const inputObject = rawInput !== undefined ? (rawInput as object) : {};
 
 					// Report tool call to progress
-					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, {});
+					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, inputObject);
 					progress.report(toolCallPart);
 
 					// Initialize pending tool call
-					pendingTools.set(toolCallId, { name: toolName, result: "", command });
+					pendingTools.set(toolCallId, { name: toolName, result: "" });
 
 					// CRITICAL: Register a dedicated listener for this tool's updates
 					// This listener will send the tool result back to Agent immediately
