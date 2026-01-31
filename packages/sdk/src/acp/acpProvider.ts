@@ -232,7 +232,11 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 
 	/**
 	 * Streams the response from the agent to the progress reporter.
-	 * Uses typewriter effect for smooth text display.
+	 * Handles tool calls by executing them and sending results back to the Agent.
+	 *
+	 * KEY INSIGHT: In ACP protocol, when Agent sends tool_call notification,
+	 * the Client MUST immediately execute the tool AND send the result back
+	 * via another prompt() call - NOT wait for the initial prompt() to return.
 	 */
 	private async streamResponse(
 		session: ACPSession,
@@ -247,11 +251,22 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		// Collect all text first, then stream with typewriter effect
 		let collectedText = "";
 
-		// Track tool calls and their results for sending LanguageModelToolResultPart
-		const pendingTools = new Map<string, { name: string; result: string }>();
+		// Track pending tool calls and their results
+		const pendingTools = new Map<string, {
+			name: string;
+			result: string;
+			command?: string;
+			listener?: () => void;
+		}>();
 
-		// Register listener for session updates BEFORE calling prompt
-		const unsubscribe = this.clientManager.onSessionUpdate(session.sessionId, (update) => {
+		// Flag to track if we're in a tool execution phase
+		let isInToolExecution = false;
+
+		// Track if we've sent the initial prompt
+		let initialPromptSent = false;
+
+		// Main listener for session updates (tracks overall progress)
+		const mainUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (update) => {
 			const updateData = update.update;
 
 			switch (updateData.sessionUpdate) {
@@ -264,23 +279,43 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				}
 
 				case "tool_call": {
+					// Mark that we're entering tool execution phase
+					isInToolExecution = true;
+
 					const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
 					const title = (updateData as { title?: string }).title ?? "Unknown Tool";
+					const command = (updateData as { command?: string }).command ?? "";
 					const toolName = title.split(" ")[0] || "tool";
+
+					console.log(`[ACPProvider] Tool call received: ${toolName} (${toolCallId})`);
+
+					// Report tool call to progress
 					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, {});
 					progress.report(toolCallPart);
 
 					// Initialize pending tool call
-					pendingTools.set(toolCallId, { name: toolName, result: "" });
-					break;
-				}
+					pendingTools.set(toolCallId, { name: toolName, result: "", command });
 
-				case "tool_call_update": {
-					const status = (updateData as { status?: string }).status;
-					const toolCallId = (updateData as { toolCallId?: string }).toolCallId;
-					const content = (updateData as { content?: Array<{ text?: string }> }).content;
+					// CRITICAL: Register a dedicated listener for this tool's updates
+					// This listener will send the tool result back to Agent immediately
+					const toolListenerUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (toolUpdate) => {
+						const toolUpdateData = toolUpdate.update;
 
-					if ((status === "completed" || status === "success") && toolCallId) {
+						if (toolUpdateData.sessionUpdate !== "tool_call_update") {
+							return;
+						}
+
+						const status = (toolUpdateData as { status?: string }).status;
+						const updateToolCallId = (toolUpdateData as { toolCallId?: string }).toolCallId;
+
+						// Only process updates for this specific tool
+						if (updateToolCallId !== toolCallId) {
+							return;
+						}
+
+						const content = (toolUpdateData as { content?: Array<{ text?: string }> }).content;
+						const rawOutput = (toolUpdateData as { rawOutput?: unknown }).rawOutput;
+
 						// Collect tool result content
 						let toolResultText = "";
 						if (content && Array.isArray(content)) {
@@ -290,25 +325,73 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 								}
 							}
 						}
-
-						// Update pending tools map
-						if (pendingTools.has(toolCallId)) {
-							const toolInfo = pendingTools.get(toolCallId)!;
-							toolInfo.result = toolResultText;
+						if (rawOutput && typeof rawOutput === "object") {
+							const rawOutputStr = JSON.stringify(rawOutput);
+							if (rawOutputStr && rawOutputStr !== "{}") {
+								toolResultText += `\nRaw output: ${rawOutputStr}`;
+							}
 						}
 
-						// Send LanguageModelToolResultPart to progress
-						// This tells the AI that a tool has completed and provides the result
-						const toolResultContent: vscode.LanguageModelTextPart[] = [];
-						if (toolResultText) {
-							toolResultContent.push(new vscode.LanguageModelTextPart(toolResultText));
-						}
-						const toolResultPart = new vscode.LanguageModelToolResultPart(toolCallId, toolResultContent);
-						progress.report(toolResultPart);
+						// When tool completes, send result back to Agent IMMEDIATELY
+						if ((status === "completed" || status === "success") && updateToolCallId) {
+							console.log(`[ACPProvider] Tool completed: ${updateToolCallId}, sending result to Agent`);
 
-						// Clean up pending tool
-						pendingTools.delete(toolCallId);
+							// Update pending tools map
+							if (pendingTools.has(updateToolCallId)) {
+								const toolInfo = pendingTools.get(updateToolCallId)!;
+								toolInfo.result = toolResultText;
+							}
+
+							// Send LanguageModelToolResultPart to progress
+							const toolResultContent: vscode.LanguageModelTextPart[] = [];
+							if (toolResultText) {
+								toolResultContent.push(new vscode.LanguageModelTextPart(toolResultText));
+							}
+							const toolResultPart = new vscode.LanguageModelToolResultPart(updateToolCallId, toolResultContent);
+							progress.report(toolResultPart);
+
+							// CRITICAL: Send tool result back to Agent IMMEDIATELY
+							// This is the key fix - send result while prompt() is still pending
+							const toolResultContentBlock: ContentBlock = {
+								type: "text",
+								text: `[Tool Result for ${updateToolCallId}]: ${toolResultText || "(no output)"}`
+							};
+
+							try {
+								const followUpResult = await session.connection.prompt({
+									sessionId: session.sessionId,
+									prompt: [toolResultContentBlock],
+								});
+								console.log(`[ACPProvider] Tool result sent, stopReason: ${followUpResult.stopReason}`);
+
+								// Collect any text from the follow-up
+								// Note: This is a simplified approach; in a full implementation,
+								// we might want to stream this response too
+							} catch (followUpError) {
+								console.error(`[ACPProvider] Error sending tool result: ${followUpError}`);
+							}
+
+							// Remove this tool from pending and clean up listener
+							pendingTools.delete(updateToolCallId);
+							toolListenerUnsubscribe();
+
+							// If no more pending tools, we're done with tool execution
+							if (pendingTools.size === 0) {
+								isInToolExecution = false;
+							}
+						}
+					});
+
+					// Store listener reference for cleanup
+					if (pendingTools.has(toolCallId)) {
+						pendingTools.get(toolCallId)!.listener = toolListenerUnsubscribe;
 					}
+					break;
+				}
+
+				case "user_message_chunk": {
+					// Agent is waiting for user input - tool execution complete
+					isInToolExecution = false;
 					break;
 				}
 
@@ -318,11 +401,16 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		});
 
 		try {
-			// Send the prompt - this will trigger sessionUpdate notifications
+			// Send the initial prompt - this will trigger sessionUpdate notifications
+			// including tool_call and tool_call_update
+			console.log("[ACPProvider] Sending initial prompt...");
+			initialPromptSent = true;
 			const result = await session.connection.prompt({
 				sessionId: session.sessionId,
 				prompt,
 			});
+
+			console.log(`[ACPProvider] Initial prompt completed, stopReason: ${result.stopReason}`);
 
 			// Check for cancellation
 			if (token.isCancellationRequested) {
@@ -344,13 +432,22 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			if (stopReasonText) {
 				progress.report(new vscode.LanguageModelTextPart(`\n${stopReasonText}`));
 			}
+
+			// Turn is complete
+			return;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			progress.report(new vscode.LanguageModelTextPart(`\nError: ${errorMessage}`));
 			throw error;
 		} finally {
-			// Clean up the listener
-			unsubscribe();
+			// Clean up all pending tool listeners and main listener
+			for (const [, tool] of pendingTools) {
+				if (tool.listener) {
+					tool.listener();
+				}
+			}
+			pendingTools.clear();
+			mainUnsubscribe();
 		}
 	}
 
