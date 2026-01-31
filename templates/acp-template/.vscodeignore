@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+
+# IDE
+.vscode/
+.vscode-test/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+**/*.test.ts
+**/*.test.js
+
+# Coverage
+coverage/
+
+.vscode/**
+.vscode-test/**
+src/**
+.gitignore
+.yarnrc
+webpack.config.js
+vsc-extension-quickstart.md
+**/tsconfig.json
+**/.eslintrc.json
+**/*.map
+**/*.ts

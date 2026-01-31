@@ -10,7 +10,7 @@ import {
 	convertToOpenAI,
 	ensureValidMessageOrder,
 	buildRequest,
-} from "./providerHelpers";
+} from "./index";
 
 describe("Type Guards", () => {
 	describe("isTextPart", () => {

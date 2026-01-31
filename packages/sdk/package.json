@@ -21,13 +21,21 @@
 		"build": "tsc",
 		"watch": "tsc --watch",
 		"test": "vitest",
-		"test:run": "vitest run"
+		"test:run": "vitest run",
+		"download-api": "dts dev && dts main && mv vscode.d.ts src/vscode/vscode.d.ts 2>/dev/null || true",
+		"postdownload-api": "dts main && mv vscode.d.ts src/vscode/vscode.d.ts 2>/dev/null || true"
 	},
 	"dependencies": {
+		"@agentclientprotocol/sdk": "^0.13.1",
 		"@anthropic-ai/sdk": "^0.27.3",
 		"openai": "^4.104.0"
 	},
+	"peerDependencies": {
+		"zod": "^3.25.0 || ^4.0.0"
+	},
 	"devDependencies": {
+		"@vitest/coverage-v8": "^2.1.9",
+		"@vscode/dts": "^0.4.1",
 		"vitest": "^2.1.1"
 	},
 	"keywords": [

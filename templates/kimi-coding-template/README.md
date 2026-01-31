@@ -14,13 +14,13 @@ Kimi Copilot (Coding Plan) is a VS Code extension that integrates Moonshot AI's 
 
 #### Difference from Standard Kimi Copilot
 
-| Feature | Kimi Copilot (Coding Plan) | Standard Kimi Copilot |
-|---------|---------------------------|----------------------|
-| **API Endpoint** | `https://api.kimi.com/coding/v1/messages` | `https://api.moonshot.cn/anthropic/v1/messages` |
-| **Optimized For** | Coding tasks with enhanced capabilities | General-purpose conversations |
-| **Dynamic Models** | ✅ Enabled - Auto-fetches available models | ❌ Disabled - Uses static model list |
-| **Provider ID** | `kimi-coding` | `kimi` |
-| **Extension Name** | `kimi-coding-copilot` | `kimi-copilot` |
+| Feature            | Kimi Copilot (Coding Plan)                 | Standard Kimi Copilot                           |
+| ------------------ | ------------------------------------------ | ----------------------------------------------- |
+| **API Endpoint**   | `https://api.kimi.com/coding/v1/messages`  | `https://api.moonshot.cn/anthropic/v1/messages` |
+| **Optimized For**  | Coding tasks with enhanced capabilities    | General-purpose conversations                   |
+| **Dynamic Models** | ✅ Enabled - Auto-fetches available models | ❌ Disabled - Uses static model list            |
+| **Provider ID**    | `kimi-coding`                              | `kimi`                                          |
+| **Extension Name** | `kimi-coding-copilot`                      | `kimi-copilot`                                  |
 
 ### Features
 
@@ -61,13 +61,13 @@ Kimi Copilot（编程版）是一个 VS Code 扩展，将月之暗面的 **Kimi 
 
 #### 与标准版 Kimi Copilot 的区别
 
-| 特性 | Kimi Copilot（编程版） | 标准版 Kimi Copilot |
-|------|----------------------|-------------------|
-| **API 端点** | `https://api.kimi.com/coding/v1/messages` | `https://api.moonshot.cn/anthropic/v1/messages` |
-| **优化方向** | 针对编程任务的增强能力 | 通用对话场景 |
-| **动态模型** | ✅ 启用 - 自动获取可用模型 | ❌ 禁用 - 使用静态模型列表 |
-| **Provider ID** | `kimi-coding` | `kimi` |
-| **扩展名称** | `kimi-coding-copilot` | `kimi-copilot` |
+| 特性            | Kimi Copilot（编程版）                    | 标准版 Kimi Copilot                             |
+| --------------- | ----------------------------------------- | ----------------------------------------------- |
+| **API 端点**    | `https://api.kimi.com/coding/v1/messages` | `https://api.moonshot.cn/anthropic/v1/messages` |
+| **优化方向**    | 针对编程任务的增强能力                    | 通用对话场景                                    |
+| **动态模型**    | ✅ 启用 - 自动获取可用模型                | ❌ 禁用 - 使用静态模型列表                      |
+| **Provider ID** | `kimi-coding`                             | `kimi`                                          |
+| **扩展名称**    | `kimi-coding-copilot`                     | `kimi-copilot`                                  |
 
 ### 功能特性
 

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { processOpenAIStream, processAnthropicStream } from "./providerHelpers";
+import { processOpenAIStream, processAnthropicStream } from "./streaming";
 
 // Helper to create a mock ReadableStream
 function createMockReadableStream(chunks: string[]): ReadableStream {

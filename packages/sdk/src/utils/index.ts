@@ -2,6 +2,14 @@
  * Utils exports
  */
 
-export * from "./messageConverter";
+// Message conversion (explicit exports to avoid conflicts)
+export { ROLE, mapVsCodeRole, convertVsCodeContent, convertToProviderFormat } from "./messageConverter";
+
+// Tool conversion
 export * from "./toolConverter";
-export * from "./tokenCounter";
+
+// Token counting
+export { estimateTokens } from "./tokenCounter";
+
+// Format utilities (type guards, message conversion, streaming)
+export * from "./format";

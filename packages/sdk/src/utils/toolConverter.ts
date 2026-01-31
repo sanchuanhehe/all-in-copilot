@@ -230,6 +230,59 @@ export function parseToolArguments<T = Record<string, unknown>>(args: string): T
 }
 
 /**
+ * Convert VS Code tools to OpenAI format
+ * VS Code tool format: { name, description?, inputSchema }
+ * OpenAI tool format: { type: "function", function: { name, description?, parameters } }
+ */
+export function convertToolsToOpenAI(
+	tools: readonly unknown[] | undefined
+):
+	| { type: "function"; function: { name: string; description?: string; parameters?: Record<string, unknown> } }[]
+	| undefined {
+	if (!tools || tools.length === 0) {
+		return undefined;
+	}
+
+	return tools.map((tool: unknown) => {
+		const t = tool as { name: string; description?: string; inputSchema?: Record<string, unknown> };
+		return {
+			type: "function" as const,
+			function: {
+				name: sanitizeFunctionName(t.name),
+				description: t.description,
+				parameters: t.inputSchema,
+			},
+		};
+	});
+}
+
+/**
+ * Convert VS Code tools to Anthropic format
+ * VS Code tool format: { name, description?, inputSchema }
+ * Anthropic tool format: { name, description?, input_schema }
+ */
+export function convertToolsToAnthropic(
+	tools: readonly unknown[] | undefined
+): { name: string; description?: string; input_schema: Record<string, unknown> }[] | undefined {
+	if (!tools || tools.length === 0) {
+		return undefined;
+	}
+
+	return tools.map((tool: unknown) => {
+		const t = tool as { name: string; description?: string; inputSchema?: Record<string, unknown> };
+		const result: { name: string; description?: string; input_schema: Record<string, unknown> } = {
+			name: sanitizeFunctionName(t.name),
+			input_schema: t.inputSchema || { type: "object", properties: {} },
+		};
+		// Only add description if it exists and is non-empty
+		if (t.description && t.description.trim()) {
+			result.description = t.description;
+		}
+		return result;
+	});
+}
+
+/**
  * Format tool arguments to string
  */
 export function formatToolArguments(args: Record<string, unknown>): string {

@@ -27,8 +27,8 @@ export {
 
 // VS Code Provider Helpers (the main export for templates)
 export {
-	// Message types
-	ROLE,
+	// VS Code types
+	VSCODE_ROLE as ROLE,
 	type VsCodeMessage,
 	type VsCodeTextPart,
 	type VsCodeToolCallPart,
@@ -52,28 +52,40 @@ export {
 	// Message conversion
 	convertToOpenAI,
 	convertToAnthropic,
-	// Tool conversion
-	convertToolsToOpenAI,
-	convertToolsToAnthropic,
-	// Model fetching
-	fetchModelsFromAPI,
 	// Streaming processors
 	processOpenAIStream,
 	processAnthropicStream,
-	// Request building
-	buildRequestBody,
+	// Request builder for templates
 	buildRequest,
-	ensureValidMessageOrder,
-	// Token estimation
-	estimateTokens,
-	estimateMessageTokens,
-} from "./vscode/providerHelpers";
+} from "./utils/format";
+
+// Tool conversion (re-exported for templates)
+export { convertToolsToOpenAI, convertToolsToAnthropic } from "./utils/toolConverter";
 
 // Providers (using official SDKs - for advanced use cases)
 export { OpenAIProvider } from "./providers/openaiProvider";
 export { AnthropicProvider } from "./providers/anthropicProvider";
 
+// ACP Protocol (Agent Client Protocol)
+export {
+	ACPClientManager,
+	ACPProvider,
+	registerACPProvider,
+	type ACPClientConfig,
+	type ACPModelInfo,
+	type ACPProviderOptions,
+	type ContentBlock,
+	type TerminalCreateResult,
+	type TerminalOutputResult,
+	type MCPServerConfig,
+	type ClientCallbacks,
+	type IVsCodeTerminal,
+} from "./acp";
+
 // Utilities
 export { mapVsCodeRole, convertVsCodeContent } from "./utils/messageConverter";
-export { estimateTokens as estimateTokensUtil, estimateMessagesTokens } from "./utils/tokenCounter";
+export { estimateTokens, estimateMessagesTokens } from "./utils/tokenCounter";
 export { sanitizeFunctionName, pruneUnknownSchemaKeywords } from "./utils/toolConverter";
+
+// Model fetching
+export { fetchModelsFromAPI } from "./core/modelFetcher";

@@ -1,0 +1,47 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "esbuild: watch",
+			"type": "npm",
+			"script": "watch",
+			"isBackground": true,
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "esbuild: dispose",
+			"type": "shell",
+			"command": "echo 'Build process completed'",
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
+		{
+			"label": "esbuild compile",
+			"command": "node esbuild.js",
+			"args": ["--production"],
+			"group": "build"
+		},
+		{
+			"label": "Package extension",
+			"type": "shell",
+			"command": "npm run package",
+			"args": [],
+			"group": "build"
+		},
+		{
+			"label": "Package extension",
+			"type": "shell",
+			"command": "npm run package",
+			"args": [],
+			"group": "build"
+		}
+	]
+}
