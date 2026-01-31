@@ -101,7 +101,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 						? "ASSISTANT"
 						: "OTHER";
 			let contentPreview = "EMPTY";
-			const content = (msg as any).content;
+			const content = msg.content as string | vscode.LanguageModelChatMessageContentPart[] | null;
 			if (content) {
 				if (typeof content === "string") {
 					contentPreview = content.slice(0, 100);
@@ -261,18 +261,18 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				}
 
 				case "tool_call": {
-					const toolCallId = (updateData as any).toolCallId ?? String(Date.now());
-					const title = (updateData as any).title ?? "Unknown Tool";
-					const toolName = title.split(" ")[0] || "tool";
-					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, {});
-					progress.report(toolCallPart);
-					break;
-				}
+				const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
+				const title = (updateData as { title?: string }).title ?? "Unknown Tool";
+				const toolName = title.split(" ")[0] || "tool";
+				const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, {});
+				progress.report(toolCallPart);
+				break;
+			}
 
-				case "tool_call_update": {
-					const status = (updateData as any).status;
-					if (status === "completed" || status === "success") {
-						const content = (updateData as any).content;
+			case "tool_call_update": {
+				const status = (updateData as { status?: string }).status;
+				if (status === "completed" || status === "success") {
+					const content = (updateData as { content?: Array<{ text?: string }> }).content;
 						if (content && Array.isArray(content)) {
 							for (const item of content) {
 								if (item && "text" in item) {
@@ -415,7 +415,6 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		}
 
 		if (Array.isArray(message.content)) {
-			const textParts: string[] = [];
 			console.log("[ACPProvider] extractUserContent: array content with", message.content.length, "parts");
 
 			// Join all parts together, handling different formats

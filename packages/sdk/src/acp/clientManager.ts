@@ -525,14 +525,14 @@ export class ACPClientManager {
 	): Promise<{ success: boolean; error?: string }> {
 		try {
 			// Check if setSessionModel is available
-			if (typeof (client as any).unstable_setSessionModel !== "function") {
+			if (typeof (client as { unstable_setSessionModel?: unknown }).unstable_setSessionModel !== "function") {
 				return {
 					success: false,
 					error: "Client does not support setSessionModel (unstable feature)",
 				};
 			}
 
-			const result = await (client as any).unstable_setSessionModel({
+			await (client as { unstable_setSessionModel: (args: { sessionId: string; modelId: string }) => Promise<unknown> }).unstable_setSessionModel({
 				sessionId,
 				modelId,
 			});
@@ -662,10 +662,6 @@ export class ACPClientManager {
 	private createClientImplementation(config: ACPClientConfig) {
 		const callbacks = config.callbacks ?? {};
 		const terminalIdToHandle = new Map<string, { name: string; command: string; args?: string[]; cwd?: string }>();
-		const sessionIdToConnection = new Map<string, ClientSideConnection>();
-
-		// Capture reference to sessionUpdateListeners for use in callbacks
-		const listenersMap = this.sessionUpdateListeners;
 
 		return {
 			/**
@@ -709,10 +705,11 @@ export class ACPClientManager {
 			async sessionUpdate(params: SessionNotification): Promise<void> {
 				// Find the session ID from the update context if available
 				// The SessionNotification structure contains session info
-				const sessionId = (params as any).sessionId ?? (params.update as any).sessionId ?? "";
+				const paramsAny = params as { sessionId?: string; update?: { sessionId?: string } };
+				const sessionId = paramsAny.sessionId ?? paramsAny.update?.sessionId ?? "";
 
 				// Forward to all registered listeners for this session
-				const listeners = listenersMap.get(sessionId);
+				const listeners = this.sessionUpdateListeners.get(sessionId);
 				if (listeners) {
 					for (const listener of listeners) {
 						try {
