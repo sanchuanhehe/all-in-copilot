@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
  *  ACP Terminal Provider
- *  Uses ITerminalService for terminal management, avoiding duplication
+ *  Uses VS Code Terminal API for proper terminal integration
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
 import type { ITerminalService, ShellIntegrationQuality } from "../platform/terminal/common/terminalService";
 
 /**
- * ACP-specific terminal callbacks using ITerminalService
- * This provider delegates terminal creation to ITerminalService,
- * focusing on ACP protocol integration only.
+ * ACP-specific terminal callbacks using VS Code Terminal API
+ * Creates real terminals that appear in VS Code terminal panel
  */
 export class ACPTerminalProvider {
 	private readonly terminalService: ITerminalService;
 	private readonly shellPath?: string;
 	private readonly shellArgs?: string[];
+	private readonly sessionTerminals = new Map<string, vscode.Terminal>();
 
 	constructor(
 		terminalService: ITerminalService,
@@ -29,7 +29,8 @@ export class ACPTerminalProvider {
 	}
 
 	/**
-	 * Execute a command in a terminal
+	 * Execute a command in a terminal (creates new or reuses session terminal)
+	 * Command will appear in VS Code terminal panel
 	 */
 	async executeCommand(
 		sessionId: string,
@@ -40,56 +41,40 @@ export class ACPTerminalProvider {
 			showTerminal?: boolean;
 		}
 	): Promise<{ exitCode?: number; output: string }> {
-		// For simple commands, execute directly and capture output
-		// This provides better feedback than just sending to terminal
-		const execOptions: { encoding: string; cwd?: string; env?: Record<string, string> } = {
-			encoding: "utf8",
-		};
-		if (options?.cwd) {
-			execOptions.cwd = options.cwd;
-		}
-		if (options?.env) {
-			const envWithStrings: Record<string, string> = {};
-			for (const [key, value] of Object.entries(process.env)) {
-				if (value !== undefined) {
-					envWithStrings[key] = value;
-				}
-			}
-			execOptions.env = { ...envWithStrings, ...options.env };
-		}
+		// Get or create terminal for this session
+		let terminal = this.sessionTerminals.get(sessionId);
 
-		// Execute command using child_process
-		const { exec } = await import("child_process");
-
-		return new Promise((resolve) => {
-			// Add timeout to prevent hanging
-			const timeout = setTimeout(() => {
-				resolve({ exitCode: -1, output: "Command timed out" });
-			}, 30000);
-
-			exec(command, execOptions, (error, stdout, stderr) => {
-				clearTimeout(timeout);
-				let output = stdout;
-					if (stderr && !error) {
-						output += stderr;
-					}
-
-					let exitCodeVal: number = 0;
-					if (error) {
-						const code = (error as NodeJS.ErrnoException).code;
-						exitCodeVal = typeof code === "number" ? code : (code ? parseInt(String(code), 10) : 1);
-					}
-
-				resolve({
-					exitCode: exitCodeVal,
-					output: output || "",
-				});
+		if (!terminal) {
+			// Create new terminal with session-specific name
+			terminal = this.terminalService.createTerminal({
+				name: `ACP Session`,
+				shellPath: this.shellPath,
+				shellArgs: this.shellArgs,
+				isTransient: true,
 			});
-		});
+			this.sessionTerminals.set(sessionId, terminal);
+		}
+
+		// Show the terminal if requested
+		if (options?.showTerminal ?? true) {
+			terminal.show(true);
+		}
+
+		// Send command to terminal
+		if (options?.cwd) {
+			terminal.sendText(`cd "${options.cwd}"`, true);
+		}
+
+		terminal.sendText(command, true);
+
+		return {
+			exitCode: undefined,
+			output: `Command sent to terminal: ${command}`,
+		};
 	}
 
 	/**
-	 * Execute command in existing terminal, create if doesn't exist
+	 * Execute command in existing session terminal
 	 */
 	async executeInSessionTerminal(
 		sessionId: string,
@@ -100,47 +85,36 @@ export class ACPTerminalProvider {
 			showTerminal?: boolean;
 		}
 	): Promise<{ terminal: vscode.Terminal; output: string }> {
-		// Execute using shell for better output capture
-		const execOptions: { encoding: string; cwd?: string; env?: Record<string, string> } = {
-			encoding: "utf8",
-		};
-		if (options?.cwd) {
-			execOptions.cwd = options.cwd;
-		}
-		if (options?.env) {
-			const envWithStrings: Record<string, string> = {};
-			for (const [key, value] of Object.entries(process.env)) {
-				if (value !== undefined) {
-					envWithStrings[key] = value;
-				}
-			}
-			execOptions.env = { ...envWithStrings, ...options.env };
-		}
+		let terminal = this.sessionTerminals.get(sessionId);
 
-		const { exec } = await import("child_process");
-
-		return new Promise((resolve) => {
-			const timeout = setTimeout(() => {
-				resolve({ terminal: null as unknown as vscode.Terminal, output: "Command timed out" });
-			}, 30000);
-
-			exec(command, execOptions, (error, stdout, stderr) => {
-				clearTimeout(timeout);
-				let output = stdout;
-				if (stderr && !error) {
-					output += stderr;
-				}
-
-				resolve({
-					terminal: null as unknown as vscode.Terminal,
-					output: output || "",
-				});
+		if (!terminal) {
+			terminal = this.terminalService.createTerminal({
+				name: `ACP Session`,
+				shellPath: this.shellPath,
+				shellArgs: this.shellArgs,
+				isTransient: true,
 			});
-		});
+			this.sessionTerminals.set(sessionId, terminal);
+		}
+
+		if (options?.showTerminal ?? true) {
+			terminal.show(true);
+		}
+
+		if (options?.cwd) {
+			terminal.sendText(`cd "${options.cwd}"`, true);
+		}
+
+		terminal.sendText(command, true);
+
+		return {
+			terminal,
+			output: "Command sent to terminal",
+		};
 	}
 
 	/**
-	 * Execute command in a new terminal
+	 * Execute command in a NEW terminal (always creates fresh terminal)
 	 */
 	async executeInNewTerminal(
 		sessionId: string,
@@ -151,38 +125,41 @@ export class ACPTerminalProvider {
 			showTerminal?: boolean;
 		}
 	): Promise<{ terminal: vscode.Terminal; output: string }> {
-		// Always create a new terminal with unique name
-		const terminalName = `ACP (${sessionId.slice(0, 6)})-${Date.now()}`;
-		const terminal = this.terminalService.createTerminal(
-			terminalName,
-			this.shellPath,
-			this.shellArgs
-		);
+		// Always create a new terminal
+		const terminal = this.terminalService.createTerminal({
+			name: `ACP: ${command.slice(0, 30)}...`,
+			shellPath: this.shellPath,
+			shellArgs: this.shellArgs,
+			isTransient: true,
+		});
 
-		// Associate with session
-		await this.terminalService.associateTerminalWithSession(
-			terminal,
-			sessionId,
-			"rich" as ShellIntegrationQuality
-		);
-
-		// Show terminal
-		if (options?.showTerminal !== false) {
-			terminal.show();
+		if (options?.showTerminal ?? true) {
+			terminal.show(true);
 		}
 
-		// Format command with cwd
-		const fullCommand = options?.cwd
-			? `cd "${options.cwd.replace(/"/g, '\\"')}" && ${command}`
-			: command;
+		// Build full command with cd if needed
+		let fullCommand = command;
+		if (options?.cwd) {
+			fullCommand = `cd "${options.cwd}" && ${command}`;
+		}
 
-		// Send command
 		terminal.sendText(fullCommand);
 
 		return {
 			terminal,
 			output: "Command sent to terminal",
 		};
+	}
+
+	/**
+	 * Clean up terminals for a session
+	 */
+	async disposeSessionTerminals(sessionId: string): Promise<void> {
+		const terminal = this.sessionTerminals.get(sessionId);
+		if (terminal) {
+			terminal.dispose();
+			this.sessionTerminals.delete(sessionId);
+		}
 	}
 
 	/**
@@ -193,10 +170,13 @@ export class ACPTerminalProvider {
 	}
 
 	/**
-	 * Clean up resources
+	 * Clean up all resources
 	 */
 	dispose(): void {
-		// TerminalService handles its own cleanup
+		for (const terminal of this.sessionTerminals.values()) {
+			terminal.dispose();
+		}
+		this.sessionTerminals.clear();
 	}
 }
 
