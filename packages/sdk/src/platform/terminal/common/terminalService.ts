@@ -230,7 +230,7 @@ export class NullTerminalService implements ITerminalService {
 		return '';
 	}
 
-	async getBufferWithPid(): Promise<string> {
+	async getBufferWithPid(_pid?: number, _maxChars?: number): Promise<string> {
 		return '';
 	}
 
@@ -238,23 +238,23 @@ export class NullTerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	contributePath(): void {
+	contributePath(_contributor?: string, _pathLocation?: string, _description?: string | { command: string }, _prepend?: boolean): void {
 		// No-op for null service
 	}
 
-	removePathContribution(): void {
+	removePathContribution(_contributor?: string): void {
 		// No-op for null service
 	}
 
-	async getCwdForSession(): Promise<Uri | undefined> {
+	async getCwdForSession(_sessionId?: string): Promise<Uri | undefined> {
 		return undefined;
 	}
 
-	async getCopilotTerminals(): Promise<IKnownTerminal[]> {
+	async getCopilotTerminals(_sessionId?: string): Promise<IKnownTerminal[]> {
 		return [];
 	}
 
-	async associateTerminalWithSession(): Promise<void> {
+	async associateTerminalWithSession(_terminal?: Terminal, _sessionId?: string, _shellIntegrationQuality?: ShellIntegrationQuality): Promise<void> {
 		// No-op for null service
 	}
 
