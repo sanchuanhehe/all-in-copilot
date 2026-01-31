@@ -158,7 +158,8 @@ jobs:
         run: pnpm --filter @all-in-copilot/sdk build
 
       - name: Run tests
-        run: pnpm --filter @all-in-copilot/sdk test -- --run --coverage
+        working-directory: packages/sdk
+        run: pnpm test -- --run --coverage
 
       - name: Upload coverage
         if: github.event_name == 'push'
