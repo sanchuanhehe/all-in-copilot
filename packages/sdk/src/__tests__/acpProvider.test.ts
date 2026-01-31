@@ -27,12 +27,6 @@ const mockVSCode = {
 
 vi.mock("vscode", () => mockVSCode);
 
-// Type for extractUserContent input - matches the function parameter type
-type ExtractUserContentInput =
-	| { unknown: string }
-	| { value?: string; data?: { type: string; data: number[] } }
-	| { $mid?: number; value?: string };
-
 // Test the UTF-8 decoding logic that was added to acpProvider.ts
 describe("UTF-8 Decoding", () => {
 	// Using TextDecoder instead of manual implementation
