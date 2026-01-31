@@ -273,8 +273,12 @@ private async streamChatResponse(
 				// Set invocation message
 				if (commandText) {
 					const markdown = new vscode.MarkdownString();
-					markdown.appendText(`Running ${toolName}:\n`);
+					markdown.appendText(`🔄 Running ${toolName}:\n`);
 					markdown.appendCodeblock(commandText, "bash");
+					toolPart.invocationMessage = markdown;
+				} else {
+					const markdown = new vscode.MarkdownString();
+					markdown.appendText(`🔄 Running ${toolName}...`);
 					toolPart.invocationMessage = markdown;
 				}
 
@@ -286,6 +290,7 @@ private async streamChatResponse(
 				let terminalOutput = "";
 				if (isTerminal && commandText) {
 					try {
+						console.log(`[ACPChatParticipant] Executing terminal command: ${commandText}`);
 						const result = await executeInTerminal(
 							this.terminalService,  // Use terminalService directly
 							session.sessionId,
@@ -293,8 +298,10 @@ private async streamChatResponse(
 							{ showTerminal: true }
 						);
 						terminalOutput = result.output;
+						console.log(`[ACPChatParticipant] Terminal output length: ${terminalOutput.length}`);
 					} catch (err) {
 						terminalOutput = `Terminal error: ${err instanceof Error ? err.message : String(err)}`;
+						console.error(`[ACPChatParticipant] Terminal error:`, err);
 					}
 				}
 
@@ -358,23 +365,26 @@ private async streamChatResponse(
 
 						// Set past tense message
 						const pastTenseMarkdown = new vscode.MarkdownString();
-						pastTenseMarkdown.appendText(`Executed ${toolName}`);
-						if (toolResultText) {
-							const firstLine = toolResultText.split('\n')[0].substring(0, 100);
-							if (firstLine) {
-								pastTenseMarkdown.appendText(`: ${firstLine}`);
-							}
-						}
+						pastTenseMarkdown.appendText(`✅ ${toolName} completed`);
 						completedToolPart.pastTenseMessage = pastTenseMarkdown;
 
 						// Push completed tool part
 						stream.push(completedToolPart);
 
-						// Also show result in markdown for clarity
-						if (toolResultText && stream.markdown) {
+						// Show result in markdown with clear formatting
+						if ((terminalOutput || toolResultText) && stream.markdown) {
 							const resultMarkdown = new vscode.MarkdownString();
-							resultMarkdown.appendCodeblock(toolResultText.substring(0, 500), "bash");
-							if (toolResultText.length > 500) {
+							resultMarkdown.isTrusted = true;
+
+							// Add header for terminal output
+							if (isTerminalTool(toolName, rawInput)) {
+								resultMarkdown.appendText("### 📟 终端输出\n\n");
+							}
+
+							const outputText = terminalOutput || toolResultText;
+							resultMarkdown.appendCodeblock(outputText, "bash");
+
+							if (outputText.length > 500) {
 								resultMarkdown.appendText("\n_(output truncated)_");
 							}
 							stream.markdown(resultMarkdown);

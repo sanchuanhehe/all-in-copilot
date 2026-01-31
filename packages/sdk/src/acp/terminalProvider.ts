@@ -40,31 +40,52 @@ export class ACPTerminalProvider {
 			showTerminal?: boolean;
 		}
 	): Promise<{ exitCode?: number; output: string }> {
-		// Create terminal with ACP naming convention
-		const terminalName = `ACP (${sessionId.slice(0, 6)})`;
-		const terminal = this.terminalService.createTerminal(
-			terminalName,
-			this.shellPath,
-			this.shellArgs
-		);
-
-		// Show terminal if configured
-		if (options?.showTerminal !== false) {
-			terminal.show();
+		// For simple commands, execute directly and capture output
+		// This provides better feedback than just sending to terminal
+		const execOptions: { encoding: string; cwd?: string; env?: Record<string, string> } = {
+			encoding: "utf8",
+		};
+		if (options?.cwd) {
+			execOptions.cwd = options.cwd;
+		}
+		if (options?.env) {
+			const envWithStrings: Record<string, string> = {};
+			for (const [key, value] of Object.entries(process.env)) {
+				if (value !== undefined) {
+					envWithStrings[key] = value;
+				}
+			}
+			execOptions.env = { ...envWithStrings, ...options.env };
 		}
 
-		// Format command with cwd
-		const fullCommand = options?.cwd
-			? `cd "${options.cwd.replace(/"/g, '\\"')}" && ${command}`
-			: command;
+		// Execute command using child_process
+		const { exec } = await import("child_process");
 
-		// Send command
-		terminal.sendText(fullCommand);
+		return new Promise((resolve) => {
+			// Add timeout to prevent hanging
+			const timeout = setTimeout(() => {
+				resolve({ exitCode: -1, output: "Command timed out" });
+			}, 30000);
 
-		return {
-			exitCode: undefined, // VS Code Terminal API doesn't provide exit codes
-			output: "Command sent to terminal",
-		};
+			exec(command, execOptions, (error, stdout, stderr) => {
+				clearTimeout(timeout);
+				let output = stdout;
+					if (stderr && !error) {
+						output += stderr;
+					}
+
+					let exitCodeVal: number = 0;
+					if (error) {
+						const code = (error as NodeJS.ErrnoException).code;
+						exitCodeVal = typeof code === "number" ? code : (code ? parseInt(String(code), 10) : 1);
+					}
+
+				resolve({
+					exitCode: exitCodeVal,
+					output: output || "",
+				});
+			});
+		});
 	}
 
 	/**
@@ -79,44 +100,43 @@ export class ACPTerminalProvider {
 			showTerminal?: boolean;
 		}
 	): Promise<{ terminal: vscode.Terminal; output: string }> {
-		const terminalName = `ACP (${sessionId.slice(0, 6)})`;
-
-		// Find existing terminal for this session
-		const existingTerminals = await this.terminalService.getCopilotTerminals(sessionId);
-		const knownTerminal = existingTerminals.find(t => t.name === terminalName);
-		let terminal = knownTerminal as vscode.Terminal | undefined;
-
-		// Create if not found
-		if (!terminal) {
-			terminal = this.terminalService.createTerminal(
-				terminalName,
-				this.shellPath,
-				this.shellArgs
-			);
-			await this.terminalService.associateTerminalWithSession(
-				terminal,
-				sessionId,
-				"rich" as ShellIntegrationQuality
-			);
-		}
-
-		// Show terminal
-		if (options?.showTerminal !== false) {
-			terminal.show();
-		}
-
-		// Format command with cwd
-		const fullCommand = options?.cwd
-			? `cd "${options.cwd.replace(/"/g, '\\"')}" && ${command}`
-			: command;
-
-		// Send command
-		terminal.sendText(fullCommand);
-
-		return {
-			terminal,
-			output: "Command sent to terminal",
+		// Execute using shell for better output capture
+		const execOptions: { encoding: string; cwd?: string; env?: Record<string, string> } = {
+			encoding: "utf8",
 		};
+		if (options?.cwd) {
+			execOptions.cwd = options.cwd;
+		}
+		if (options?.env) {
+			const envWithStrings: Record<string, string> = {};
+			for (const [key, value] of Object.entries(process.env)) {
+				if (value !== undefined) {
+					envWithStrings[key] = value;
+				}
+			}
+			execOptions.env = { ...envWithStrings, ...options.env };
+		}
+
+		const { exec } = await import("child_process");
+
+		return new Promise((resolve) => {
+			const timeout = setTimeout(() => {
+				resolve({ terminal: null as unknown as vscode.Terminal, output: "Command timed out" });
+			}, 30000);
+
+			exec(command, execOptions, (error, stdout, stderr) => {
+				clearTimeout(timeout);
+				let output = stdout;
+				if (stderr && !error) {
+					output += stderr;
+				}
+
+				resolve({
+					terminal: null as unknown as vscode.Terminal,
+					output: output || "",
+				});
+			});
+		});
 	}
 
 	/**
