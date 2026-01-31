@@ -10,6 +10,8 @@ on:
         type: choice
         options:
           - all
+          - acp-template
+          - base-template
           - glm-template
           - minimax-template
           - kimi-template
@@ -26,7 +28,7 @@ on:
       - "*-v*"
 
 env:
-  TEMPLATES: glm-template minimax-template kimi-template kimi-coding-template mimo-template
+  TEMPLATES: acp-template base-template glm-template minimax-template kimi-template kimi-coding-template mimo-template
 
 jobs:
   build-sdk:
@@ -65,7 +67,7 @@ jobs:
             TAG="${{ github.ref_name }}"
             if [[ "$TAG" == v* ]]; then
               # Global tag like v1.0.0 - build all
-              echo 'templates=["glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template"]' >> $GITHUB_OUTPUT
+              echo 'templates=["acp-template","base-template","glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template"]' >> $GITHUB_OUTPUT
             else
               # Template-specific tag like glm-template-v0.1.0
               TEMPLATE="${TAG%-v*}"
@@ -74,7 +76,7 @@ jobs:
           else
             # Manual dispatch
             if [[ "${{ inputs.template }}" == "all" ]]; then
-              echo 'templates=["glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template"]' >> $GITHUB_OUTPUT
+              echo 'templates=["acp-template","base-template","glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template"]' >> $GITHUB_OUTPUT
             else
               echo "templates=[\"${{ inputs.template }}\"]" >> $GITHUB_OUTPUT
             fi

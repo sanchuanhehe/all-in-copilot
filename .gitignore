@@ -4,3 +4,12 @@ node_modules
 .vscode-test/
 *.vsix
 .DS_Store
+coverage/
+packages/*/coverage/
+*.log
+.env
+.env.local
+.idea/
+*.swp
+*.swo
+*~

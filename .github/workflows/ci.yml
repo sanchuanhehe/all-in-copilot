@@ -158,13 +158,13 @@ jobs:
         run: pnpm --filter @all-in-copilot/sdk build
 
       - name: Run tests
-        run: pnpm test
+        run: pnpm --filter @all-in-copilot/sdk test -- --run
 
       - name: Upload coverage
         if: github.event_name == 'push'
         uses: codecov/codecov-action@v4
         with:
-          files: ./packages/sdk/coverage/lcov.info
+          files: packages/sdk/coverage/lcov.info
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
