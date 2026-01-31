@@ -56,7 +56,6 @@ function getOrCreateTerminal(sessionId: string, shellName?: string): vscode.Term
 	// Create new terminal
 	const terminalOptions: vscode.TerminalOptions = {
 		name: terminalName,
-		shellIntegration: true,
 	};
 
 	const terminal = vscode.window.createTerminal(terminalOptions);
@@ -84,6 +83,13 @@ class ACPVsCodeTerminal implements IVsCodeTerminal {
 		const state = terminalStateMap.get(this.terminalId);
 		if (state) {
 			state.terminal.hide();
+		}
+	}
+
+	sendText(text: string, _shouldExecute?: boolean): void {
+		const state = terminalStateMap.get(this.terminalId);
+		if (state) {
+			state.terminal.sendText(text);
 		}
 	}
 
@@ -158,7 +164,7 @@ const clientCallbacks: ClientCallbacks = {
 			state.terminal.sendText(state.command);
 		}
 
-		let output = state.output ?? "";
+		const output = state.output ?? "";
 
 		const exitCode = state.exitCode;
 
@@ -224,7 +230,7 @@ const clientCallbacks: ClientCallbacks = {
 	 * Reads a text file using VS Code API.
 	 * Supports optional line and limit parameters for partial file reads.
 	 */
-	async readTextFile(path: string, line?: number, limit?: number): Promise<string> {
+	async readTextFile(path: string, line?: number | null, limit?: number | null): Promise<string> {
 		const uri = vscode.Uri.file(path);
 		const document = await vscode.workspace.openTextDocument(uri);
 		const fullText = document.getText();
@@ -252,9 +258,7 @@ const clientCallbacks: ClientCallbacks = {
 		const uri = vscode.Uri.file(path);
 
 		// Overwrite mode (append not supported in current protocol)
-		const wsEdit = new vscode.WorkspaceEdit();
-		wsEdit.create(uri, { content });
-		await vscode.workspace.applyEdit(wsEdit);
+		await vscode.workspace.fs.writeFile(uri, Buffer.from(content, "utf-8"));
 	},
 
 	/**
@@ -303,7 +307,7 @@ const clientCallbacks: ClientCallbacks = {
 	 * Handles extension method requests from the agent.
 	 * Supports VS Code Copilot tools via extension methods.
 	 */
-	async extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+	async extMethod(method: string, _params: Record<string, unknown>): Promise<Record<string, unknown>> {
 		switch (method) {
 			// Add custom extension methods here
 			// Example:
