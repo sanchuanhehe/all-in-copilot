@@ -5,7 +5,7 @@
  * Supports Claude Code, Gemini CLI, OpenAI Codex, and custom agents.
  */
 
-import type { ACPClientConfig, ACPModelInfo, ClientCallbacks, IVsCodeTerminal, TerminalPermissionService, createTerminalPermissionService, TerminalConfirmationDetails } from "@all-in-copilot/sdk";
+import { createTerminalPermissionService } from "@all-in-copilot/sdk";
 import * as vscode from "vscode";
 import { execSync } from "child_process";
 import { existsSync } from "fs";
