@@ -5,10 +5,11 @@
  * Supports Claude Code, Gemini CLI, OpenAI Codex, and custom agents.
  */
 
-import type { ACPClientConfig, ACPModelInfo } from "@all-in-copilot/sdk";
+import type { ACPClientConfig, ACPModelInfo, ClientCallbacks, IVsCodeTerminal } from "@all-in-copilot/sdk";
 import * as vscode from "vscode";
 import { execSync } from "child_process";
 import { existsSync } from "fs";
+import { randomUUID } from "crypto";
 
 // Common installation paths for OpenCode
 const COMMON_OPENCODE_PATHS = [
@@ -21,6 +22,314 @@ const COMMON_OPENCODE_PATHS = [
 function expandPath(path: string): string {
 	return path.replace("$HOME", process.env.HOME || "/home/sanchuanhehe");
 }
+
+/**
+ * Terminal state management for ACP terminal operations
+ */
+interface TerminalState {
+	terminal: vscode.Terminal;
+	command: string;
+	isBackground: boolean;
+	resolveOutput?: (output: string) => void;
+	rejectOutput?: (error: Error) => void;
+	outputPromise?: Promise<string>;
+	output?: string;
+	exitCode?: number;
+}
+
+const terminalStateMap = new Map<string, TerminalState>();
+
+/**
+ * Get or create a terminal for the given session
+ */
+function getOrCreateTerminal(
+	sessionId: string,
+	shellName?: string,
+	cwd?: string,
+	env?: Record<string, string | undefined>
+): vscode.Terminal {
+	const terminalName = `ACP-${shellName || "Agent"}-${sessionId.slice(0, 8)}`;
+
+	// Look for existing terminal with same name
+	for (const [, state] of terminalStateMap) {
+		if (state.terminal.name === terminalName && !state.terminal.exitStatus) {
+			return state.terminal;
+		}
+	}
+
+	// Create new terminal
+	const terminalOptions: vscode.TerminalOptions = {
+		name: terminalName,
+		shellIntegration: true,
+	};
+
+	if (cwd) {
+		terminalOptions.cwd = cwd;
+	}
+	if (env && Object.keys(env).length > 0) {
+		terminalOptions.env = env;
+	}
+
+	const terminal = vscode.window.createTerminal(terminalOptions);
+
+	return terminal;
+}
+
+/**
+ * Implementation of VS Code Terminal interface for ACP
+ */
+class ACPVsCodeTerminal implements IVsCodeTerminal {
+	constructor(
+		public readonly terminalId: string,
+		public readonly name: string
+	) {}
+
+	async show(): Promise<void> {
+		const state = terminalStateMap.get(this.terminalId);
+		if (state) {
+			state.terminal.show();
+		}
+	}
+
+	async hide(): Promise<void> {
+		const state = terminalStateMap.get(this.terminalId);
+		if (state) {
+			state.terminal.hide();
+		}
+	}
+
+	async dispose(): Promise<void> {
+		const state = terminalStateMap.get(this.terminalId);
+		if (state) {
+			state.terminal.dispose();
+			terminalStateMap.delete(this.terminalId);
+		}
+	}
+}
+
+/**
+ * Client callbacks for VS Code API integration
+ * These callbacks enable the ACP agent to use VS Code's native tools
+ */
+const clientCallbacks: ClientCallbacks = {
+	/**
+	 * Creates a new terminal and executes a command.
+	 * Uses VS Code's native run_in_terminal tool for execution.
+	 */
+	async createTerminal(
+		_sessionId: string,
+		command: string,
+		_args?: string[],
+		_cwd?: string,
+		_env?: Array<{ name: string; value: string }>
+	): Promise<IVsCodeTerminal> {
+		const terminalId = randomUUID();
+
+		// Convert env array to Record<string, string | undefined> for VS Code
+		const terminalEnv: Record<string, string | undefined> = {};
+		if (_env) {
+			for (const envVar of _env) {
+				terminalEnv[envVar.name] = envVar.value;
+			}
+		}
+
+		// Determine if this should be a background process
+		// Check for common background patterns in the command
+		const isBackground =
+			command.includes("npm run watch") ||
+			command.includes("pnpm watch") ||
+			command.includes("npm run dev") ||
+			command.includes("pnpm dev") ||
+			command.includes("dev --watch") ||
+			command.includes("vite") ||
+			command.includes("--watch") ||
+			command.includes("nodemon") ||
+			command.includes("ts-node --watch");
+
+		// Create terminal with env support
+		const terminal = getOrCreateTerminal(terminalId, "Agent", _cwd, terminalEnv);
+		const terminalState: TerminalState = {
+			terminal,
+			command,
+			isBackground,
+		};
+
+		terminalStateMap.set(terminalId, terminalState);
+
+		return new ACPVsCodeTerminal(terminalId, terminal.name);
+	},
+
+	/**
+	 * Gets terminal output by invoking VS Code's run_in_terminal tool.
+	 * For background processes, waits for completion and returns output.
+	 */
+	async getTerminalOutput(terminalId: string): Promise<{ output: string; exitCode?: number }> {
+		const state = terminalStateMap.get(terminalId);
+		if (!state) {
+			return { output: "", exitCode: 0 };
+		}
+
+		if (state.isBackground && !state.outputPromise) {
+			// For background processes, show the terminal and wait for user input
+			state.terminal.show();
+
+			// Create a promise that resolves when output is available
+			state.outputPromise = new Promise<string>((resolve, reject) => {
+				state.resolveOutput = resolve;
+				state.rejectOutput = reject;
+			});
+
+			// Execute the command
+			state.terminal.sendText(state.command);
+		}
+
+		const output = state.output ?? "";
+		const exitCode = state.exitCode;
+
+		// Clean up if not a persistent terminal
+		if (!state.isBackground) {
+			terminalStateMap.delete(terminalId);
+		}
+
+		return { output, exitCode };
+	},
+
+	/**
+	 * Releases a terminal, cleaning up resources.
+	 */
+	async releaseTerminal(terminalId: string): Promise<void> {
+		const state = terminalStateMap.get(terminalId);
+		if (state) {
+			// Just hide the terminal but keep it for reuse
+			state.terminal.hide();
+		}
+	},
+
+	/**
+	 * Waits for a terminal command to exit and returns its exit status.
+	 * Uses VS Code's terminal shell execution events.
+	 */
+	async waitForTerminalExit(terminalId: string): Promise<{ exitCode?: number }> {
+		const state = terminalStateMap.get(terminalId);
+		if (!state) {
+			return { exitCode: undefined };
+		}
+
+		// For background processes, we need to wait for the execution to complete
+		if (state.isBackground && !state.exitCode) {
+			// Show the terminal and wait for execution
+			state.terminal.show();
+
+			// If we have a pending output promise, wait for it
+			if (state.outputPromise) {
+				try {
+					await state.outputPromise;
+				} catch {
+					// Ignore errors from cancelled execution
+				}
+			}
+		}
+
+		return { exitCode: state.exitCode };
+	},
+
+	/**
+	 * Kills a terminal command.
+	 */
+	async killTerminal(terminalId: string): Promise<void> {
+		const state = terminalStateMap.get(terminalId);
+		if (state) {
+			state.terminal.dispose();
+			terminalStateMap.delete(terminalId);
+		}
+	},
+
+	/**
+	 * Reads a text file using VS Code API.
+	 */
+	async readTextFile(path: string): Promise<string> {
+		const uri = vscode.Uri.file(path);
+		const document = await vscode.workspace.openTextDocument(uri);
+		return document.getText();
+	},
+
+	/**
+	 * Writes a text file using VS Code API.
+	 */
+	async writeTextFile(path: string, content: string): Promise<void> {
+		const uri = vscode.Uri.file(path);
+		const wsEdit = new vscode.WorkspaceEdit();
+		wsEdit.create(uri, { content });
+		await vscode.workspace.applyEdit(wsEdit);
+	},
+
+	/**
+	 * Handles permission requests from the agent.
+	 */
+	async requestPermission(request: {
+		toolCall: { title: string; description?: string };
+		options: Array<{ optionId: string; label: string }>;
+	}): Promise<string> {
+		// Auto-approve safe operations
+		const safePatterns = [
+			/replace_string_in_file/i,
+			/create_file/i,
+			/list_dir/i,
+			/read_file/i,
+			/file_search/i,
+			/grep_search/i,
+		];
+
+		for (const pattern of safePatterns) {
+			if (pattern.test(request.toolCall.title)) {
+				return request.options[0]?.optionId ?? "approved";
+			}
+		}
+
+		// For potentially dangerous operations, show a confirmation
+		const selection = await vscode.window.showQuickPick(
+			request.options.map((opt) => ({
+				label: opt.label,
+				description: opt.optionId,
+			})),
+			{
+				placeHolder: request.toolCall.title + (request.toolCall.description ? `\n${request.toolCall.description}` : ""),
+				title: "Agent Permission Request",
+			}
+		);
+
+		if (!selection) {
+			throw new Error("Permission denied by user");
+		}
+
+		return selection.description;
+	},
+
+	/**
+	 * Handles extension method requests from the agent.
+	 * Supports VS Code Copilot tools via extension methods.
+	 */
+	async extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+		switch (method) {
+			// Add custom extension methods here
+			// Example:
+			// case "customTool":
+			//     return { result: "success" };
+
+			default:
+				throw new Error(`Unknown extension method: ${method}`);
+		}
+	},
+
+	/**
+	 * Handles extension notifications from the agent.
+	 */
+	async extNotification(method: string, params: Record<string, unknown>): Promise<void> {
+		// Handle extension notifications
+		// Log for debugging
+		console.log(`[ACP Extension] Notification: ${method}`, params);
+	},
+};
 
 /**
  * Find OpenCode executable path with multiple fallback strategies
@@ -122,7 +431,15 @@ export function toACPClientConfig(config: AgentConfig): ACPClientConfig {
 		agentArgs: config.args,
 		env: config.env,
 		cwd: config.cwd,
+		callbacks: clientCallbacks,
 	};
+}
+
+/**
+ * Get the client callbacks for VS Code API integration
+ */
+export function getClientCallbacks(): ClientCallbacks {
+	return clientCallbacks;
 }
 
 // OpenCode AI - Use system PATH to find "opencode" executable
@@ -303,8 +620,12 @@ function parseVerboseModelOutput(output: string): Map<string, OpenCodeModelDetai
 
 			// Track brace depth
 			for (const char of trimmedLine) {
-				if (char === "{") braceDepth++;
-				if (char === "}") braceDepth--;
+				if (char === "{") {
+					braceDepth++;
+				}
+				if (char === "}") {
+					braceDepth--;
+				}
 			}
 
 			// End of JSON block

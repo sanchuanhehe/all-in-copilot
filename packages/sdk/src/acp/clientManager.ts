@@ -25,7 +25,7 @@ import {
 	KillTerminalCommandRequest,
 	KillTerminalCommandResponse,
 } from "@agentclientprotocol/sdk";
-import { ndJsonStream } from "@agentclientprotocol/sdk";
+import { ndJsonStream, type EnvVariable } from "@agentclientprotocol/sdk";
 
 // Re-export types from SDK for convenience
 export type {
@@ -137,7 +137,6 @@ export interface MCPServerConfig {
 	args?: string[];
 	env?: Array<{ name: string; value: string }>;
 }
-
 /**
  * VS Code Terminal instance interface (for terminal management).
  * This provides a platform-agnostic interface for terminal operations.
@@ -162,8 +161,15 @@ export interface ClientCallbacks {
 	 * @param command The command to execute
 	 * @param args Command arguments
 	 * @param cwd Working directory
+	 * @param env Environment variables
 	 */
-	createTerminal?: (sessionId: string, command: string, args?: string[], cwd?: string) => Promise<IVsCodeTerminal>;
+	createTerminal?: (
+		sessionId: string,
+		command: string,
+		args?: string[],
+		cwd?: string,
+		env?: Array<{ name: string; value: string }>
+	) => Promise<IVsCodeTerminal>;
 	/**
 	 * Gets terminal output.
 	 */
@@ -196,6 +202,18 @@ export interface ClientCallbacks {
 		toolCall: { title: string; description?: string };
 		options: Array<{ optionId: string; label: string }>;
 	}) => Promise<string>;
+
+	/**
+	 * Handles extension method requests from the agent.
+	 * Allows agents to call custom methods not part of the ACP spec.
+	 */
+	extMethod?: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+
+	/**
+	 * Handles extension notifications from the agent.
+	 * Allows agents to send custom notifications not part of the ACP spec.
+	 */
+	extNotification?: (method: string, params: Record<string, unknown>) => Promise<void>;
 }
 
 /**
@@ -661,7 +679,7 @@ export class ACPClientManager {
 	 */
 	private createClientImplementation(config: ACPClientConfig) {
 		const callbacks = config.callbacks ?? {};
-		const terminalIdToHandle = new Map<string, { name: string; command: string; args?: string[]; cwd?: string }>();
+		const terminalIdToHandle = new Map<string, { name: string; command: string; args?: string[]; cwd?: string; env?: Array<EnvVariable> }>();
 
 		// Capture reference to sessionUpdateListeners for use in callbacks
 		const sessionUpdateListeners = this.sessionUpdateListeners;
@@ -774,14 +792,16 @@ export class ACPClientManager {
 			async createTerminal(params: CreateTerminalRequest): Promise<CreateTerminalResponse> {
 				const terminalId = `terminal-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 				const cwd = params.cwd ?? undefined;
+				const env = params.env ?? undefined;
 
 				if (callbacks.createTerminal) {
-					const terminal = await callbacks.createTerminal(params.sessionId, params.command, params.args, cwd);
+					const terminal = await callbacks.createTerminal(params.sessionId, params.command, params.args, cwd, env);
 					terminalIdToHandle.set(terminal.terminalId, {
 						name: terminal.name,
 						command: params.command,
 						args: params.args,
 						cwd,
+						env,
 					});
 					return { terminalId: terminal.terminalId };
 				}
@@ -792,6 +812,7 @@ export class ACPClientManager {
 					command: params.command,
 					args: params.args,
 					cwd,
+					env,
 				});
 
 				console.log(`[ACP Client] Terminal created: ${params.command} ${(params.args ?? []).join(" ")}`);
@@ -844,6 +865,25 @@ export class ACPClientManager {
 			async killTerminal(params: KillTerminalCommandRequest): Promise<KillTerminalCommandResponse | void> {
 				if (callbacks.killTerminal) {
 					await callbacks.killTerminal(params.terminalId);
+				}
+			},
+
+			/**
+			 * Handles extension method requests from the agent.
+			 */
+			async extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+				if (callbacks.extMethod) {
+					return await callbacks.extMethod(method, params);
+				}
+				throw new Error(`Unknown method: ${method}`);
+			},
+
+			/**
+			 * Handles extension notifications from the agent.
+			 */
+			async extNotification(method: string, params: Record<string, unknown>): Promise<void> {
+				if (callbacks.extNotification) {
+					callbacks.extNotification(method, params);
 				}
 			},
 		};

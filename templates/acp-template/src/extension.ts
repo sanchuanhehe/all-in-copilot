@@ -6,9 +6,7 @@
  */
 
 import * as vscode from "vscode";
-import { existsSync, statSync, accessSync, constants } from "fs";
 import { ACPClientManager, ACPProvider, type ContentBlock } from "@all-in-copilot/sdk";
-import type { ACPModelInfo } from "@all-in-copilot/sdk";
 import { AGENT_CONFIG, getACPModels, getOpenCodeConfig, getWorkspaceFolder, toACPClientConfig } from "./config";
 
 /**
@@ -317,13 +315,13 @@ async function showConfigurationPanel(): Promise<void> {
 async function restartAgent(): Promise<void> {
 	const agentConfig = getAgentConfig();
 
-	const _progress = await vscode.window.withProgress(
+	await vscode.window.withProgress(
 		{
 			location: vscode.ProgressLocation.Notification,
 			title: `Restarting ${agentConfig.name}...`,
 			cancellable: false,
 		},
-		async () => {
+		async (_progress) => {
 			try {
 				// Dispose of existing connections
 				if (acpProvider) {

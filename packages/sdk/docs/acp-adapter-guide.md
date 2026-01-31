@@ -1062,6 +1062,20 @@ interface ClientCallbacks {
 		toolCall: { title: string; description?: string };
 		options: Array<{ optionId: string; label: string }>;
 	}) => Promise<string>;
+
+	/**
+	 * 处理扩展方法请求
+	 * 当 Agent 调用非 ACP 标准方法时触发
+	 * 用于支持自定义功能，如 VS Code Copilot 工具
+	 * 返回值必须是 Record<string, unknown>
+	 */
+	extMethod?: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+
+	/**
+	 * 处理扩展通知
+	 * 当 Agent 发送非 ACP 标准通知时触发
+	 */
+	extNotification?: (method: string, params: Record<string, unknown>) => Promise<void>;
 }
 
 /**
