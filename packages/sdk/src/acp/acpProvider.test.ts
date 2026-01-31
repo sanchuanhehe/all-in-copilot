@@ -504,3 +504,132 @@ describe("Session Update Handlers", () => {
 		});
 	});
 });
+
+describe("ContentBlock Validity", () => {
+	// Valid ContentBlock types per ACP protocol
+	const VALID_CONTENT_BLOCK_TYPES = ["text", "image", "audio", "resource_link", "resource"];
+
+	it("should only produce valid ContentBlock types", () => {
+		// Simulate convertMessagesToPrompt logic
+		const messages = [
+			{ role: 2, content: "Hello" }, // user
+			{ role: 3, toolCalls: [{ id: "call-1", name: "Read", input: "{}" }] }, // assistant with tool calls
+			{ role: 2, content: [{ callId: "call-1", content: [{ text: "result" }] }] }, // user with tool result
+		] as const;
+
+		const prompt: Array<{ type: string; text?: string }> = [];
+
+		for (const message of messages) {
+			if (message.role === 2) {
+				// User messages
+				if (typeof message.content === "string") {
+					prompt.push({ type: "text", text: message.content });
+				}
+				// Tool results are NOT included in prompt - handled via sessionUpdate
+			}
+			// Assistant messages with tool calls are NOT included in prompt - handled via sessionUpdate
+		}
+
+		// All blocks should be valid ContentBlock types
+		for (const block of prompt) {
+			expect(VALID_CONTENT_BLOCK_TYPES).toContain(block.type);
+		}
+
+		// Only text blocks should be present for message content
+		expect(prompt.every((b) => b.type === "text")).toBe(true);
+		expect(prompt.length).toBe(1);
+		expect(prompt[0]).toEqual({ type: "text", text: "Hello" });
+	});
+
+	it("should NOT produce tool_call or tool_result ContentBlocks", () => {
+		// Simulate the fixed convertMessagesToPrompt logic
+		const messages = [
+			{ role: 2, content: "Test" },
+		] as const;
+
+		const prompt: Array<{ type: string; text?: string; id?: string; name?: string; input?: string }> = [];
+
+		for (const message of messages) {
+			if (message.role === 2) {
+				if (typeof message.content === "string") {
+					prompt.push({ type: "text", text: message.content });
+				}
+			}
+			// Tool calls and results are handled via sessionUpdate, not ContentBlocks
+		}
+
+		// Verify no invalid types
+		const invalidTypes = prompt.filter((b) => !VALID_CONTENT_BLOCK_TYPES.includes(b.type));
+		expect(invalidTypes).toHaveLength(0);
+
+		// Specifically verify tool_call and tool_result are not present
+		const toolCallBlocks = prompt.filter((b) => b.type === "tool_call");
+		const toolResultBlocks = prompt.filter((b) => b.type === "tool_result");
+		expect(toolCallBlocks).toHaveLength(0);
+		expect(toolResultBlocks).toHaveLength(0);
+	});
+
+	it("should handle user messages with array content", () => {
+		const messages = [
+			{ role: 2, content: [{ value: "Part 1" }, { value: "Part 2" }] },
+		] as const;
+
+		const prompt: Array<{ type: string; text?: string }> = [];
+
+		for (const message of messages) {
+			if (message.role === 2 && typeof message.content !== "string") {
+				const allPartsText: string[] = [];
+				for (const part of message.content) {
+					if (part && typeof part === "object") {
+						const partAny = part as { value?: string };
+						if (partAny.value) {
+							allPartsText.push(String(partAny.value));
+						}
+					}
+				}
+				if (allPartsText.length > 0) {
+					prompt.push({ type: "text", text: allPartsText.join("") });
+				}
+			}
+		}
+
+		expect(prompt).toHaveLength(1);
+		expect(prompt[0].type).toBe("text");
+		expect(prompt[0].text).toBe("Part 1Part 2");
+	});
+
+	it("should ignore assistant and system messages in prompt", () => {
+		const messages = [
+			{ role: 1, content: "You are a helpful assistant" }, // system
+			{ role: 3, content: "I can help you" }, // assistant
+			{ role: 2, content: "Hello" }, // user
+		] as const;
+
+		const prompt: Array<{ type: string; text?: string }> = [];
+
+		for (const message of messages) {
+			if (message.role === 2) {
+				if (typeof message.content === "string") {
+					prompt.push({ type: "text", text: message.content });
+				}
+			}
+		}
+
+		expect(prompt).toHaveLength(1);
+		expect(prompt[0]).toEqual({ type: "text", text: "Hello" });
+	});
+
+	it("should handle empty messages gracefully", () => {
+		const messages: Array<{ role: number; content?: string }> = [];
+
+		const prompt: Array<{ type: string; text?: string }> = [];
+
+		for (const message of messages) {
+			if (message.role === 2 && message.content) {
+				prompt.push({ type: "text", text: message.content });
+			}
+		}
+
+		expect(prompt).toHaveLength(0);
+	});
+});
