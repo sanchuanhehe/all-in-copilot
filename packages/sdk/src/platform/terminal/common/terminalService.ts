@@ -127,6 +127,26 @@ export interface ITerminalService {
 	removePathContribution(contributor: string): void;
 
 	/**
+	 * Get the working directory for a specific session
+	 * @param sessionId The session identifier
+	 */
+	getCwdForSession(sessionId: string): Promise<vscode.Uri | undefined>;
+
+	/**
+	 * Get all terminals associated with a specific session
+	 * @param sessionId The session identifier
+	 */
+	getCopilotTerminals(sessionId: string): Promise<IKnownTerminal[]>;
+
+	/**
+	 * Associate a terminal with a session
+	 * @param terminal The terminal to associate
+	 * @param sessionId The session identifier
+	 * @param shellIntegrationQuality The quality of shell integration
+	 */
+	associateTerminalWithSession(terminal: vscode.Terminal, sessionId: string, shellIntegrationQuality: ShellIntegrationQuality): Promise<void>;
+
+	/**
 	 * Clean up resources
 	 */
 	dispose(): void;
@@ -231,6 +251,18 @@ export class NullTerminalService implements ITerminalService {
 	}
 
 	removePathContribution(): void {
+		// No-op for null service
+	}
+
+	async getCwdForSession(): Promise<vscode.Uri | undefined> {
+		return undefined;
+	}
+
+	async getCopilotTerminals(): Promise<IKnownTerminal[]> {
+		return [];
+	}
+
+	async associateTerminalWithSession(): Promise<void> {
 		// No-op for null service
 	}
 

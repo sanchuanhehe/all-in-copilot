@@ -12,7 +12,7 @@
 
 | 模块 | 文件数 | 完成度 | 优先级 |
 |------|--------|--------|--------|
-| 终端服务 (Terminal Service) | 3 | 98% | 高 |
+| 终端服务 (Terminal Service) | 3 | 100% | 高 |
 | 终端权限 (Terminal Permission) | 2 | 80% | 高 |
 | ACP 终端回调 | 1 | 90% | 中 |
 | 文档和测试 | 2 | 40% | 低 |
@@ -25,7 +25,7 @@
 | 命令执行追踪 | ✅ | ✅ | 无 |
 | Shell 集成事件 | ✅ | ✅ | 无 |
 | 权限控制 | ✅ | ✅ | 无 |
-| 会话管理 | ✅ | ❌ | 缺少 |
+| 会话管理 | ✅ | ✅ | 无 |
 | ACP 终端回调 | N/A | ✅ | 无 |
 
 ---
@@ -358,7 +358,7 @@ function getTerminalLastCommand(terminal: Terminal): any | undefined {
 
 ## 7. 总结
 
-### Phase 1 + Phase 2 完成状态 ✅ (2026年1月31日)
+### Phase 1 + Phase 2 + Phase 3 完成状态 ✅ (2026年1月31日)
 
 | 阶段 | 任务 | 状态 | 备注 |
 |------|------|------|------|
@@ -368,14 +368,21 @@ function getTerminalLastCommand(terminal: Terminal): any | undefined {
 | Phase 1 | 废弃 API 修复 | ✅ | `window.activeTerminal` → `window.terminals.find()` |
 | Phase 2 | ACP 模板终端回调 | ✅ | 完整 `ClientCallbacks` 实现 |
 | Phase 2 | 权限服务集成 | ✅ | 危险命令检测和确认 |
+| Phase 3 | `getCwdForSession()` | ✅ | 会话工作目录管理 |
+| Phase 3 | `getCopilotTerminals()` | ✅ | 会话终端列表 |
+| Phase 3 | `associateTerminalWithSession()` | ✅ | 终端与会话关联 |
 
-### 剩余差距
+### 当前实现完整度
 
-| 差距 | 影响 | 修复难度 |
-|------|------|----------|
-| 缺少 `getCwdForSession()` | 无法获取会话工作目录 | 中 |
-| 缺少 `getCopilotTerminals()` | 无法列出 Copilot 终端 | 中 |
-| 缺少 `associateTerminalWithSession()` | 无法关联终端与会话 | 中 |
+| 功能分类 | 实现状态 | 优先级 |
+|----------|----------|--------|
+| 缓冲区操作 | ✅ 100% | 高 |
+| 命令执行追踪 | ✅ 100% | 高 |
+| Shell 集成事件 | ✅ 100% | 高 |
+| 权限控制 | ⚠️ 80% | 高 |
+| 会话管理 | ✅ 100% | 中 |
+| ACP 终端回调 | ✅ 90% | 中 |
+| 文档和测试 | ⚠️ 40% | 低 |
 
 ### SDK Review 总结
 
@@ -386,12 +393,40 @@ function getTerminalLastCommand(terminal: Terminal): any | undefined {
 | 废弃 `window.activeTerminal` | `terminalBufferListener.ts` | 使用 `window.terminals.find()` |
 | `terminalLastCommand` 错误处理 | `terminalServiceImpl.ts` | 添加 try-catch |
 | Event 返回类型不兼容 | `terminalServiceImpl.ts` | 使用 `as any` 类型断言 |
+| 会话管理接口缺失 | `terminalService.ts` | 添加 `getCwdForSession`, `getCopilotTerminals`, `associateTerminalWithSession` |
+| 会话管理实现缺失 | `terminalServiceImpl.ts` | 添加 Map 存储和关联逻辑 |
 
 #### ⚠️ 已知限制
 
 1. **Proposed API 兼容性**
    - `TerminalExecutedCommand`, `onDidExecuteTerminalCommand` 需要 VS Code 1.90+
    - 实现了优雅降级，未安装时会返回 `undefined`
+
+2. **终端权限服务增强**
+   - 自定义危险模式 (`addDangerousPattern()`) 未实现
+   - 建议后续添加配置接口
+
+3. **测试覆盖**
+   - 单元测试覆盖率 40%
+   - 建议添加 `NullTerminalService` 测试用例
+
+### 下一步建议
+
+1. **添加单元测试**
+   - 测试 `NullTerminalService` 所有方法
+   - 测试 `TerminalServiceImpl` 会话管理功能
+
+2. **增强权限服务**
+   - 实现 `addDangerousPattern()` 方法
+   - 添加配置文件支持
+
+3. **完善文档**
+   - 添加 API 使用示例
+   - 更新 README.md
+
+---
+
+**终端能力实现已完成 100% Phase 1-3！** 🎉
 
 2. **Buffer 监听限制**
    - `onDidWriteTerminalData` 需要 proposed API

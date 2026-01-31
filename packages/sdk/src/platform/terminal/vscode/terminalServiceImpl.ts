@@ -5,9 +5,9 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, ExtensionTerminalOptions, Terminal, TerminalExecutedCommand, TerminalOptions, Event, window } from 'vscode';
+import { Disposable, ExtensionTerminalOptions, Terminal, TerminalExecutedCommand, TerminalOptions, Event, window, Uri } from 'vscode';
 import * as path from 'path';
-import { ITerminalService } from '../common/terminalService';
+import { ITerminalService, ShellIntegrationQuality, IKnownTerminal } from '../common/terminalService';
 import {
 	getActiveTerminalBuffer,
 	getActiveTerminalLastCommand,
@@ -51,6 +51,26 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Disposables for cleanup
 	 */
 	private readonly disposables: { dispose(): void }[] = [];
+
+	/**
+	 * Session to terminal associations
+	 */
+	private readonly sessionTerminals: Map<string, Set<Terminal>> = new Map();
+
+	/**
+	 * Session to working directory mapping
+	 */
+	private readonly sessionCwds: Map<string, Uri> = new Map();
+
+	/**
+	 * Terminal to session association
+	 */
+	private readonly terminalSessions: Map<Terminal, string> = new Map();
+
+	/**
+	 * Shell integration quality tracking
+	 */
+	private readonly terminalShellQuality: Map<Terminal, ShellIntegrationQuality> = new Map();
 
 	constructor(
 		private readonly extensionContext: {
@@ -295,6 +315,57 @@ export class TerminalServiceImpl implements ITerminalService {
 			const pathVariableChange = path.delimiter + allPaths.join(path.delimiter);
 			this.environmentVariableCollection.append(pathVariable, pathVariableChange);
 		}
+	}
+
+	/**
+	 * Get the working directory for a specific session
+	 * @param sessionId The session identifier
+	 */
+	async getCwdForSession(sessionId: string): Promise<Uri | undefined> {
+		return this.sessionCwds.get(sessionId);
+	}
+
+	/**
+	 * Get all terminals associated with a specific session
+	 * @param sessionId The session identifier
+	 */
+	async getCopilotTerminals(sessionId: string): Promise<IKnownTerminal[]> {
+		const terminals = this.sessionTerminals.get(sessionId);
+		if (!terminals) {
+			return [];
+		}
+
+		return Array.from(terminals).filter(t => {
+			// Filter out closed terminals
+			return !t.exitStatus;
+		}).map(t => t as IKnownTerminal);
+	}
+
+	/**
+	 * Associate a terminal with a session
+	 * @param terminal The terminal to associate
+	 * @param sessionId The session identifier
+	 * @param shellIntegrationQuality The quality of shell integration
+	 */
+	async associateTerminalWithSession(terminal: Terminal, sessionId: string, shellIntegrationQuality: ShellIntegrationQuality): Promise<void> {
+		// Store the association
+		if (!this.sessionTerminals.has(sessionId)) {
+			this.sessionTerminals.set(sessionId, new Set());
+		}
+		this.sessionTerminals.get(sessionId)!.add(terminal);
+		this.terminalSessions.set(terminal, sessionId);
+		this.terminalShellQuality.set(terminal, shellIntegrationQuality);
+
+		// Listen for terminal close to clean up association
+		const dispose = window.onDidCloseTerminal((e) => {
+			if (e === terminal) {
+				this.sessionTerminals.get(sessionId)?.delete(terminal);
+				this.terminalSessions.delete(terminal);
+				this.terminalShellQuality.delete(terminal);
+				dispose.dispose();
+			}
+		});
+		this.disposables.push(dispose);
 	}
 }
 
