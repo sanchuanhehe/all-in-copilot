@@ -34,5 +34,8 @@ export type {
 	KillTerminalCommandResponse,
 } from "@agentclientprotocol/sdk";
 
-// VS Code ACP Integration
+// VS Code ACP Integration - LanguageModelChatProvider (stable API)
 export { ACPProvider, registerACPProvider, type ACPModelInfo, type ACPProviderOptions } from "./acpProvider";
+
+// VS Code ACP Integration - ChatParticipant (rich UI with ChatToolInvocationPart)
+export { ACPChatParticipant, registerACPChatParticipant, type ACPChatParticipantOptions } from "./acpChatParticipant";
