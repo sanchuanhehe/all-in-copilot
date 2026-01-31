@@ -23,8 +23,10 @@ export interface ACPChatParticipantOptions {
 	defaultModel?: string;
 	/** ACP client configuration */
 	clientConfig: ACPClientConfig;
-	/** Client info */
+	/** Client info (optional, will use defaults if not provided) */
 	clientInfo?: { name?: string; version?: string };
+	/** Optional external ACPClientManager for lifecycle management */
+	clientManager?: ACPClientManager;
 }
 
 /**
@@ -92,7 +94,9 @@ export class ACPChatParticipant {
 	private readonly clientManager: ACPClientManager;
 	private readonly sessions = new Map<string, ACPSession>();
 	private connection: ClientSideConnection | null = null;
-	private disposable: vscode.Disposable;
+	private participant: vscode.ChatParticipant | null = null;
+	private participantDisposable: vscode.Disposable;
+	private ownsClientManager: boolean = false;
 
 	// Required by ChatParticipant (proposed API) - using EventEmitter for compatibility
 	// Note: These may not be available in stable VS Code API
@@ -104,21 +108,36 @@ export class ACPChatParticipant {
 		this.id = options.id;
 		this.name = options.name;
 		this.options = options;
-		this.clientManager = new ACPClientManager(options.clientInfo);
+
+		// Use external clientManager or create a new one
+		if (options.clientManager) {
+			this.clientManager = options.clientManager;
+			this.ownsClientManager = false;
+		} else {
+			this.clientManager = new ACPClientManager(options.clientInfo);
+			this.ownsClientManager = true;
+		}
 
 		// Create the chat request handler
 		const boundHandler = this.requestHandler.bind(this);
 
 		// Register this participant with VS Code using proposed API
-		this.disposable = vscode.chat.createChatParticipant(
+		this.participant = vscode.chat.createChatParticipant(
 			this.id,
 			boundHandler
 		);
 
 		// Configure participant properties if supported
-		if (options.description && "helpTextPrefix" in this.disposable) {
-			// Some versions support helpTextPrefix
+		if (options.description) {
+			// @ts-expect-error - ChatParticipant is a proposed API
+			this.participant.helpTextPrefix = options.description;
 		}
+		if (options.iconPath) {
+			this.participant.iconPath = options.iconPath;
+		}
+
+		// The participant itself is disposable
+		this.participantDisposable = this.participant as unknown as vscode.Disposable;
 	}
 
 	/**
@@ -360,9 +379,14 @@ export class ACPChatParticipant {
 	 * Dispose of this participant
 	 */
 	dispose(): void {
-		this.disposable.dispose();
-		this.clientManager.dispose();
+		this.participantDisposable?.dispose();
+		// Only dispose clientManager if we own it
+		if (this.ownsClientManager) {
+			this.clientManager.dispose();
+		}
 		this.sessions.clear();
+		this.connection = null;
+		this.participant = null;
 	}
 }
 
