@@ -22,7 +22,7 @@
 		"watch": "tsc --watch",
 		"test": "vitest",
 		"test:run": "vitest run",
-		"download-api": "cd src/vscode && npx @vscode/dts dev && npx @vscode/dts main",
+		"download-api": "npx @vscode/dts dev && npx @vscode/dts main && mv ./vscode.d.ts src/vscode 2>/dev/null || true && mv ./vscode.proposed.*.d.ts src/vscode 2>/dev/null || true",
 		"postinstall": "npm run download-api 2>/dev/null || true"
 	},
 	"enabledApiProposals": [
