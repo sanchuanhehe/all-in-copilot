@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sdk";
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
 import { ACPTerminalProvider, executeInTerminal } from "./terminalProvider";
+import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
 
 /**
  * Options for the ACP Chat Participant.
@@ -94,6 +95,7 @@ export class ACPChatParticipant {
 	private readonly options: ACPChatParticipantOptions;
 	private readonly clientManager: ACPClientManager;
 	private readonly terminalProvider: ACPTerminalProvider;
+	private readonly terminalService: TerminalServiceImpl; // Store service for executeInTerminal calls
 	private readonly sessions = new Map<string, ACPSession>();
 	private connection: ClientSideConnection | null = null;
 	private participant: vscode.ChatParticipant | null = null;
@@ -120,14 +122,17 @@ export class ACPChatParticipant {
 			this.ownsClientManager = true;
 		}
 
-		// Create terminal provider for real VS Code terminal integration
-		this.terminalProvider = new ACPTerminalProvider(
-			options.clientConfig.extensionContext,
-			{
-				shellPath: options.clientConfig.shellPath,
-				shellArgs: options.clientConfig.shellArgs,
-			}
-		);
+		// Create terminal service for real VS Code terminal integration
+		const terminalService = new TerminalServiceImpl({
+			environmentVariableCollection: {} as { append: (v: string, val: string) => void; prepend: (v: string, val: string) => void; delete: (v: string) => void; description?: string },
+		});
+		this.terminalService = terminalService;
+
+		// Create terminal provider using ITerminalService
+		this.terminalProvider = new ACPTerminalProvider(terminalService, {
+			shellPath: options.clientConfig.shellPath,
+			shellArgs: options.clientConfig.shellArgs,
+		});
 
 		// Create the chat request handler
 		const boundHandler = this.requestHandler.bind(this);
@@ -282,7 +287,7 @@ private async streamChatResponse(
 				if (isTerminal && commandText) {
 					try {
 						const result = await executeInTerminal(
-							this.terminalProvider,
+							this.terminalService,  // Use terminalService directly
 							session.sessionId,
 							commandText,
 							{ showTerminal: true }
