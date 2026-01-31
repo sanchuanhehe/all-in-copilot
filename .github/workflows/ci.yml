@@ -161,10 +161,12 @@ jobs:
         run: pnpm test
 
       - name: Upload coverage
+        if: github.event_name == 'push'
         uses: codecov/codecov-action@v4
         with:
           files: ./packages/sdk/coverage/lcov.info
           fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   # Security audit
   security:

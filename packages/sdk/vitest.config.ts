@@ -8,6 +8,8 @@ export default defineConfig({
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "json", "html"],
+			reportOn: "all",
+			exclude: ["**/*.test.ts", "**/vitest.config.ts"],
 		},
 	},
 });
