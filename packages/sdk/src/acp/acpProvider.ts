@@ -377,6 +377,8 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 
 	/**
 	 * Converts VS Code messages to ACP ContentBlocks.
+	 * Note: Tool calls and results are handled through sessionUpdate notifications,
+	 * not through ContentBlocks in the prompt.
 	 */
 	private convertMessagesToPrompt(messages: readonly vscode.LanguageModelChatRequestMessage[]): ContentBlock[] {
 		const prompt: ContentBlock[] = [];
@@ -387,85 +389,9 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				if (content) {
 					prompt.push({ type: "text", text: content });
 				}
-			} else if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
-				// Assistant messages can include tool calls - check for toolCalls property
-				const messageAny = message as {
-					toolCalls?: Array<{ id: string; name: string; input: unknown }>;
-					content?: unknown;
-				};
-				if (messageAny.toolCalls) {
-					for (const toolCall of messageAny.toolCalls) {
-						prompt.push({
-							type: "tool_call",
-							id: toolCall.id,
-							name: toolCall.name,
-							input: typeof toolCall.input === "string" ? toolCall.input : JSON.stringify(toolCall.input),
-						} as ContentBlock & { type: "tool_call" });
-					}
-				}
-
-				// Also check content array for tool calls in mixed format
-				const content = messageAny.content;
-				if (Array.isArray(content)) {
-					for (const part of content) {
-						if (part && typeof part === "object") {
-							const partAny = part as {
-								callId?: string;
-								name?: string;
-								input?: unknown;
-								value?: string;
-							};
-							// Check if this is a tool call (has callId)
-							if (partAny.callId && partAny.name) {
-								prompt.push({
-									type: "tool_call",
-									id: partAny.callId,
-									name: partAny.name,
-									input: typeof partAny.input === "string" ? partAny.input : JSON.stringify(partAny.input),
-								} as ContentBlock & { type: "tool_call" });
-							} else if (partAny.value) {
-								// This is text content
-								prompt.push({ type: "text", text: partAny.value });
-							}
-						}
-					}
-				} else if (content && typeof content === "string") {
-					prompt.push({ type: "text", text: content });
-				}
-			} else if (message.role === vscode.LanguageModelChatMessageRole.User) {
-				// User messages can include tool results - extract them
-				const messageAny = message as {
-					content?: unknown;
-				};
-				const userContent = messageAny.content;
-				if (Array.isArray(userContent)) {
-					for (const part of userContent) {
-						if (part && typeof part === "object") {
-							const partAny = part as {
-								callId?: string;
-								content?: Array<{ text?: string }>;
-								value?: string;
-							};
-							// Check if this is a tool result (has callId and content)
-							if (partAny.callId && partAny.content) {
-								const toolResultText = partAny.content
-									.map((item) => item.text || "")
-									.join("\n");
-								prompt.push({
-									type: "tool_result",
-									id: partAny.callId,
-									content: toolResultText,
-								} as ContentBlock & { type: "tool_result" });
-							} else if (partAny.value) {
-								// This is text content
-								prompt.push({ type: "text", text: partAny.value });
-							}
-						}
-					}
-				} else if (userContent && typeof userContent === "string") {
-					prompt.push({ type: "text", text: userContent });
-				}
 			}
+			// Note: Assistant messages with tool calls are handled through sessionUpdate notifications,
+			// not through ContentBlocks. Tool calls should be sent separately via the session API.
 		}
 
 		return prompt;
