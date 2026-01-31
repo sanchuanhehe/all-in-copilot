@@ -43,11 +43,11 @@
 		"build-and-package": "pnpm build:all && pnpm package:all"
 	},
 	"devDependencies": {
-		"@eslint/js": "^9.13.0",
-		"@stylistic/eslint-plugin": "^2.9.0",
+		"@eslint/js": "^9.39.2",
+		"@stylistic/eslint-plugin": "^2.13.0",
 		"@vscode/vsce": "^3.7.1",
-		"typescript": "^5.9.2",
-		"typescript-eslint": "^8.39.0"
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.54.0"
 	},
 	"packageManager": "pnpm@8.15.4+sha512.0bd3a9be9eb0e9a692676deec00a303ba218ba279d99241475616b398dbaeedd11146f92c2843458f557b1d127e09d4c171e105bdcd6b61002b39685a8016b9e"
 }

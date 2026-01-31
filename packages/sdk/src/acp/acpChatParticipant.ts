@@ -314,12 +314,58 @@ export class ACPChatParticipant {
 						if ((status === "completed" || status === "success") && updateToolCallId) {
 							console.log(`[ACPChatParticipant] Tool completed: ${updateToolCallId}`);
 
-							// Update terminal data with results if applicable
+							// Update UI to show tool completion with rich UI
 							if (pendingTools.has(updateToolCallId)) {
 								const toolInfo = pendingTools.get(updateToolCallId)!;
-								if (isTerminalTool(toolInfo.name, toolInfo.rawInput) && stream.markdown) {
-									// Show result in terminal style
-									stream.markdown(`\`\`\`bash\n${toolResultText}\n\`\`\`\n`);
+
+								// Create a new ChatToolInvocationPart to update the UI with completion state
+								const completedToolPart = new vscode.ChatToolInvocationPart(
+									toolInfo.name,
+									updateToolCallId,
+									false
+								);
+
+								// Mark as complete and add past tense message
+								completedToolPart.isComplete = true;
+
+								// Format the past tense message
+								const pastTenseMarkdown = new vscode.MarkdownString();
+								pastTenseMarkdown.appendText(`Executed ${toolInfo.name}`);
+								if (toolResultText) {
+									// Show first line of output as preview
+									const firstLine = toolResultText.split('\n')[0].substring(0, 100);
+									if (firstLine) {
+										pastTenseMarkdown.appendText(`: ${firstLine}`);
+									}
+								}
+								completedToolPart.pastTenseMessage = pastTenseMarkdown;
+
+								// For terminal tools, add output data
+								if (isTerminalTool(toolInfo.name, toolInfo.rawInput)) {
+									const commandText = formatToolInput(toolInfo.rawInput);
+									const terminalData: vscode.ChatTerminalToolInvocationData = {
+										commandLine: {
+											original: commandText,
+										},
+										language: "bash",
+										output: {
+											text: toolResultText,
+										},
+									};
+									completedToolPart.toolSpecificData = terminalData;
+								}
+
+								// Push the completed tool part to update UI
+								stream.push(completedToolPart);
+
+								// Also show result in markdown for clarity
+								if (toolResultText && stream.markdown) {
+									const resultMarkdown = new vscode.MarkdownString();
+									resultMarkdown.appendCodeblock(toolResultText.substring(0, 500), "bash");
+									if (toolResultText.length > 500) {
+										resultMarkdown.appendText("\n_(output truncated)_");
+									}
+									stream.markdown(resultMarkdown);
 								}
 							}
 
