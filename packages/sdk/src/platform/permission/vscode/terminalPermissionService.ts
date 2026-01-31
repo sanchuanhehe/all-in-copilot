@@ -367,6 +367,20 @@ export class TerminalPermissionService implements ITerminalPermissionService {
 	}
 
 	/**
+	 * Add a custom dangerous command pattern
+	 */
+	addDangerousPattern(pattern: DangerousCommandPattern): void {
+		this.dangerousPatterns.push(pattern);
+	}
+
+	/**
+	 * Get all registered dangerous patterns
+	 */
+	getDangerousPatterns(): DangerousCommandPattern[] {
+		return [...this.dangerousPatterns];
+	}
+
+	/**
 	 * Get the base command (first word) from a command string
 	 */
 	private getBaseCommand(command: string): string {

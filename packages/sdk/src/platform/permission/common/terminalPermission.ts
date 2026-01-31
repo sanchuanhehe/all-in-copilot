@@ -68,6 +68,18 @@ export interface ITerminalPermissionService {
 	 * @returns A user-friendly description
 	 */
 	getCommandDescription(command: string): string;
+
+	/**
+	 * Add a custom dangerous command pattern
+	 * @param pattern The pattern to add
+	 */
+	addDangerousPattern(pattern: DangerousCommandPattern): void;
+
+	/**
+	 * Get all registered dangerous patterns
+	 * @returns Array of dangerous command patterns
+	 */
+	getDangerousPatterns(): DangerousCommandPattern[];
 }
 
 /**
