@@ -89,3 +89,6 @@ export { sanitizeFunctionName, pruneUnknownSchemaKeywords } from "./utils/toolCo
 
 // Model fetching
 export { fetchModelsFromAPI } from "./core/modelFetcher";
+
+// Platform Services (Terminal and Permission management)
+export * from "./platform";

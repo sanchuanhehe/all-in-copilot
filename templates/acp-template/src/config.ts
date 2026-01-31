@@ -5,11 +5,67 @@
  * Supports Claude Code, Gemini CLI, OpenAI Codex, and custom agents.
  */
 
-import type { ACPClientConfig, ACPModelInfo, ClientCallbacks, IVsCodeTerminal } from "@all-in-copilot/sdk";
+import type { ACPClientConfig, ACPModelInfo, ClientCallbacks, IVsCodeTerminal, TerminalPermissionService, createTerminalPermissionService, TerminalConfirmationDetails } from "@all-in-copilot/sdk";
 import * as vscode from "vscode";
 import { execSync } from "child_process";
 import { existsSync } from "fs";
 import { randomUUID } from "crypto";
+
+// Initialize terminal permission service with custom dangerous command patterns
+const terminalPermissionService = createTerminalPermissionService({
+	autoApproveSafeCommands: true,
+	confirmDangerousCommands: true,
+	dangerousPatterns: [
+		// File destruction patterns
+		{
+			pattern: /\brm\s+-rf\b/i,
+			reason: 'Recursive force delete - can permanently remove files',
+			severity: 'critical'
+		},
+		{
+			pattern: /\brm\s+-[rR]\b/i,
+			reason: 'Recursive delete - can remove entire directories',
+			severity: 'high'
+		},
+		{
+			pattern: /\bdel\b.*\/[pq]/i,
+			reason: 'Pattern matching delete - may delete unexpected files',
+			severity: 'high'
+		},
+		// System modification patterns
+		{
+			pattern: /\bsudo\b.*(chmod|chown|mkfs|mount|umount)/i,
+			reason: 'System-level permission changes',
+			severity: 'critical'
+		},
+		// Git dangerous operations
+		{
+			pattern: /\bgit\s+push\s+--force\b/i,
+			reason: 'Force push - can overwrite remote history',
+			severity: 'high'
+		},
+		{
+			pattern: /\bgit\s+push\s+-f\b/i,
+			reason: 'Force push - can overwrite remote history',
+			severity: 'high'
+		},
+		{
+			pattern: /\bgit\s+reset\s+--hard\b/i,
+			reason: 'Hard reset - permanently discards local changes',
+			severity: 'high'
+		},
+		{
+			pattern: /\bgit\s+clean\s+-fd\b/i,
+			reason: 'Clean - removes untracked files and directories',
+			severity: 'high'
+		},
+		{
+			pattern: /\bgit\s+push\s+origin\s+--delete\b/i,
+			reason: 'Remote branch deletion',
+			severity: 'high'
+		},
+	]
+});
 
 // Common installation paths for OpenCode
 const COMMON_OPENCODE_PATHS = [
@@ -109,7 +165,8 @@ class ACPVsCodeTerminal implements IVsCodeTerminal {
 const clientCallbacks: ClientCallbacks = {
 	/**
 	 * Creates a new terminal and executes a command.
-	 * Uses VS Code's native run_in_terminal tool for execution.
+	 * Uses VS Code's native run_in_terminal tool with permission service for security.
+	 * Shows confirmation dialog for potentially dangerous commands.
 	 */
 	async createTerminal(_sessionId: string, command: string, _args?: string[]): Promise<IVsCodeTerminal> {
 		const terminalId = randomUUID();
@@ -126,6 +183,21 @@ const clientCallbacks: ClientCallbacks = {
 			command.includes("--watch") ||
 			command.includes("nodemon") ||
 			command.includes("ts-node --watch");
+
+		// Request permission for the command using the terminal permission service
+		const confirmationDetails: TerminalConfirmationDetails = {
+			command,
+			description: terminalPermissionService.getCommandDescription(command),
+			isBackground,
+			isDangerous: terminalPermissionService.isDangerousCommand(command),
+		};
+
+		// Request user confirmation for potentially dangerous commands
+		const permissionResult = await terminalPermissionService.requestTerminalConfirmation(confirmationDetails);
+
+		if (permissionResult !== 'allow') {
+			throw new Error(`Command execution denied by user: ${command}`);
+		}
 
 		// Create terminal (cwd and env not supported in current protocol)
 		const terminal = getOrCreateTerminal(terminalId, "Agent");
