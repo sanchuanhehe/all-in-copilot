@@ -663,6 +663,9 @@ export class ACPClientManager {
 		const callbacks = config.callbacks ?? {};
 		const terminalIdToHandle = new Map<string, { name: string; command: string; args?: string[]; cwd?: string }>();
 
+		// Capture reference to sessionUpdateListeners for use in callbacks
+		const sessionUpdateListeners = this.sessionUpdateListeners;
+
 		return {
 			/**
 			 * Handles permission requests from the agent.
@@ -709,7 +712,7 @@ export class ACPClientManager {
 				const sessionId = paramsAny.sessionId ?? paramsAny.update?.sessionId ?? "";
 
 				// Forward to all registered listeners for this session
-				const listeners = this.sessionUpdateListeners.get(sessionId);
+				const listeners = sessionUpdateListeners.get(sessionId);
 				if (listeners) {
 					for (const listener of listeners) {
 						try {
