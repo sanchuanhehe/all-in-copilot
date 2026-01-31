@@ -101,7 +101,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 						? "ASSISTANT"
 						: "OTHER";
 			let contentPreview = "EMPTY";
-			const content = msg.content as string | vscode.LanguageModelChatMessageContentPart[] | null;
+			const content = msg.content as string | vscode.LanguageModelInputPart[] | null;
 			if (content) {
 				if (typeof content === "string") {
 					contentPreview = content.slice(0, 100);

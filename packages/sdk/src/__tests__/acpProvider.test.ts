@@ -27,12 +27,11 @@ const mockVSCode = {
 
 vi.mock("vscode", () => mockVSCode);
 
-// Type for extractUserContent input
+// Type for extractUserContent input - matches the function parameter type
 type ExtractUserContentInput =
 	| { unknown: string }
 	| { value?: string; data?: { type: string; data: number[] } }
-	| { $mid?: number; value?: string }
-	| string;
+	| { $mid?: number; value?: string };
 
 // Test the UTF-8 decoding logic that was added to acpProvider.ts
 describe("UTF-8 Decoding", () => {
@@ -94,6 +93,7 @@ describe("Message Content Extraction", () => {
 		value?: string;
 		parts?: unknown[];
 		data?: { type: string; data: number[] };
+		[key: string]: unknown;
 	}): string | null {
 		if (message.kind === "text" && message.text) {
 			return message.text;
@@ -141,7 +141,7 @@ describe("Message Content Extraction", () => {
 	});
 
 	it("should return null for unknown format", () => {
-		const message = { unknown: "format" } as unknown as ExtractUserContentInput;
+		const message = { unknown: "format" };
 		expect(extractUserContent(message)).toBeNull();
 	});
 });
