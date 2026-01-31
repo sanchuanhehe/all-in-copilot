@@ -22,9 +22,13 @@
 		"watch": "tsc --watch",
 		"test": "vitest",
 		"test:run": "vitest run",
-		"download-api": "dts dev && dts main && mv vscode.d.ts src/vscode/vscode.d.ts 2>/dev/null || true",
-		"postdownload-api": "dts main && mv vscode.d.ts src/vscode/vscode.d.ts 2>/dev/null || true"
+		"download-api": "cd src/vscode && npx @vscode/dts dev && npx @vscode/dts main",
+		"postinstall": "npm run download-api 2>/dev/null || true"
 	},
+	"enabledApiProposals": [
+		"chatParticipantAdditions",
+		"chatParticipantPrivate"
+	],
 	"dependencies": {
 		"@agentclientprotocol/sdk": "^0.13.1",
 		"@anthropic-ai/sdk": "^0.27.3",

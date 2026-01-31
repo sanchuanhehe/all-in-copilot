@@ -29,7 +29,7 @@
 	"main": "./out/extension.js",
 	"scripts": {
 		"vscode:prepublish": "npm run package",
-		"download-api": "dts dev && dts main && mv vscode.d.ts src/vscode/vscode.d.ts 2>/dev/null || true",
+		"download-api": "cd src/vscode && npx @vscode/dts dev && npx @vscode/dts main",
 		"postinstall": "npm run download-api 2>/dev/null || true",
 		"compile": "node esbuild.js --production",
 		"watch": "node esbuild.js --watch",
@@ -39,6 +39,10 @@
 		"format": "prettier --write .",
 		"test": "pnpm run compile && vscode-test"
 	},
+	"enabledApiProposals": [
+		"chatParticipantAdditions",
+		"chatParticipantPrivate"
+	],
 	"dependencies": {
 		"@all-in-copilot/sdk": "workspace:*",
 		"@agentclientprotocol/sdk": "^0.13.1"

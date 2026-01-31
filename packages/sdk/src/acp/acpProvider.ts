@@ -247,6 +247,9 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		// Collect all text first, then stream with typewriter effect
 		let collectedText = "";
 
+		// Track tool calls and their results for sending LanguageModelToolResultPart
+		const pendingTools = new Map<string, { name: string; result: string }>();
+
 		// Register listener for session updates BEFORE calling prompt
 		const unsubscribe = this.clientManager.onSessionUpdate(session.sessionId, (update) => {
 			const updateData = update.update;
@@ -261,25 +264,50 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				}
 
 				case "tool_call": {
-				const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
-				const title = (updateData as { title?: string }).title ?? "Unknown Tool";
-				const toolName = title.split(" ")[0] || "tool";
-				const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, {});
-				progress.report(toolCallPart);
-				break;
-			}
+					const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
+					const title = (updateData as { title?: string }).title ?? "Unknown Tool";
+					const toolName = title.split(" ")[0] || "tool";
+					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, {});
+					progress.report(toolCallPart);
 
-			case "tool_call_update": {
-				const status = (updateData as { status?: string }).status;
-				if (status === "completed" || status === "success") {
+					// Initialize pending tool call
+					pendingTools.set(toolCallId, { name: toolName, result: "" });
+					break;
+				}
+
+				case "tool_call_update": {
+					const status = (updateData as { status?: string }).status;
+					const toolCallId = (updateData as { toolCallId?: string }).toolCallId;
 					const content = (updateData as { content?: Array<{ text?: string }> }).content;
+
+					if ((status === "completed" || status === "success") && toolCallId) {
+						// Collect tool result content
+						let toolResultText = "";
 						if (content && Array.isArray(content)) {
 							for (const item of content) {
 								if (item && "text" in item) {
-									collectedText += String(item.text);
+									toolResultText += String(item.text);
 								}
 							}
 						}
+
+						// Update pending tools map
+						if (pendingTools.has(toolCallId)) {
+							const toolInfo = pendingTools.get(toolCallId)!;
+							toolInfo.result = toolResultText;
+						}
+
+						// Send LanguageModelToolResultPart to progress
+						// This tells the AI that a tool has completed and provides the result
+						const toolResultContent: vscode.LanguageModelTextPart[] = [];
+						if (toolResultText) {
+							toolResultContent.push(new vscode.LanguageModelTextPart(toolResultText));
+						}
+						const toolResultPart = new vscode.LanguageModelToolResultPart(toolCallId, toolResultContent);
+						progress.report(toolResultPart);
+
+						// Clean up pending tool
+						pendingTools.delete(toolCallId);
 					}
 					break;
 				}
@@ -375,11 +403,67 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 						} as ContentBlock & { type: "tool_call" });
 					}
 				}
-				if (messageAny.content) {
-					const content = this.extractTextContent(messageAny.content as string | Array<{ kind: string; text: string }>);
-					if (content) {
-						prompt.push({ type: "text", text: content });
+
+				// Also check content array for tool calls in mixed format
+				const content = messageAny.content;
+				if (Array.isArray(content)) {
+					for (const part of content) {
+						if (part && typeof part === "object") {
+							const partAny = part as {
+								callId?: string;
+								name?: string;
+								input?: unknown;
+								value?: string;
+							};
+							// Check if this is a tool call (has callId)
+							if (partAny.callId && partAny.name) {
+								prompt.push({
+									type: "tool_call",
+									id: partAny.callId,
+									name: partAny.name,
+									input: typeof partAny.input === "string" ? partAny.input : JSON.stringify(partAny.input),
+								} as ContentBlock & { type: "tool_call" });
+							} else if (partAny.value) {
+								// This is text content
+								prompt.push({ type: "text", text: partAny.value });
+							}
+						}
 					}
+				} else if (content && typeof content === "string") {
+					prompt.push({ type: "text", text: content });
+				}
+			} else if (message.role === vscode.LanguageModelChatMessageRole.User) {
+				// User messages can include tool results - extract them
+				const messageAny = message as {
+					content?: unknown;
+				};
+				const userContent = messageAny.content;
+				if (Array.isArray(userContent)) {
+					for (const part of userContent) {
+						if (part && typeof part === "object") {
+							const partAny = part as {
+								callId?: string;
+								content?: Array<{ text?: string }>;
+								value?: string;
+							};
+							// Check if this is a tool result (has callId and content)
+							if (partAny.callId && partAny.content) {
+								const toolResultText = partAny.content
+									.map((item) => item.text || "")
+									.join("\n");
+								prompt.push({
+									type: "tool_result",
+									id: partAny.callId,
+									content: toolResultText,
+								} as ContentBlock & { type: "tool_result" });
+							} else if (partAny.value) {
+								// This is text content
+								prompt.push({ type: "text", text: partAny.value });
+							}
+						}
+					}
+				} else if (userContent && typeof userContent === "string") {
+					prompt.push({ type: "text", text: userContent });
 				}
 			}
 		}
