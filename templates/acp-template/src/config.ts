@@ -567,7 +567,18 @@ export function getRuntimeConnection(): { hostname: string; port: number } {
  * Convert AgentConfig to ACPClientConfig for SDK usage
  * For OpenCode, we use stdio transport - the process stdin/stdout is used for ACP protocol
  */
-export function toACPClientConfig(config: AgentConfig): ACPClientConfig {
+export function toACPClientConfig(config: AgentConfig, options?: {
+	extensionContext?: {
+		extensionUri: string;
+		secrets: {
+			get(key: string): Promise<string | undefined>;
+			store(key: string, value: string): Promise<void>;
+			delete(key: string): Promise<void>;
+		};
+	};
+	shellPath?: string;
+	shellArgs?: string[];
+}): ACPClientConfig {
 	return {
 		transport: "stdio",
 		agentPath: config.command,
@@ -575,6 +586,9 @@ export function toACPClientConfig(config: AgentConfig): ACPClientConfig {
 		env: config.env,
 		cwd: config.cwd,
 		callbacks: clientCallbacks,
+		extensionContext: options?.extensionContext,
+		shellPath: options?.shellPath,
+		shellArgs: options?.shellArgs,
 	};
 }
 

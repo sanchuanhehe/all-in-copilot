@@ -125,6 +125,19 @@ export interface ACPClientConfig {
 	cwd?: string;
 	/** Callbacks for VS Code API integration */
 	callbacks?: ClientCallbacks;
+	/** VS Code extension context (for terminal provider and other VS Code services) */
+	extensionContext?: {
+		extensionUri: string;
+		secrets: {
+			get(key: string): Promise<string | undefined>;
+			store(key: string, value: string): Promise<void>;
+			delete(key: string): Promise<void>;
+		};
+	};
+	/** Shell path for terminal execution */
+	shellPath?: string;
+	/** Shell arguments for terminal execution */
+	shellArgs?: string[];
 }
 
 /**

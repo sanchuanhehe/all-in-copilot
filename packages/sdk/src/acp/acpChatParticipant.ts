@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sdk";
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
+import { ACPTerminalProvider, executeInTerminal } from "./terminalProvider";
 
 /**
  * Options for the ACP Chat Participant.
@@ -92,6 +93,7 @@ export class ACPChatParticipant {
 
 	private readonly options: ACPChatParticipantOptions;
 	private readonly clientManager: ACPClientManager;
+	private readonly terminalProvider: ACPTerminalProvider;
 	private readonly sessions = new Map<string, ACPSession>();
 	private connection: ClientSideConnection | null = null;
 	private participant: vscode.ChatParticipant | null = null;
@@ -117,6 +119,15 @@ export class ACPChatParticipant {
 			this.clientManager = new ACPClientManager(options.clientInfo);
 			this.ownsClientManager = true;
 		}
+
+		// Create terminal provider for real VS Code terminal integration
+		this.terminalProvider = new ACPTerminalProvider(
+			options.clientConfig.extensionContext,
+			{
+				shellPath: options.clientConfig.shellPath,
+				shellArgs: options.clientConfig.shellArgs,
+			}
+		);
 
 		// Create the chat request handler
 		const boundHandler = this.requestHandler.bind(this);
@@ -208,223 +219,183 @@ export class ACPChatParticipant {
 	}
 
 	/**
-	 * Stream chat response from the agent, handling tool calls with rich UI
-	 */
-	private async streamChatResponse(
-		session: ACPSession,
-		prompt: string,
-		stream: vscode.ChatResponseStream,
-		token: vscode.CancellationToken
-	): Promise<void> {
-		// Convert chat message to ACP content blocks with proper type
-		const content: ContentBlock[] = [{ type: "text", text: prompt }];
+ * Stream chat response from the agent, handling tool calls with rich UI
+ */
+private async streamChatResponse(
+	session: ACPSession,
+	prompt: string,
+	stream: vscode.ChatResponseStream,
+	token: vscode.CancellationToken
+): Promise<void> {
+	// Convert chat message to ACP content blocks with proper type
+	const content: ContentBlock[] = [{ type: "text", text: prompt }];
 
-		// Track pending tool calls
-		const pendingTools = new Map<string, {
-			name: string;
-			rawInput?: unknown;
-			listener?: () => void;
-		}>();
+	// Track pending tool calls with their listeners
+	const pendingTools = new Map<string, {
+		name: string;
+		rawInput?: unknown;
+		listenerUnsubscribe: () => void;
+	}>();
 
-		// Main listener for session updates
-		const mainUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (update) => {
-			const updateData = update.update;
+	// Main listener for session updates - single listener for all updates
+	const mainUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (update) => {
+		const updateData = update.update;
 
-			switch (updateData.sessionUpdate) {
-				case "agent_message_chunk": {
-					const contentBlock = updateData.content;
-					if (contentBlock && "text" in contentBlock) {
-						stream.markdown(String(contentBlock.text));
-					}
-					break;
+		switch (updateData.sessionUpdate) {
+			case "agent_message_chunk": {
+				const contentBlock = updateData.content;
+				if (contentBlock && "text" in contentBlock) {
+					stream.markdown(String(contentBlock.text));
+				}
+				break;
+			}
+
+			case "tool_call": {
+				const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
+				const title = (updateData as { title?: string }).title ?? "Unknown Tool";
+				const rawInput = (updateData as { rawInput?: unknown }).rawInput;
+				const toolName = title.split(" ")[0] || "tool";
+
+				console.log(`[ACPChatParticipant] Tool call: ${toolName} (${toolCallId})`);
+
+				// Format the command for display
+				const commandText = formatToolInput(rawInput);
+
+				// Create ChatToolInvocationPart with proper API
+				// Constructor: toolName, toolCallId, isError?
+				const toolPart = new vscode.ChatToolInvocationPart(toolName, toolCallId, false);
+
+				// Set invocation message
+				if (commandText) {
+					const markdown = new vscode.MarkdownString();
+					markdown.appendText(`Running ${toolName}:\n`);
+					markdown.appendCodeblock(commandText, "bash");
+					toolPart.invocationMessage = markdown;
 				}
 
-				case "tool_call": {
-					const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
-					const title = (updateData as { title?: string }).title ?? "Unknown Tool";
-					const rawInput = (updateData as { rawInput?: unknown }).rawInput;
-					const toolName = title.split(" ")[0] || "tool";
+				// Push the tool part to stream
+				stream.push(toolPart);
 
-					console.log(`[ACPChatParticipant] Tool call: ${toolName} (${toolCallId})`);
+				// For terminal tools, execute in real VS Code terminal
+				const isTerminal = isTerminalTool(toolName, rawInput);
+				let terminalOutput = "";
+				if (isTerminal && commandText) {
+					try {
+						const result = await executeInTerminal(
+							this.terminalProvider,
+							session.sessionId,
+							commandText,
+							{ showTerminal: true }
+						);
+						terminalOutput = result.output;
+					} catch (err) {
+						terminalOutput = `Terminal error: ${err instanceof Error ? err.message : String(err)}`;
+					}
+				}
 
-					// Use ChatToolInvocationPart for rich UI
-					const toolPart = new vscode.ChatToolInvocationPart(toolName, toolCallId, false);
+				// CRITICAL: Register tool update listener IMMEDIATELY after receiving tool_call
+				// This listener will handle tool completion and send results back
+				const toolListenerUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (toolUpdate) => {
+					const toolUpdateData = toolUpdate.update;
 
-					// Format the command for display
-					const commandText = formatToolInput(rawInput);
-					if (commandText) {
-						const markdown = new vscode.MarkdownString();
-						markdown.appendText(`Running ${toolName}:\n`);
-						markdown.appendCodeblock(commandText, "bash");
-						toolPart.invocationMessage = markdown;
+					if (toolUpdateData.sessionUpdate !== "tool_call_update") {
+						return;
 					}
 
-					// For terminal tools, add tool-specific data
-					if (isTerminalTool(toolName, rawInput)) {
-						const terminalData: vscode.ChatTerminalToolInvocationData = {
-							commandLine: {
-								original: commandText,
-							},
-							language: "bash",
-						};
-						toolPart.toolSpecificData = terminalData;
+					const status = (toolUpdateData as { status?: string }).status;
+					const updateToolCallId = (toolUpdateData as { toolCallId?: string }).toolCallId;
+
+					// Only process updates for this specific tool
+					if (updateToolCallId !== toolCallId) {
+						return;
 					}
 
-					// Use push() instead of report() for ChatToolInvocationPart
-					stream.push(toolPart);
+					const contentData = (toolUpdateData as { content?: Array<{ text?: string }> }).content;
+					const rawOutput = (toolUpdateData as { rawOutput?: unknown }).rawOutput;
 
-					// Track this tool
-					pendingTools.set(toolCallId, { name: toolName, rawInput });
-
-					// Register a listener for this tool's updates
-					const toolListenerUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (toolUpdate) => {
-						const toolUpdateData = toolUpdate.update;
-
-						if (toolUpdateData.sessionUpdate !== "tool_call_update") {
-							return;
-						}
-
-						const status = (toolUpdateData as { status?: string }).status;
-						const updateToolCallId = (toolUpdateData as { toolCallId?: string }).toolCallId;
-
-						if (updateToolCallId !== toolCallId) {
-							return;
-						}
-
-						const contentData = (toolUpdateData as { content?: Array<{ text?: string }> }).content;
-						const rawOutput = (toolUpdateData as { rawOutput?: unknown }).rawOutput;
-
-						// Collect tool result
-						let toolResultText = "";
-						if (contentData && Array.isArray(contentData)) {
-							for (const item of contentData) {
-								if (item && "text" in item) {
-									toolResultText += String(item.text);
-								}
+					// Collect tool result
+					let toolResultText = "";
+					if (contentData && Array.isArray(contentData)) {
+						for (const item of contentData) {
+							if (item && "text" in item) {
+								toolResultText += String(item.text);
 							}
 						}
-						if (rawOutput && typeof rawOutput === "object") {
-							const rawOutputStr = JSON.stringify(rawOutput);
-							if (rawOutputStr && rawOutputStr !== "{}") {
-								toolResultText += `\nRaw output: ${rawOutputStr}`;
-							}
+					}
+					// Add terminal output if available
+					if (terminalOutput) {
+						toolResultText = terminalOutput + (toolResultText ? `\n${toolResultText}` : "");
+					}
+					if (rawOutput && typeof rawOutput === "object") {
+						const rawOutputStr = JSON.stringify(rawOutput);
+						if (rawOutputStr && rawOutputStr !== "{}") {
+							toolResultText += `\nRaw output: ${rawOutputStr}`;
 						}
+					}
 
-						// When tool completes, send result back to Agent IMMEDIATELY
-						if ((status === "completed" || status === "success") && updateToolCallId) {
-							console.log(`[ACPChatParticipant] Tool completed: ${updateToolCallId}`);
+					// When tool completes, send result back to Agent IMMEDIATELY
+					if ((status === "completed" || status === "success") && updateToolCallId) {
+						console.log(`[ACPChatParticipant] Tool completed: ${updateToolCallId}, result length: ${toolResultText.length}`);
 
-							// Update UI to show tool completion with rich UI
-							if (pendingTools.has(updateToolCallId)) {
-								const toolInfo = pendingTools.get(updateToolCallId)!;
-
-								// Create a new ChatToolInvocationPart to update the UI with completion state
-								const completedToolPart = new vscode.ChatToolInvocationPart(
-									toolInfo.name,
-									updateToolCallId,
-									false
-								);
-
-								// Mark as complete and add past tense message
-								completedToolPart.isComplete = true;
-
-								// Format the past tense message
-								const pastTenseMarkdown = new vscode.MarkdownString();
-								pastTenseMarkdown.appendText(`Executed ${toolInfo.name}`);
-								if (toolResultText) {
-									// Show first line of output as preview
-									const firstLine = toolResultText.split('\n')[0].substring(0, 100);
-									if (firstLine) {
-										pastTenseMarkdown.appendText(`: ${firstLine}`);
-									}
-								}
-								completedToolPart.pastTenseMessage = pastTenseMarkdown;
-
-								// For terminal tools, add output data
-								if (isTerminalTool(toolInfo.name, toolInfo.rawInput)) {
-									const commandText = formatToolInput(toolInfo.rawInput);
-									const terminalData: vscode.ChatTerminalToolInvocationData = {
-										commandLine: {
-											original: commandText,
-										},
-										language: "bash",
-										output: {
-											text: toolResultText,
-										},
-									};
-									completedToolPart.toolSpecificData = terminalData;
-								}
-
-								// Push the completed tool part to update UI
-								stream.push(completedToolPart);
-
-								// Also show result in markdown for clarity
-								if (toolResultText && stream.markdown) {
-									const resultMarkdown = new vscode.MarkdownString();
-									resultMarkdown.appendCodeblock(toolResultText.substring(0, 500), "bash");
-									if (toolResultText.length > 500) {
-										resultMarkdown.appendText("\n_(output truncated)_");
-									}
-									stream.markdown(resultMarkdown);
-								}
-							}
-
-							// Send result back to Agent
-							const resultMessage: ContentBlock[] = [{ type: "text", text: toolResultText }];
-							await this.clientManager.prompt(session.connection, {
-								sessionId: session.sessionId,
-								prompt: resultMessage,
+						// Track in pending tools map
+						if (!pendingTools.has(updateToolCallId)) {
+							pendingTools.set(updateToolCallId, {
+								name: toolName,
+								rawInput,
+								listenerUnsubscribe: toolListenerUnsubscribe,
 							});
-
-							// Clean up listener
-							toolListenerUnsubscribe();
-							pendingTools.delete(updateToolCallId);
 						}
-					});
 
-					break;
-				}
-			}
-		});
+						// Create completed tool invocation
+						// Constructor: toolName, toolCallId, isError?
+						const completedToolPart = new vscode.ChatToolInvocationPart(toolName, updateToolCallId, false);
+						completedToolPart.isComplete = true;
 
-		try {
-			// Send the prompt to the agent using the clientManager
-			const promptResult = await this.clientManager.prompt(this.connection!, {
-				sessionId: session.sessionId,
-				prompt: content,
-			});
+						// Set past tense message
+						const pastTenseMarkdown = new vscode.MarkdownString();
+						pastTenseMarkdown.appendText(`Executed ${toolName}`);
+						if (toolResultText) {
+							const firstLine = toolResultText.split('\n')[0].substring(0, 100);
+							if (firstLine) {
+								pastTenseMarkdown.appendText(`: ${firstLine}`);
+							}
+						}
+						completedToolPart.pastTenseMessage = pastTenseMarkdown;
 
-			if (!promptResult.success) {
-				console.error("[ACPChatParticipant] Prompt failed:", promptResult.error);
-			}
-		} finally {
-			// Clean up
-			mainUnsubscribe();
+						// Push completed tool part
+						stream.push(completedToolPart);
 
-			// Close the session if the method exists
-			if (session.sessionId) {
-				try {
-					// Check if closeSession method exists on clientManager
-					const managerWithCloseSession = this.clientManager as { closeSession?(conn: unknown, sessionId: string): Promise<void> };
-					if (managerWithCloseSession.closeSession && this.connection) {
-						await managerWithCloseSession.closeSession(this.connection, session.sessionId);
-					} else {
-						// If no closeSession method, just clean up the local session tracking
-						console.log("[ACPChatParticipant] No closeSession method available, cleaning up local session only");
+						// Also show result in markdown for clarity
+						if (toolResultText && stream.markdown) {
+							const resultMarkdown = new vscode.MarkdownString();
+							resultMarkdown.appendCodeblock(toolResultText.substring(0, 500), "bash");
+							if (toolResultText.length > 500) {
+								resultMarkdown.appendText("\n_(output truncated)_");
+							}
+							stream.markdown(resultMarkdown);
+						}
+
+						// Send result back to Agent
+						const resultMessage: ContentBlock[] = [{ type: "text", text: toolResultText }];
+						await this.clientManager.prompt(session.connection, {
+							sessionId: session.sessionId,
+							prompt: resultMessage,
+						});
+
+						// Clean up
+						toolListenerUnsubscribe();
+						pendingTools.delete(updateToolCallId);
 					}
-					this.sessions.delete(session.sessionId);
-				} catch (error) {
-					console.error("[ACPChatParticipant] Failed to close session:", error);
-				}
+				});
+
+				// Track this tool with its listener
+				pendingTools.set(toolCallId, { name: toolName, rawInput, listenerUnsubscribe: toolListenerUnsubscribe });
+
+				break;
 			}
 		}
-	}
+	});
 
-	/**
-	 * Dispose of this participant
-	 */
-	dispose(): void {
-		this.participantDisposable?.dispose();
 		// Only dispose clientManager if we own it
 		if (this.ownsClientManager) {
 			this.clientManager.dispose();
@@ -432,6 +403,31 @@ export class ACPChatParticipant {
 		this.sessions.clear();
 		this.connection = null;
 		this.participant = null;
+	}
+
+	/**
+	 * Dispose of the participant and clean up resources
+	 */
+	public dispose(): void {
+		console.log("[ACPChatParticipant] Disposing participant");
+
+		// Dispose participant
+		if (this.participantDisposable) {
+			this.participantDisposable.dispose();
+		}
+
+		// Dispose client manager if we own it
+		if (this.ownsClientManager && this.clientManager) {
+			this.clientManager.dispose();
+		}
+
+		// Clear sessions
+		this.sessions.clear();
+
+		// Dispose terminal provider
+		if (this.terminalProvider) {
+			this.terminalProvider.dispose();
+		}
 	}
 }
 

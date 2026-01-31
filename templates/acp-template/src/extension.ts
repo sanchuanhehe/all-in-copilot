@@ -101,7 +101,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		const models = getACPModels();
 
 		// Create client config - SDK will spawn OpenCode using stdio transport
-		const clientConfig = toACPClientConfig(opencodeConfig);
+		const clientConfig = toACPClientConfig(opencodeConfig, {
+			extensionContext: {
+				extensionUri: context.extensionUri.toString(),
+				secrets: context.secrets,
+			},
+		});
 
 		// Create and register the ACP provider using the SDK
 		acpProvider = new ACPProvider({
@@ -126,7 +131,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			name: agentName,
 			description: `A coding assistant powered by ${agentName}`,
 			iconPath: new vscode.ThemeIcon("robot"),
-			clientConfig: toACPClientConfig(opencodeConfig),
+			clientConfig: toACPClientConfig(opencodeConfig, {
+				extensionContext: {
+					extensionUri: context.extensionUri.toString(),
+					secrets: context.secrets,
+				},
+			}),
 			clientInfo: {
 				name: agentId,
 				version: "1.0.0",

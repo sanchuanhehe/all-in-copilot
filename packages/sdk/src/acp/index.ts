@@ -39,3 +39,6 @@ export { ACPProvider, registerACPProvider, type ACPModelInfo, type ACPProviderOp
 
 // VS Code ACP Integration - ChatParticipant (rich UI with ChatToolInvocationPart)
 export { ACPChatParticipant, registerACPChatParticipant, type ACPChatParticipantOptions } from "./acpChatParticipant";
+
+// VS Code Terminal Provider for real integrated terminals
+export { ACPTerminalProvider, executeInTerminal, executeInNewTerminal } from "./terminalProvider";
