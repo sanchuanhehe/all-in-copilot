@@ -1,8 +1,6 @@
 # Dependencies
 node_modules/
 
-# Build output
-out/
 
 # IDE
 .vscode/
