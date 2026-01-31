@@ -1,79 +1,185 @@
-# ACP Agent Provider Template
+# OpenCode Agent Provider
 
-This template provides a VS Code extension that integrates with external ACP (Agent Client Protocol) compatible agent servers.
+This VS Code extension integrates with the **OpenCode** CLI agent via the Agent Client Protocol (ACP). It provides a native chat experience in VS Code's AI Chat view, powered by OpenCode's AI coding capabilities.
+
+## About OpenCode
+
+**OpenCode** is an AI-powered coding assistant CLI tool built with the Agent Client Protocol (ACP). It provides intelligent code completion, refactoring, debugging, and general programming assistance.
 
 ## Features
 
-- **ACP Protocol Support**: Connect to any ACP-compatible agent server via stdio
-- **Multiple Agent Support**: Can be configured for Claude Code, Gemini CLI, OpenAI Codex, or custom agents
-- **Session Management**: Full support for ACP session modes and configurations
-- **Tool Integration**: MCP (Model Context Protocol) server support
+- **Native Chat Integration**: Use VS Code's AI Chat view to interact with OpenCode
+- **ACP Protocol**: Built on the standardized Agent Client Protocol for reliable agent communication
+- **Session Management**: Persistent conversations with full context awareness
+- **MCP Tool Support**: Access to Model Context Protocol tools when configured
+- **Real-time Streaming**: Stream responses as they're generated
 
-## Supported Agents
+## Requirements
 
-The template can be configured to work with any ACP-compatible agent:
+- **OpenCode CLI**: [Installation Guide](https://github.com/sanchuanhehe/opencode-cli)
+- **Node.js**: 18.0 or higher
+- **VS Code**: 1.104.0 or higher
+- **pnpm**: 9.0 or higher
 
-- **Claude Code**: Anthropic's official CLI agent (`npx @anthropic-ai/claude-agent-sdk`)
-- **Gemini CLI**: Google's Gemini CLI agent
-- **OpenAI Codex**: OpenAI's Codex CLI
-- **Custom Agents**: Any agent implementing the ACP protocol
+## Installation
 
-## Configuration
+### 1. Install OpenCode CLI
 
-Edit `src/config.ts` to configure your agent:
+```bash
+# Install OpenCode from npm
+npm install -g @opencode/cli
+
+# Or build from source
+git clone https://github.com/sanchuanhehe/opencode-cli.git
+cd opencode-cli
+npm install
+npm run build
+```
+
+### 2. Install the VS Code Extension
+
+#### Option A: Install from VSIX (Recommended)
+
+Download the latest `.vsix` package from our [releases page](https://github.com/sanchuanhehe/all-in-copilot/releases) and install:
+
+```bash
+# Install via VS Code CLI
+code --install-extension acp-agent-provider-*.vsix
+```
+
+#### Option B: Build from Source
+
+```bash
+cd templates/acp-template
+pnpm install
+pnpm run compile
+pnpm run vsce:package
+code --install-extension acp-agent-provider-*.vsix
+```
+
+### 3. Configure OpenCode
+
+Edit `src/config.ts` to point to your OpenCode installation:
 
 ```typescript
 export const AGENT_CONFIG: AgentConfig = {
-	// Agent identification
-	id: "my-agent",
-	name: "My Agent",
-	participantId: "my-agent.agent",
+	id: "opencode",
+	name: "OpenCode",
+	participantId: "opencode.participant",
 
-	// Command to run the agent
-	command: "npx",
-	args: ["-y", "@anthropic-ai/claude-agent-sdk"],
+	// OpenCode installation paths (auto-detected)
+	command: "opencode",
+	args: [],
 
-	// Environment variables
-	env: {},
+	// Working directory
+	cwd: "${workspaceFolder}",
 
-	// Default settings
+	// Environment variables (add your API keys here)
+	env: {
+		// "ANTHROPIC_API_KEY": process.env.ANTHROPIC_API_KEY ?? "",
+	},
+
+	// Transport type
+	transport: "stdio",
+
+	// Default session settings
 	defaultMode: "Primary",
 	defaultModel: "sonnet-4-20250514",
 };
 ```
 
-## Installation
+## Usage
 
-1. Navigate to the template directory:
+### Starting a Conversation
 
+1. Open VS Code's Chat view (`Ctrl+Alt+M` / `Cmd+Alt+M`)
+2. Select "OpenCode Agent" from the chat participant dropdown
+3. Start asking coding questions!
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `opencode.manage` | Open configuration settings |
+| `opencode.restart` | Restart the OpenCode agent |
+| `opencode.configure` | Configure agent settings |
+
+### Configuration
+
+The extension supports the following settings (VS Code Settings):
+
+- `opencode.command`: Command to run OpenCode (default: `opencode`)
+- `opencode.args`: Arguments passed to OpenCode
+- `opencode.transport`: Transport type (`stdio`, `tcp`, `http`)
+- `opencode.cwd`: Working directory for the agent
+
+## Supported Agents
+
+While this template is configured for **OpenCode** by default, it can be used with any ACP-compatible agent:
+
+| Agent | Installation | Command |
+|-------|--------------|---------|
+| **OpenCode** | `npm install -g @opencode/cli` | `opencode` |
+| **Claude Code** | `npm install -g @anthropic-ai/claude-code` | `claude` |
+| **Gemini CLI** | `npm install -g @google/gemini-cli` | `gemini` |
+| **Custom Agents** | Any ACP-compatible implementation | Custom |
+
+## Architecture
+
+```
+src/
+├── extension.ts    # Extension activation, chat participant, commands
+├── config.ts       # Agent configuration and detection logic
+└── vscode/         # VS Code API type definitions (auto-generated)
+```
+
+### Key Components
+
+- **ACPClientManager**: Manages connections to the external agent server via ACP
+- **ACPProvider**: VS Code LanguageModelChatParticipant implementation
+- **ChatParticipant**: Handles user conversations in VS Code Chat view
+- **Agent Session**: Manages session state, prompts, and continuations
+
+## Troubleshooting
+
+### Agent Not Found
+
+If OpenCode isn't detected, ensure:
+
+1. OpenCode is in your PATH:
    ```bash
-   cd acp-template
+   which opencode
    ```
 
-2. Install dependencies:
-
-   ```bash
-   pnpm install
+2. Or configure the full path in `src/config.ts`:
+   ```typescript
+   command: "/full/path/to/opencode",
    ```
 
-3. Compile the extension:
+### Connection Failed
 
-   ```bash
-   pnpm run compile
-   ```
+Check the output channel (`View > Output > "ACP Agent"`):
 
-4. Package the extension:
+- Verify OpenCode can run standalone
+- Check for port conflicts (TCP/HTTP mode)
+- Review agent logs for initialization errors
 
-   ```bash
-   pnpm run vsce:package
-   ```
+### API Keys Missing
+
+If using cloud LLM providers, ensure your API keys are set:
+
+```typescript
+env: {
+	"ANTHROPIC_API_KEY": process.env.ANTHROPIC_API_KEY ?? "",
+}
+```
 
 ## Development
 
 ### Running in VS Code
 
 1. Press `F5` to start a new VS Code window with the extension loaded
-2. Use the Chat view to interact with your agent
+2. Use the Chat view to interact with OpenCode
 
 ### Watching for Changes
 
@@ -83,36 +189,129 @@ pnpm run watch
 
 This will rebuild the extension on file changes.
 
-## Architecture
+### Building
 
-```txt
-src/
-├── extension.ts    # Extension entry point and chat participant
-├── config.ts       # Agent configuration
-└── vscode/         # VS Code type definitions (generated)
+```bash
+pnpm run compile    # Compile TypeScript
+pnpm run vsce:package  # Create VSIX package
 ```
-
-### Key Components
-
-- **ACPClientManager**: Manages connections to the external agent server
-- **ACPProvider**: VS Code language model chat provider implementation
-- **Agent Session**: Handles conversation sessions and tool invocations
-
-## Protocol Details
-
-The ACP (Agent Client Protocol) is a JSON-RPC protocol over stdio:
-
-- **Version**: V1
-- **Transport**: stdio (stdin/stdout)
-- **Initialization**: Handshake with version and capability negotiation
-- **Messages**: JSON-RPC 2.0 format with content blocks
-
-## Requirements
-
-- Node.js 18+
-- VS Code 1.104.0+
-- pnpm 9.x
 
 ## License
 
 MIT
+
+## Related Projects
+
+- [OpenCode CLI](https://github.com/sanchuanhehe/opencode-cli) - The OpenCode CLI agent
+- [All-In Copilot](https://github.com/sanchuanhehe/all-in-copilot) - Core SDK and framework
+- [Agent Client Protocol](https://github.com/agentclientprotocol/agent-client-protocol) - Protocol specification
+- [Claude Code SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) - Claude Code agent SDK
+
+### Key Components
+
+| Component | Description |
+|-----------|-------------|
+| `ACPClientManager` | Manages connections to external agent servers |
+| `ACPProvider` | VS Code LanguageModelChatParticipant implementation |
+| `ChatParticipant` | Handles user conversations in VS Code Chat view |
+| `Agent Session` | Manages session state, prompts, and continuations |
+
+## Commands
+
+The extension registers the following VS Code commands:
+
+| Command | Description |
+|---------|-------------|
+| `acp.startAgent` | Start or connect to the agent server |
+| `acp.stopAgent` | Stop the agent server |
+| `acp.restartAgent` | Restart the agent server |
+| `acp.sendToAgent` | Send text to the current session |
+
+## Environment Variables
+
+The following environment variables are automatically passed to the agent:
+
+- `HOME`: User's home directory
+- `PATH`: System PATH with common locations added
+- `WORKSPACE_FOLDER`: Current VS Code workspace (if available)
+
+Custom environment variables can be added in `src/config.ts`:
+
+```typescript
+env: {
+	"ANTHROPIC_API_KEY": process.env.ANTHROPIC_API_KEY ?? "",
+	"MY_CUSTOM_VAR": "custom-value",
+}
+```
+
+## Troubleshooting
+
+### Agent Not Found
+
+If your agent isn't detected, ensure:
+
+1. The executable is in your PATH, or
+2. Configure the full path in `src/config.ts`:
+   ```typescript
+   command: "/full/path/to/agent",
+   ```
+
+### Connection Failed
+
+Check the output channel (`View > Output > "ACP Agent"`):
+
+- Verify the agent process can spawn
+- Check for port conflicts (TCP/HTTP mode)
+- Review agent logs for initialization errors
+
+### MCP Servers Not Loading
+
+MCP servers require proper configuration:
+
+```typescript
+mcpServers: [
+	{
+		name: "filesystem",
+		command: "npx",
+		args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"],
+	},
+],
+```
+
+## Development
+
+### Watching for Changes
+
+```bash
+pnpm run watch
+```
+
+This rebuilds the extension automatically when source files change.
+
+### Running Tests
+
+```bash
+pnpm test
+```
+
+### Adding Custom Features
+
+1. **Add new commands**: Register in `extension.ts` using `vscode.commands.registerCommand`
+2. **Custom UI**: Add webviews or tree views in `extension.ts`
+3. **Configuration**: Use VS Code's workspace configuration API
+
+## Requirements
+
+- **Node.js**: 18.0 or higher
+- **VS Code**: 1.104.0 or higher
+- **pnpm**: 9.0 or higher
+
+## License
+
+MIT
+
+## Related Projects
+
+- [All-In Copilot](https://github.com/sanchuanhehe/all-in-copilot) - Core SDK and framework
+- [OpenCode CLI](https://github.com/sanchuanhehe/opencode-cli) - Reference ACP agent implementation
+- [Agent Client Protocol](https://github.com/agentclientprotocol/agent-client-protocol) - Protocol specification
