@@ -30,11 +30,11 @@ async readTextFile(path: string, line?: number | null, limit?: number | null): P
         startLine: line ?? 1,
         endLine: limit !== undefined ? startLine + limit : undefined,
     }, undefined);
-    
+
     if (result?.content) {
         return extractTextContent(result.content);
     }
-    
+
     // 降级：VS Code API
     const uri = vscode.Uri.file(path);
     const doc = await vscode.workspace.openTextDocument(uri);
@@ -49,13 +49,13 @@ async writeTextFile(path: string, content: string): Promise<void> {
     await vscode.lm.invokeTool("copilot_applyPatch", {
         input: `*** Begin Patch\n*** Update File: ${path}\n${content}\n*** End Patch`,
     }, undefined);
-    
+
     // 备选：createFile（如果 applyPatch 失败）
     await vscode.lm.invokeTool("copilot_createFile", {
         filePath: path,
         content,
     }, undefined);
-    
+
     // 降级：VS Code API
     const uri = vscode.Uri.file(path);
     await vscode.workspace.fs.writeFile(uri, Buffer.from(content, "utf-8"));
@@ -100,7 +100,7 @@ async writeTextFile(path: string, content: string): Promise<void> {
 ```typescript
 async createTerminal(_sessionId: string, command: string, _args?: string[]): Promise<IVsCodeTerminal> {
     const terminalId = randomUUID();
-    
+
     // 必须使用 VS Code 原生 API - 无 Copilot 等效工具
     const terminal = getOrCreateTerminal(terminalId, "Agent");
     const state: TerminalState = {
@@ -108,7 +108,7 @@ async createTerminal(_sessionId: string, command: string, _args?: string[]): Pro
         command,
         isBackground: detectBackgroundProcess(command),
     };
-    
+
     terminalStateMap.set(terminalId, state);
     return new ACPVsCodeTerminal(terminalId, terminal.name);
 }
@@ -119,7 +119,7 @@ async createTerminal(_sessionId: string, command: string, _args?: string[]): Pro
 async getTerminalOutput(terminalId: string): Promise<{ output: string; exitCode?: number }> {
     const state = terminalStateMap.get(terminalId);
     if (!state) return { output: "", exitCode: 0 };
-    
+
     // 必须访问终端状态 - 无 Copilot 等效工具
     if (state.isBackground && !state.outputPromise) {
         state.terminal.show();
@@ -128,7 +128,7 @@ async getTerminalOutput(terminalId: string): Promise<{ output: string; exitCode?
         });
         state.terminal.sendText(state.command);
     }
-    
+
     return {
         output: state.output ?? "",
         exitCode: state.exitCode,
@@ -152,13 +152,13 @@ async releaseTerminal(terminalId: string): Promise<void> {
 async waitForTerminalExit(terminalId: string): Promise<{ exitCode?: number }> {
     const state = terminalStateMap.get(terminalId);
     if (!state) return { exitCode: undefined };
-    
+
     // 必须监听终端事件 - 无 Copilot 等效工具
     if (state.isBackground && !state.exitCode && state.outputPromise) {
         state.terminal.show();
         await state.outputPromise;
     }
-    
+
     return { exitCode: state.exitCode };
 }
 ```
@@ -188,18 +188,18 @@ async requestPermission(request: {
     // ✅ 正确：使用 VS Code UI (QuickPick) 进行权限确认
     // 这是用户交互，不能通过 Copilot 工具处理
     const safePatterns = [/replace_string_in_file/i, /create_file/i, /list_dir/i];
-    
+
     for (const pattern of safePatterns) {
         if (pattern.test(request.toolCall.title)) {
             return request.options[0]?.optionId ?? "approved";
         }
     }
-    
+
     const selection = await vscode.window.showQuickPick(
         request.options.map((opt) => ({ label: opt.label, description: opt.optionId })),
         { placeHolder: request.toolCall.title }
     );
-    
+
     return selection?.description ?? "denied";
 }
 ```
@@ -322,6 +322,7 @@ terminal.dispose();
 ### 已完成 ✅
 - `readTextFile`: 使用 `copilot_readFile` + VS Code API 降级
 - `writeTextFile`: 使用 `copilot_applyPatch`/`copilot_createFile` + VS Code API 降级
+- **ChatToolInvocationPart UI 显示**: 完整的工具调用卡片实现
 
 ### 预期行为 ❌
 - `createTerminal`: 使用 `vscode.window.createTerminal()` - 无 Copilot 工具
@@ -333,19 +334,171 @@ terminal.dispose();
 ### 设计决策
 **终端操作必须使用直接 VS Code API**，因为 Copilot 工具集中没有提供终端管理功能。这是架构限制，不是实现缺陷。
 
+**工具调用 UI 使用 ChatToolInvocationPart**，与官方 copilot-chat 保持一致，提供最佳的用户体验。
+
 ---
 
-## 7. 附录
+## 7. 新增功能: ChatToolInvocationPart 工具调用 UI 显示
+
+**实现日期**: 2025年1月
+**状态**: ✅ 已完成
+
+### 7.1 功能概述
+
+VS Code 官方的 copilot-chat 扩展使用 `ChatToolInvocationPart` 在聊天界面中显示工具调用 UI。这提供了:
+- 可折叠的工具调用卡片
+- 显示正在执行的命令
+- 显示执行结果和输出
+- 支持终端命令的特殊格式化
+
+ACP Template 现在也支持此功能！
+
+### 7.2 实现方式
+
+#### 7.2.1 Proposed API 声明
+
+```typescript
+// src/vscode/proposed.chatParticipantAdditions.d.ts
+export class ChatToolInvocationPart {
+    toolName: string;
+    toolCallId: string;
+    isError?: boolean;
+    invocationMessage?: string | MarkdownString;
+    originMessage?: string | MarkdownString;
+    pastTenseMessage?: string | MarkdownString;
+    isConfirmed?: boolean;
+    isComplete?: boolean;
+    toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData;
+    subAgentInvocationId?: string;
+    presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
+
+    constructor(toolName: string, toolCallId: string, isError?: boolean);
+}
+```
+
+#### 7.2.2 工具调用 UI 实现
+
+```typescript
+// src/extension.ts - handleChatRequest 函数中
+
+// 1. 跟踪工具调用
+const toolInvocations: Map<string, ChatToolInvocationPart> = new Map();
+const toolOutputs: Map<string, string> = new Map();
+const pendingToolCalls: Map<string, { toolName: string; command?: string }> = new Map();
+
+// 2. 设置会话更新监听器
+const updateUnsubscribe = clientManager.onSessionUpdate(sessionId, (update) => {
+    switch (update.update.sessionUpdate) {
+        case "tool_call": {
+            const toolCallId = updateData.toolCallId || String(Date.now());
+            const toolName = title.split(":")[0].trim() || "tool";
+
+            // 创建 ChatToolInvocationPart
+            const toolPart = new ChatToolInvocationPart(toolName, toolCallId);
+            toolPart.invocationMessage = new vscode.MarkdownString();
+            toolPart.invocationMessage.appendCodeblock(command, "bash");
+            toolPart.isComplete = false;
+            toolPart.isConfirmed = true;
+
+            // 添加终端数据
+            const terminalData: ChatTerminalToolInvocationData = {
+                commandLine: { original: command },
+                language: "bash",
+            };
+            toolPart.toolSpecificData = terminalData;
+
+            // 推送到响应流
+            toolInvocations.set(toolCallId, toolPart);
+            response.push(toolPart);
+            break;
+        }
+
+        case "tool_call_update": {
+            if (status === "completed") {
+                const toolPart = toolInvocations.get(toolCallId);
+                if (toolPart) {
+                    toolPart.isComplete = true;
+                    toolPart.pastTenseMessage = new vscode.MarkdownString();
+                    toolPart.pastTenseMessage.appendText("Executed ");
+                    toolPart.pastTenseMessage.appendCodeblock(command, "bash");
+
+                    // 更新终端数据
+                    const terminalData = toolPart.toolSpecificData as ChatTerminalToolInvocationData;
+                    terminalData.output = { text: outputText };
+                    terminalData.state = { exitCode: 0 };
+                }
+            } else if (status === "error") {
+                const toolPart = toolInvocations.get(toolCallId);
+                if (toolPart) {
+                    toolPart.isError = true;
+                    toolPart.isComplete = true;
+                }
+            }
+            break;
+        }
+    }
+});
+```
+
+### 7.3 UI 效果
+
+当 agent 执行终端命令时，聊天界面会显示:
+
+```
+┌─ bash ───────────────────────────────────────┐
+│ ```bash                                       │
+│ echo "Hello from opencode terminal!"          │
+│ ```                                           │
+└──────────────────────────────────────────────┘
+
+"Hello from opencode terminal!"
+```
+
+当命令执行完毕后，卡片会更新显示完成状态。
+
+### 7.4 与官方实现对比
+
+| 特性 | 官方 (copilot-chat) | ACP Template |
+|------|---------------------|--------------|
+| ChatToolInvocationPart | ✅ | ✅ |
+| 工具调用卡片 | ✅ | ✅ |
+| 命令显示 | ✅ | ✅ |
+| 输出显示 | ✅ | ✅ |
+| 错误状态 | ✅ | ✅ |
+| 终端特殊数据 | ✅ | ✅ |
+| MCP 工具支持 | ✅ | ❌ (待实现) |
+| 子代理调用 | ✅ | ❌ (待实现) |
+
+### 7.5 测试验证
+
+**测试场景**:
+1. Agent 执行终端命令 → 聊天界面显示工具调用卡片
+2. 命令执行完成 → 卡片更新为完成状态
+3. 命令执行失败 → 卡片显示错误状态
+
+**预期行为**:
+- 工具调用以可折叠卡片形式显示
+- 显示正在执行的命令
+- 命令完成后显示结果
+- 错误情况显示错误信息
+
+---
+
+## 8. 附录
 
 ### A. 相关文件
-- `templates/acp-template/src/config.ts` - 完整实现
-- `vscode-copilot-chat/package.json` - Copilot 工具定义（参考）
+- `templates/acp-template/src/config.ts` - ClientCallbacks 实现
+- `templates/acp-template/src/extension.ts` - 聊天请求处理和工具调用 UI
+- `templates/acp-template/src/vscode/proposed.chatParticipantAdditions.d.ts` - Proposed API 声明
+- `vscode-copilot-chat/src/extension/vscode.proposed.chatParticipantAdditions.d.ts` - 官方参考
 
 ### B. 参考链接
 - [ACP SDK 文档](https://github.com/anthropics/anthropic-cookbook/tree/main/mcp)
 - [VS Code Copilot Tools](https://code.visualstudio.com/docs/copilot/copilot-extensions)
+- [ChatToolInvocationPart API](https://github.com/microsoft/vscode/blob/main/src/vscode.proposed.chatParticipantAdditions.d.ts)
 
 ### C. 版本信息
 - ACP SDK: 最新版本
 - VS Code: 1.95+
 - TypeScript: 5.x
+- Proposed API: chatParticipantAdditions
