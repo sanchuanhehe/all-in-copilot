@@ -5,7 +5,7 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
+import type { Terminal, TerminalExecutedCommand, TerminalShellIntegrationChangeEvent, TerminalShellExecutionEndEvent, TerminalDataWriteEvent, TerminalOptions, ExtensionTerminalOptions, Event, Uri } from 'vscode';
 
 /**
  * Service identifier for ITerminalService
@@ -27,7 +27,7 @@ export interface ITerminalService {
 	 * Last executed command in the active terminal
 	 * Uses proposed API - may be undefined in some VS Code versions
 	 */
-	readonly terminalLastCommand: vscode.TerminalExecutedCommand | undefined;
+	readonly terminalLastCommand: TerminalExecutedCommand | undefined;
 
 	/**
 	 * Selection in the active terminal
@@ -43,51 +43,51 @@ export interface ITerminalService {
 	 * Event fired when terminal shell integration changes
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
-	readonly onDidChangeTerminalShellIntegration: vscode.Event<vscode.TerminalShellIntegrationChangeEvent>;
+	readonly onDidChangeTerminalShellIntegration: Event<TerminalShellIntegrationChangeEvent>;
 
 	/**
 	 * Event fired when terminal shell execution ends
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
-	readonly onDidEndTerminalShellExecution: vscode.Event<vscode.TerminalShellExecutionEndEvent>;
+	readonly onDidEndTerminalShellExecution: Event<TerminalShellExecutionEndEvent>;
 
 	/**
 	 * Event fired when a terminal is closed
 	 */
-	readonly onDidCloseTerminal: vscode.Event<vscode.Terminal>;
+	readonly onDidCloseTerminal: Event<Terminal>;
 
 	/**
 	 * Event fired when data is written to a terminal
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
-	readonly onDidWriteTerminalData: vscode.Event<vscode.TerminalDataWriteEvent>;
+	readonly onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 
 	/**
 	 * Get all terminals
 	 */
-	readonly terminals: readonly vscode.Terminal[];
+	readonly terminals: readonly Terminal[];
 
 	/**
 	 * Create a terminal with the given name, shell path, and shell args
 	 */
-	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
+	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): Terminal;
 
 	/**
 	 * Create a terminal with the given options
 	 */
-	createTerminal(options: vscode.TerminalOptions): vscode.Terminal;
+	createTerminal(options: TerminalOptions): Terminal;
 
 	/**
 	 * Create an extension terminal with the given options
 	 */
-	createTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
+	createTerminal(options: ExtensionTerminalOptions): Terminal;
 
 	/**
 	 * Get the buffer content for a terminal
 	 * @param terminal The terminal to get the buffer for
 	 * @param maxChars Maximum number of characters to return (default: 16000)
 	 */
-	getBufferForTerminal(terminal: vscode.Terminal, maxChars?: number): string;
+	getBufferForTerminal(terminal: Terminal, maxChars?: number): string;
 
 	/**
 	 * Get the buffer content for a terminal by process ID
@@ -100,7 +100,7 @@ export interface ITerminalService {
 	 * Get the last command executed in a terminal
 	 * @param terminal The terminal to get the last command for
 	 */
-	getLastCommandForTerminal(terminal: vscode.Terminal): vscode.TerminalExecutedCommand | undefined;
+	getLastCommandForTerminal(terminal: Terminal): TerminalExecutedCommand | undefined;
 
 	/**
 	 * Contribute a path to the terminal PATH environment variable
@@ -130,7 +130,7 @@ export interface ITerminalService {
 	 * Get the working directory for a specific session
 	 * @param sessionId The session identifier
 	 */
-	getCwdForSession(sessionId: string): Promise<vscode.Uri | undefined>;
+	getCwdForSession(sessionId: string): Promise<Uri | undefined>;
 
 	/**
 	 * Get all terminals associated with a specific session
@@ -144,7 +144,7 @@ export interface ITerminalService {
 	 * @param sessionId The session identifier
 	 * @param shellIntegrationQuality The quality of shell integration
 	 */
-	associateTerminalWithSession(terminal: vscode.Terminal, sessionId: string, shellIntegrationQuality: ShellIntegrationQuality): Promise<void>;
+	associateTerminalWithSession(terminal: Terminal, sessionId: string, shellIntegrationQuality: ShellIntegrationQuality): Promise<void>;
 
 	/**
 	 * Clean up resources
@@ -164,15 +164,15 @@ export const enum ShellIntegrationQuality {
 /**
  * Extended terminal interface with session ID
  */
-export interface IKnownTerminal extends vscode.Terminal {
+export interface IKnownTerminal extends Terminal {
 	id: string;
 }
 
 /**
  * Check if a thing is an ITerminalService
  */
-export function isTerminalService(thing: any): thing is ITerminalService {
-	return thing && typeof thing.createTerminal === 'function';
+export function isTerminalService(thing: unknown): thing is ITerminalService {
+	return thing !== null && typeof thing === 'object' && 'createTerminal' in thing && typeof thing.createTerminal === 'function';
 }
 
 /**
@@ -183,55 +183,47 @@ export class NullTerminalService implements ITerminalService {
 
 	private readonly _disposables: { dispose(): void }[] = [];
 
-	get terminalBuffer(): string {
-		return '';
-	}
+	readonly terminalBuffer = '';
 
-	get terminalLastCommand(): vscode.TerminalExecutedCommand | undefined {
-		return undefined;
-	}
+	readonly terminalLastCommand: TerminalExecutedCommand | undefined = undefined;
 
-	get terminalSelection(): string {
-		return '';
-	}
+	readonly terminalSelection = '';
 
-	get terminalShellType(): string {
-		return '';
-	}
+	readonly terminalShellType = '';
 
-	get onDidChangeTerminalShellIntegration(): vscode.Event<vscode.TerminalShellIntegrationChangeEvent> {
-		return (listener: (e: vscode.TerminalShellIntegrationChangeEvent) => any) => {
+	get onDidChangeTerminalShellIntegration(): Event<TerminalShellIntegrationChangeEvent> {
+		return (_listener: (e: TerminalShellIntegrationChangeEvent) => void) => {
 			return { dispose: () => this._disposables.splice(0) };
 		};
 	}
 
-	get onDidEndTerminalShellExecution(): vscode.Event<vscode.TerminalShellExecutionEndEvent> {
-		return (listener: (e: vscode.TerminalShellExecutionEndEvent) => any) => {
+	get onDidEndTerminalShellExecution(): Event<TerminalShellExecutionEndEvent> {
+		return (_listener: (e: TerminalShellExecutionEndEvent) => void) => {
 			return { dispose: () => this._disposables.splice(0) };
 		};
 	}
 
-	get onDidCloseTerminal(): vscode.Event<vscode.Terminal> {
-		return (listener: (e: vscode.Terminal) => any) => {
+	get onDidCloseTerminal(): Event<Terminal> {
+		return (_listener: (e: Terminal) => void) => {
 			return { dispose: () => this._disposables.splice(0) };
 		};
 	}
 
-	get onDidWriteTerminalData(): vscode.Event<vscode.TerminalDataWriteEvent> {
-		return (listener: (e: vscode.TerminalDataWriteEvent) => any) => {
+	get onDidWriteTerminalData(): Event<TerminalDataWriteEvent> {
+		return (_listener: (e: TerminalDataWriteEvent) => void) => {
 			return { dispose: () => this._disposables.splice(0) };
 		};
 	}
 
-	get terminals(): readonly vscode.Terminal[] {
+	get terminals(): readonly Terminal[] {
 		return [];
 	}
 
-	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
-	createTerminal(options: vscode.TerminalOptions): vscode.Terminal;
-	createTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
-	createTerminal(): vscode.Terminal {
-		return {} as vscode.Terminal;
+	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): Terminal;
+	createTerminal(options: TerminalOptions): Terminal;
+	createTerminal(options: ExtensionTerminalOptions): Terminal;
+	createTerminal(): Terminal {
+		return {} as Terminal;
 	}
 
 	getBufferForTerminal(): string {
@@ -242,7 +234,7 @@ export class NullTerminalService implements ITerminalService {
 		return '';
 	}
 
-	getLastCommandForTerminal(): vscode.TerminalExecutedCommand | undefined {
+	getLastCommandForTerminal(): TerminalExecutedCommand | undefined {
 		return undefined;
 	}
 
@@ -254,7 +246,7 @@ export class NullTerminalService implements ITerminalService {
 		// No-op for null service
 	}
 
-	async getCwdForSession(): Promise<vscode.Uri | undefined> {
+	async getCwdForSession(): Promise<Uri | undefined> {
 		return undefined;
 	}
 

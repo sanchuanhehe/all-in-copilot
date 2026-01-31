@@ -5,7 +5,7 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, ExtensionTerminalOptions, Terminal, TerminalExecutedCommand, TerminalOptions, Event, window, Uri } from 'vscode';
+import { ExtensionTerminalOptions, Terminal, TerminalExecutedCommand, TerminalOptions, Event, window, Uri } from 'vscode';
 import * as path from 'path';
 import { ITerminalService, ShellIntegrationQuality, IKnownTerminal } from '../common/terminalService';
 import {
@@ -19,11 +19,11 @@ import {
 } from './terminalBufferListener';
 
 // Import proposed API types
-// @ts-ignore - TerminalShellIntegrationChangeEvent is a proposed API
+// @ts-expect-error - TerminalShellIntegrationChangeEvent is a proposed API
 import type { TerminalShellIntegrationChangeEvent } from '../../../vscode/vscode.proposed';
-// @ts-ignore - TerminalShellExecutionEndEvent is a proposed API
+// @ts-expect-error - TerminalShellExecutionEndEvent is a proposed API
 import type { TerminalShellExecutionEndEvent } from '../../../vscode/vscode.proposed';
-// @ts-ignore - TerminalDataWriteEvent is a proposed API
+// @ts-expect-error - TerminalDataWriteEvent is a proposed API
 import type { TerminalDataWriteEvent } from '../../../vscode/vscode.proposed';
 
 /**
@@ -55,22 +55,22 @@ export class TerminalServiceImpl implements ITerminalService {
 	/**
 	 * Session to terminal associations
 	 */
-	private readonly sessionTerminals: Map<string, Set<Terminal>> = new Map();
+	private readonly sessionTerminals: Map<string, Set<Terminal>> = new Map<string, Set<Terminal>>();
 
 	/**
 	 * Session to working directory mapping
 	 */
-	private readonly sessionCwds: Map<string, Uri> = new Map();
+	private readonly sessionCwds: Map<string, Uri> = new Map<string, Uri>();
 
 	/**
 	 * Terminal to session association
 	 */
-	private readonly terminalSessions: Map<Terminal, string> = new Map();
+	private readonly terminalSessions: Map<Terminal, string> = new Map<Terminal, string>();
 
 	/**
 	 * Shell integration quality tracking
 	 */
-	private readonly terminalShellQuality: Map<Terminal, ShellIntegrationQuality> = new Map();
+	private readonly terminalShellQuality: Map<Terminal, ShellIntegrationQuality> = new Map<Terminal, ShellIntegrationQuality>();
 
 	constructor(
 		private readonly extensionContext: {
@@ -102,14 +102,7 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
 	get onDidChangeTerminalShellIntegration(): Event<TerminalShellIntegrationChangeEvent> {
-		try {
-			// @ts-ignore - onDidChangeTerminalShellIntegration may not exist in all VS Code versions
-			return window.onDidChangeTerminalShellIntegration;
-		} catch {
-			// Return a no-op disposable when API is unavailable
-			const noop = () => { /* no-op */ };
-			return noop as any;
-		}
+		return window.onDidChangeTerminalShellIntegration ?? (() => { /* no-op */ });
 	}
 
 	/**
@@ -117,14 +110,7 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
 	get onDidEndTerminalShellExecution(): Event<TerminalShellExecutionEndEvent> {
-		try {
-			// @ts-ignore - onDidEndTerminalShellExecution may not exist in all VS Code versions
-			return window.onDidEndTerminalShellExecution;
-		} catch {
-			// Return a no-op disposable when API is unavailable
-			const noop = () => { /* no-op */ };
-			return noop as any;
-		}
+		return window.onDidEndTerminalShellExecution ?? (() => { /* no-op */ });
 	}
 
 	/**
@@ -139,14 +125,8 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
 	get onDidWriteTerminalData(): Event<TerminalDataWriteEvent> {
-		try {
-			// @ts-ignore - onDidWriteTerminalData may not exist in all VS Code versions
-			return window.onDidWriteTerminalData;
-		} catch {
-			// Return a no-op disposable when API is unavailable
-			const noop = () => { /* no-op */ };
-			return noop as any;
-		}
+		// @ts-expect-error - onDidWriteTerminalData may not exist in all VS Code versions
+		return window.onDidWriteTerminalData ?? (() => { /* no-op */ });
 	}
 
 	/**
@@ -161,8 +141,12 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Create an extension terminal with the given options
 	 */
 	createTerminal(options: ExtensionTerminalOptions): Terminal;
-	createTerminal(name?: any, shellPath?: any, shellArgs?: any): Terminal {
-		return window.createTerminal(name, shellPath, shellArgs);
+	createTerminal(name?: unknown, shellPath?: unknown, shellArgs?: unknown): Terminal {
+		return window.createTerminal(
+			name as string | undefined,
+			shellPath as string | undefined,
+			shellArgs as readonly string[] | string | undefined
+		);
 	}
 
 	/**
@@ -234,7 +218,7 @@ export class TerminalServiceImpl implements ITerminalService {
 	/**
 	 * Contribute a path to the terminal PATH environment variable
 	 */
-	contributePath(contributor: string, pathLocation: string, description?: string | { command: string }, prepend: boolean = false): void {
+	contributePath(contributor: string, pathLocation: string, description?: string | { command: string }, prepend = false): void {
 		const entry = this.pathContributions.find(c => c.contributor === contributor);
 		if (entry) {
 			entry.path = pathLocation;
@@ -308,6 +292,7 @@ export class TerminalServiceImpl implements ITerminalService {
 
 		// Build combined path from all contributions
 		const allPaths = this.pathContributions.map(c => c.path);
+		void description;
 		if (this.pathContributions.some(c => c.prepend)) {
 			const pathVariableChange = allPaths.join(path.delimiter) + path.delimiter;
 			this.environmentVariableCollection.prepend(pathVariable, pathVariableChange);
@@ -338,7 +323,7 @@ export class TerminalServiceImpl implements ITerminalService {
 		return Array.from(terminals).filter(t => {
 			// Filter out closed terminals
 			return !t.exitStatus;
-		}).map(t => t as IKnownTerminal);
+		}).map(t => t as unknown as IKnownTerminal);
 	}
 
 	/**
@@ -372,6 +357,6 @@ export class TerminalServiceImpl implements ITerminalService {
 /**
  * Check if a thing is an ITerminalService
  */
-export function isTerminalService(thing: any): thing is ITerminalService {
-	return thing && typeof thing.createTerminal === 'function';
+export function isTerminalService(thing: unknown): thing is ITerminalService {
+	return thing !== null && typeof thing === 'object' && typeof (thing as ITerminalService).createTerminal === 'function';
 }

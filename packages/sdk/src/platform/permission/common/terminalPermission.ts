@@ -3,7 +3,7 @@
  *  Provides terminal command confirmation UI for AI agent operations
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
+// vscode type imports removed - types are used via inline references
 
 /**
  * Permission result types

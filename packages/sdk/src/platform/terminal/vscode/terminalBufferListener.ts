@@ -9,31 +9,24 @@ import { Terminal, window } from 'vscode';
 import { basename } from 'path';
 
 // Import proposed API types (these are defined in vscode.proposed.d.ts)
-// @ts-ignore - TerminalExecutedCommand is a proposed API
+// @ts-expect-error - TerminalExecutedCommand is a proposed API
 import type { TerminalExecutedCommand } from '../../../vscode/vscode.proposed';
 
 /**
  * Maps terminals to their output buffers
  */
-const terminalBuffers: Map<Terminal, string[]> = new Map();
+const terminalBuffers: Map<Terminal, string[]> = new Map<Terminal, string[]>();
 
 /**
  * Maps terminals to their executed commands
  * Uses proposed API TerminalExecutedCommand
  */
-const terminalCommands: Map<Terminal, TerminalExecutedCommand[]> = new Map();
+const terminalCommands: Map<Terminal, TerminalExecutedCommand[]> = new Map<Terminal, TerminalExecutedCommand[]>();
 
 /**
  * Last detected shell type (for fallback)
  */
 let lastDetectedShellType: string | undefined;
-
-/**
- * Remove ANSI escape codes from string
- */
-function removeAnsiEscapeCodes(data: string): string {
-	return data.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
-}
 
 /**
  * Append data to a limited window buffer (max 40 entries)
@@ -62,7 +55,7 @@ export function getActiveTerminalBuffer(): string {
  * @param terminal The terminal to get the buffer for
  * @param maxChars Maximum number of characters to return (default: 16000)
  */
-export function getBufferForTerminal(terminal?: Terminal, maxChars: number = 16000): string {
+export function getBufferForTerminal(terminal?: Terminal, maxChars = 16000): string {
 	if (!terminal) {
 		return '';
 	}
@@ -84,7 +77,7 @@ export function getActiveTerminalSelection(): string {
 	const activeTerminal = window.terminals.find(t => t === window.activeTerminal);
 	try {
 		// Note: terminal selection is a proposed API and may not be available
-		// @ts-ignore - selection property may not exist in all VS Code versions
+		// @ts-expect-error - selection property may not exist in all VS Code versions
 		return activeTerminal?.selection ?? '';
 	} catch {
 		// In case the API isn't available
@@ -188,7 +181,7 @@ export function installTerminalBufferListeners(): { dispose(): void }[] {
 
 	// Try to use onDidExecuteTerminalCommand if available (proposed API in VS Code 1.90+)
 	try {
-		// @ts-ignore - onDidExecuteTerminalCommand may not exist in all VS Code versions
+			// @ts-expect-error - onDidExecuteTerminalCommand may not exist in all VS Code versions
 		const onDidExecuteTerminalCommand = window.onDidExecuteTerminalCommand;
 		if (onDidExecuteTerminalCommand) {
 			disposables.push(

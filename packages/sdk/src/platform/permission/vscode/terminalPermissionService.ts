@@ -8,8 +8,7 @@ import {
 	PermissionResult,
 	TerminalConfirmationDetails,
 	ITerminalPermissionService,
-	DangerousCommandPattern,
-	ShellType
+	DangerousCommandPattern
 } from '../common/terminalPermission';
 
 /**
@@ -388,7 +387,7 @@ export class TerminalPermissionService implements ITerminalPermissionService {
 	 */
 	private async showConfirmationDialog(details: TerminalConfirmationDetails): Promise<PermissionResult> {
 		const command = details.command;
-		const description = details.description || this.getCommandDescription(command);
+		// const description = details.description || this.getCommandDescription(command); // unused
 		const isDangerous = this.isDangerousCommand(command);
 
 		// Build the message
