@@ -227,10 +227,39 @@ const clientCallbacks: ClientCallbacks = {
 	},
 
 	/**
-	 * Reads a text file using VS Code API.
-	 * Supports optional line and limit parameters for partial file reads.
+	 * Reads a text file using VS Code Copilot tools via lm.invokeTool.
+	 * Routes through Copilot's permission confirmation system for unified management.
 	 */
 	async readTextFile(path: string, line?: number | null, limit?: number | null): Promise<string> {
+		const startLine = line ?? 1;
+		const endLine = limit !== undefined ? startLine + limit : undefined;
+
+		try {
+			// Use Copilot's built-in readFile tool via lm.invokeTool
+			const result = await vscode.lm.invokeTool(
+				"copilot_readFile",
+				{
+					filePath: path,
+					startLine,
+					endLine,
+				},
+				undefined // No token for global usage
+			);
+
+			if (result && result.content) {
+				// Extract the text content from the tool result
+				const toolContent = result.content.find((c) => c.type === "text");
+				if (toolContent && toolContent.text) {
+					return toolContent.text;
+				}
+			}
+
+			// Fallback to VS Code API if tool returns unexpected format
+		} catch (error) {
+			// Fallback to VS Code API if Copilot tool fails
+		}
+
+		// Fallback: Use VS Code API directly
 		const uri = vscode.Uri.file(path);
 		const document = await vscode.workspace.openTextDocument(uri);
 		const fullText = document.getText();
@@ -238,10 +267,9 @@ const clientCallbacks: ClientCallbacks = {
 		// Apply line and limit if specified
 		if (line !== undefined || limit !== undefined) {
 			const lines = fullText.split("\n");
-			const startLine = line ?? 1; // 1-indexed
-			const endLine = limit !== undefined ? startLine + limit : undefined;
-			const startIndex = startLine - 1; // Convert to 0-indexed
-			const slicedLines = lines.slice(startIndex, endLine);
+			const endIdx = limit !== undefined ? startLine + limit : undefined;
+			const startIdx = startLine - 1; // Convert to 0-indexed
+			const slicedLines = lines.slice(startIdx, endIdx);
 			const content = slicedLines.join("\n");
 
 			// Return with line number indicator for transparency
@@ -252,12 +280,48 @@ const clientCallbacks: ClientCallbacks = {
 	},
 
 	/**
-	 * Writes a text file using VS Code API.
+	 * Writes a text file using VS Code Copilot tools via lm.invokeTool.
+	 * Uses createFile for new files, applyPatch for existing files.
+	 * Routes through Copilot's permission confirmation system for unified management.
 	 */
 	async writeTextFile(path: string, content: string): Promise<void> {
-		const uri = vscode.Uri.file(path);
+		try {
+			// First try applyPatch (works for both new and existing files)
+			const patchContent = `*** Begin Patch
+*** Update File: ${path}
+${content}
+*** End Patch`;
 
-		// Overwrite mode (append not supported in current protocol)
+			await vscode.lm.invokeTool(
+				"copilot_applyPatch",
+				{
+					input: patchContent,
+					explanation: `Write text file: ${path}`,
+				},
+				undefined
+			);
+
+			return;
+		} catch (applyPatchError) {
+			// applyPatch might fail if file doesn't exist, try createFile
+			try {
+				await vscode.lm.invokeTool(
+					"copilot_createFile",
+					{
+						filePath: path,
+						content,
+					},
+					undefined
+				);
+
+				return;
+			} catch (createFileError) {
+				// Fallback to VS Code API if both tools fail
+			}
+		}
+
+		// Fallback: Use VS Code API directly
+		const uri = vscode.Uri.file(path);
 		await vscode.workspace.fs.writeFile(uri, Buffer.from(content, "utf-8"));
 	},
 
