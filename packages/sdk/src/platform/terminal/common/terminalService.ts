@@ -24,6 +24,12 @@ export interface ITerminalService {
 	readonly terminalBuffer: string;
 
 	/**
+	 * Last executed command in the active terminal
+	 * Uses proposed API - may be undefined in some VS Code versions
+	 */
+	readonly terminalLastCommand: vscode.TerminalExecutedCommand | undefined;
+
+	/**
 	 * Selection in the active terminal
 	 */
 	readonly terminalSelection: string;
@@ -34,9 +40,27 @@ export interface ITerminalService {
 	readonly terminalShellType: string;
 
 	/**
+	 * Event fired when terminal shell integration changes
+	 * Uses proposed API - may not be available in all VS Code versions
+	 */
+	readonly onDidChangeTerminalShellIntegration: vscode.Event<vscode.TerminalShellIntegrationChangeEvent>;
+
+	/**
+	 * Event fired when terminal shell execution ends
+	 * Uses proposed API - may not be available in all VS Code versions
+	 */
+	readonly onDidEndTerminalShellExecution: vscode.Event<vscode.TerminalShellExecutionEndEvent>;
+
+	/**
 	 * Event fired when a terminal is closed
 	 */
 	readonly onDidCloseTerminal: vscode.Event<vscode.Terminal>;
+
+	/**
+	 * Event fired when data is written to a terminal
+	 * Uses proposed API - may not be available in all VS Code versions
+	 */
+	readonly onDidWriteTerminalData: vscode.Event<vscode.TerminalDataWriteEvent>;
 
 	/**
 	 * Get all terminals
@@ -71,6 +95,12 @@ export interface ITerminalService {
 	 * @param maxChars Maximum number of characters to return (default: 16000)
 	 */
 	getBufferWithPid(pid: number, maxChars?: number): Promise<string>;
+
+	/**
+	 * Get the last command executed in a terminal
+	 * @param terminal The terminal to get the last command for
+	 */
+	getLastCommandForTerminal(terminal: vscode.Terminal): vscode.TerminalExecutedCommand | undefined;
 
 	/**
 	 * Contribute a path to the terminal PATH environment variable
@@ -123,4 +153,88 @@ export interface IKnownTerminal extends vscode.Terminal {
  */
 export function isTerminalService(thing: any): thing is ITerminalService {
 	return thing && typeof thing.createTerminal === 'function';
+}
+
+/**
+ * Null implementation of ITerminalService for testing and fallback
+ */
+export class NullTerminalService implements ITerminalService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _disposables: { dispose(): void }[] = [];
+
+	get terminalBuffer(): string {
+		return '';
+	}
+
+	get terminalLastCommand(): vscode.TerminalExecutedCommand | undefined {
+		return undefined;
+	}
+
+	get terminalSelection(): string {
+		return '';
+	}
+
+	get terminalShellType(): string {
+		return '';
+	}
+
+	get onDidChangeTerminalShellIntegration(): vscode.Event<vscode.TerminalShellIntegrationChangeEvent> {
+		return (listener: (e: vscode.TerminalShellIntegrationChangeEvent) => any) => {
+			return { dispose: () => this._disposables.splice(0) };
+		};
+	}
+
+	get onDidEndTerminalShellExecution(): vscode.Event<vscode.TerminalShellExecutionEndEvent> {
+		return (listener: (e: vscode.TerminalShellExecutionEndEvent) => any) => {
+			return { dispose: () => this._disposables.splice(0) };
+		};
+	}
+
+	get onDidCloseTerminal(): vscode.Event<vscode.Terminal> {
+		return (listener: (e: vscode.Terminal) => any) => {
+			return { dispose: () => this._disposables.splice(0) };
+		};
+	}
+
+	get onDidWriteTerminalData(): vscode.Event<vscode.TerminalDataWriteEvent> {
+		return (listener: (e: vscode.TerminalDataWriteEvent) => any) => {
+			return { dispose: () => this._disposables.splice(0) };
+		};
+	}
+
+	get terminals(): readonly vscode.Terminal[] {
+		return [];
+	}
+
+	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
+	createTerminal(options: vscode.TerminalOptions): vscode.Terminal;
+	createTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
+	createTerminal(): vscode.Terminal {
+		return {} as vscode.Terminal;
+	}
+
+	getBufferForTerminal(): string {
+		return '';
+	}
+
+	async getBufferWithPid(): Promise<string> {
+		return '';
+	}
+
+	getLastCommandForTerminal(): vscode.TerminalExecutedCommand | undefined {
+		return undefined;
+	}
+
+	contributePath(): void {
+		// No-op for null service
+	}
+
+	removePathContribution(): void {
+		// No-op for null service
+	}
+
+	dispose(): void {
+		// No-op for null service
+	}
 }

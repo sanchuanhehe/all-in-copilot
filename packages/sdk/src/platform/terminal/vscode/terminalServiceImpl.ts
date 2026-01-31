@@ -5,16 +5,26 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, ExtensionTerminalOptions, Terminal, TerminalOptions, window } from 'vscode';
+import { Disposable, ExtensionTerminalOptions, Terminal, TerminalExecutedCommand, TerminalOptions, Event, window } from 'vscode';
 import * as path from 'path';
 import { ITerminalService } from '../common/terminalService';
 import {
 	getActiveTerminalBuffer,
+	getActiveTerminalLastCommand,
 	getActiveTerminalSelection,
 	getActiveTerminalShellType,
 	getBufferForTerminal,
+	getLastCommandForTerminal,
 	installTerminalBufferListeners
 } from './terminalBufferListener';
+
+// Import proposed API types
+// @ts-ignore - TerminalShellIntegrationChangeEvent is a proposed API
+import type { TerminalShellIntegrationChangeEvent } from '../../../vscode/vscode.proposed';
+// @ts-ignore - TerminalShellExecutionEndEvent is a proposed API
+import type { TerminalShellExecutionEndEvent } from '../../../vscode/vscode.proposed';
+// @ts-ignore - TerminalDataWriteEvent is a proposed API
+import type { TerminalDataWriteEvent } from '../../../vscode/vscode.proposed';
 
 /**
  * Terminal service implementation for VS Code
@@ -68,10 +78,55 @@ export class TerminalServiceImpl implements ITerminalService {
 	}
 
 	/**
+	 * Event fired when terminal shell integration changes
+	 * Uses proposed API - may not be available in all VS Code versions
+	 */
+	get onDidChangeTerminalShellIntegration(): Event<TerminalShellIntegrationChangeEvent> {
+		try {
+			// @ts-ignore - onDidChangeTerminalShellIntegration may not exist in all VS Code versions
+			return window.onDidChangeTerminalShellIntegration;
+		} catch {
+			// Return a no-op disposable when API is unavailable
+			const noop = () => { /* no-op */ };
+			return noop as any;
+		}
+	}
+
+	/**
+	 * Event fired when terminal shell execution ends
+	 * Uses proposed API - may not be available in all VS Code versions
+	 */
+	get onDidEndTerminalShellExecution(): Event<TerminalShellExecutionEndEvent> {
+		try {
+			// @ts-ignore - onDidEndTerminalShellExecution may not exist in all VS Code versions
+			return window.onDidEndTerminalShellExecution;
+		} catch {
+			// Return a no-op disposable when API is unavailable
+			const noop = () => { /* no-op */ };
+			return noop as any;
+		}
+	}
+
+	/**
 	 * Event fired when a terminal is closed
 	 */
-	get onDidCloseTerminal(): (listener: (e: Terminal) => any) => any {
+	get onDidCloseTerminal(): Event<Terminal> {
 		return window.onDidCloseTerminal;
+	}
+
+	/**
+	 * Event fired when data is written to a terminal
+	 * Uses proposed API - may not be available in all VS Code versions
+	 */
+	get onDidWriteTerminalData(): Event<TerminalDataWriteEvent> {
+		try {
+			// @ts-ignore - onDidWriteTerminalData may not exist in all VS Code versions
+			return window.onDidWriteTerminalData;
+		} catch {
+			// Return a no-op disposable when API is unavailable
+			const noop = () => { /* no-op */ };
+			return noop as any;
+		}
 	}
 
 	/**
@@ -116,10 +171,26 @@ export class TerminalServiceImpl implements ITerminalService {
 	}
 
 	/**
+	 * Get the last command executed in a terminal
+	 * @param terminal The terminal to get the last command for
+	 */
+	getLastCommandForTerminal(terminal: Terminal): TerminalExecutedCommand | undefined {
+		return getLastCommandForTerminal(terminal);
+	}
+
+	/**
 	 * Get the buffer content of the active terminal
 	 */
 	get terminalBuffer(): string {
 		return getActiveTerminalBuffer();
+	}
+
+	/**
+	 * Get the last executed command in the active terminal
+	 * Uses proposed API - may be undefined in some VS Code versions
+	 */
+	get terminalLastCommand(): TerminalExecutedCommand | undefined {
+		return getActiveTerminalLastCommand();
 	}
 
 	/**

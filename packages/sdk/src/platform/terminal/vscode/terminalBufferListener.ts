@@ -8,10 +8,20 @@
 import { Terminal, window } from 'vscode';
 import { basename } from 'path';
 
+// Import proposed API types (these are defined in vscode.proposed.d.ts)
+// @ts-ignore - TerminalExecutedCommand is a proposed API
+import type { TerminalExecutedCommand } from '../../../vscode/vscode.proposed';
+
 /**
  * Maps terminals to their output buffers
  */
 const terminalBuffers: Map<Terminal, string[]> = new Map();
+
+/**
+ * Maps terminals to their executed commands
+ * Uses proposed API TerminalExecutedCommand
+ */
+const terminalCommands: Map<Terminal, TerminalExecutedCommand[]> = new Map();
 
 /**
  * Last detected shell type (for fallback)
@@ -77,6 +87,25 @@ export function getActiveTerminalSelection(): string {
 		// In case the API isn't available
 		return '';
 	}
+}
+
+/**
+ * Get the last executed command for a specific terminal
+ * @param terminal The terminal to get the last command for
+ */
+export function getLastCommandForTerminal(terminal: Terminal): TerminalExecutedCommand | undefined {
+	return terminalCommands.get(terminal)?.at(-1);
+}
+
+/**
+ * Get the last executed command in the active terminal
+ */
+export function getActiveTerminalLastCommand(): TerminalExecutedCommand | undefined {
+	const activeTerminal = window.activeTerminal;
+	if (activeTerminal === undefined) {
+		return undefined;
+	}
+	return terminalCommands.get(activeTerminal)?.at(-1);
 }
 
 /**
@@ -151,10 +180,30 @@ export function installTerminalBufferListeners(): { dispose(): void }[] {
 	// and may not be available in all VS Code versions
 	// We use a fallback approach that doesn't rely on these APIs
 
-	// Listen for terminal close to clean up buffers
+	// Try to use onDidExecuteTerminalCommand if available (proposed API in VS Code 1.90+)
+	try {
+		// @ts-ignore - onDidExecuteTerminalCommand may not exist in all VS Code versions
+		const onDidExecuteTerminalCommand = window.onDidExecuteTerminalCommand;
+		if (onDidExecuteTerminalCommand) {
+			disposables.push(
+				onDidExecuteTerminalCommand((e: TerminalExecutedCommand) => {
+					const terminal = e.terminal;
+					if (!terminalCommands.has(terminal)) {
+						terminalCommands.set(terminal, []);
+					}
+					appendLimitedWindow(terminalCommands.get(terminal)!, e);
+				})
+			);
+		}
+	} catch {
+		// onDidExecuteTerminalCommand is not available, skip command tracking
+	}
+
+	// Listen for terminal close to clean up buffers and commands
 	disposables.push(
 		window.onDidCloseTerminal(e => {
 			terminalBuffers.delete(e);
+			terminalCommands.delete(e);
 		})
 	);
 
