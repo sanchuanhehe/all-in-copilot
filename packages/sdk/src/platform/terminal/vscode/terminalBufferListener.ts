@@ -181,7 +181,6 @@ export function installTerminalBufferListeners(): { dispose(): void }[] {
 
 	// Try to use onDidExecuteTerminalCommand if available (proposed API in VS Code 1.90+)
 	try {
-			// @ts-expect-error - onDidExecuteTerminalCommand may not exist in all VS Code versions
 		const onDidExecuteTerminalCommand = window.onDidExecuteTerminalCommand;
 		if (onDidExecuteTerminalCommand) {
 			disposables.push(

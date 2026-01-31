@@ -27,7 +27,9 @@
 	},
 	"enabledApiProposals": [
 		"chatParticipantAdditions",
-		"chatParticipantPrivate"
+		"chatParticipantPrivate",
+		"terminalDataWriteEvent",
+		"terminalExecuteCommandEvent"
 	],
 	"dependencies": {
 		"@agentclientprotocol/sdk": "^0.13.1",

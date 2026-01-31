@@ -125,7 +125,6 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
 	get onDidWriteTerminalData(): Event<TerminalDataWriteEvent> {
-		// @ts-expect-error - onDidWriteTerminalData may not exist in all VS Code versions
 		return window.onDidWriteTerminalData ?? (() => { /* no-op */ });
 	}
 
