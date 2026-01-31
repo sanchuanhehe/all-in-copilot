@@ -13,14 +13,15 @@ import { randomUUID } from "crypto";
 
 // Common installation paths for OpenCode
 const COMMON_OPENCODE_PATHS = [
-	"/home/sanchuanhehe/.opencode/bin/opencode",
+	"${HOME}/.opencode/bin/opencode",
 	"/usr/local/bin/opencode",
 	"/opt/opencode/bin/opencode",
+	"/usr/bin/opencode",
 ];
 
 // Expand HOME in path
 function expandPath(path: string): string {
-	return path.replace("$HOME", process.env.HOME || "/home/sanchuanhehe");
+	return path.replace("$HOME", process.env.HOME || "");
 }
 
 /**
@@ -332,7 +333,7 @@ function findOpenCodePath(): string | null {
 	try {
 		const extendedEnv = {
 			...process.env,
-			PATH: (process.env.PATH || "") + ":/usr/local/bin:/home/sanchuanhehe/.opencode/bin",
+			PATH: (process.env.PATH || "") + ":/usr/local/bin:/usr/bin",
 		};
 		const path = execSync("which opencode 2>/dev/null || echo ''", {
 			encoding: "utf-8",
