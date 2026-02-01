@@ -164,8 +164,34 @@ export interface IVsCodeTerminal {
 }
 
 /**
+ * Terminal output result with ACP protocol fields
+ */
+export interface TerminalOutputResultFull {
+	output: string;
+	truncated: boolean;
+	exitStatus?: {
+		exitCode?: number;
+		signal?: string;
+	};
+}
+
+/**
+ * Terminal exit result with ACP protocol fields
+ */
+export interface TerminalExitResult {
+	exitCode?: number;
+	signal?: string;
+}
+
+/**
+ * Permission option kind (ACP protocol)
+ */
+export type PermissionOptionKind = 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
+
+/**
  * Callbacks for client implementation.
  * These allow the SDK to integrate with VS Code APIs.
+ * All callbacks follow the ACP protocol specification.
  */
 export interface ClientCallbacks {
 	/**
@@ -175,51 +201,64 @@ export interface ClientCallbacks {
 	 * @param args Command arguments
 	 * @param cwd Working directory
 	 * @param env Environment variables
+	 * @param outputByteLimit Maximum output bytes to retain (default: 65536)
 	 */
 	createTerminal?: (
 		sessionId: string,
 		command: string,
 		args?: string[],
 		cwd?: string,
-		env?: Array<{ name: string; value: string }>
+		env?: Array<{ name: string; value: string }>,
+		outputByteLimit?: number
 	) => Promise<IVsCodeTerminal>;
 	/**
-	 * Gets terminal output.
+	 * Gets terminal output with full ACP protocol response.
+	 * @param sessionId The session ID for context
 	 * @param terminalId The terminal ID to get output from
 	 */
-	getTerminalOutput?: (terminalId: string) => Promise<{ output: string; exitCode?: number }>;
+	getTerminalOutput?: (sessionId: string, terminalId: string) => Promise<TerminalOutputResultFull>;
 	/**
 	 * Releases a terminal.
+	 * @param sessionId The session ID for context
+	 * @param terminalId The terminal ID to release
 	 */
-	releaseTerminal?: (terminalId: string) => Promise<void>;
+	releaseTerminal?: (sessionId: string, terminalId: string) => Promise<void>;
 	/**
-	 * Waits for terminal to exit.
+	 * Waits for terminal to exit with full ACP protocol response.
+	 * @param sessionId The session ID for context
+	 * @param terminalId The terminal ID to wait for
 	 */
-	waitForTerminalExit?: (terminalId: string) => Promise<{ exitCode?: number }>;
+	waitForTerminalExit?: (sessionId: string, terminalId: string) => Promise<TerminalExitResult>;
 	/**
 	 * Kills a terminal command.
+	 * @param sessionId The session ID for context
+	 * @param terminalId The terminal ID to kill
 	 */
-	killTerminal?: (terminalId: string) => Promise<void>;
+	killTerminal?: (sessionId: string, terminalId: string) => Promise<void>;
 	/**
 	 * Reads a text file.
+	 * @param sessionId The session ID for context
 	 * @param path The file path to read
 	 * @param line Optional starting line number (1-indexed)
 	 * @param limit Optional maximum number of lines to read
 	 */
-	readTextFile?: (path: string, line?: number | null, limit?: number | null) => Promise<string>;
+	readTextFile?: (sessionId: string, path: string, line?: number | null, limit?: number | null) => Promise<string>;
 	/**
 	 * Writes a text file.
+	 * @param sessionId The session ID for context
 	 * @param path The file path to write
 	 * @param content The content to write
 	 */
-	writeTextFile?: (path: string, content: string) => Promise<void>;
+	writeTextFile?: (sessionId: string, path: string, content: string) => Promise<void>;
 	/**
 	 * Handles permission requests from the agent.
-	 * Should return the approved option or throw to deny.
+	 * Should return the approved optionId or throw to deny.
+	 * @param sessionId The session ID for context
+	 * @param request The permission request details
 	 */
-	requestPermission?: (request: {
-		toolCall: { title: string; description?: string };
-		options: Array<{ optionId: string; label: string }>;
+	requestPermission?: (sessionId: string, request: {
+		toolCall: { toolCallId: string; title: string; description?: string };
+		options: Array<{ optionId: string; name: string; kind: PermissionOptionKind }>;
 	}) => Promise<string>;
 
 	/**
@@ -401,16 +440,25 @@ export class ACPClientManager {
 
 	/**
 	 * Initializes the connection with an agent.
+	 * @param client The client connection
+	 * @param capabilities Optional capability overrides
 	 */
-	async initialize(client: ClientSideConnection): Promise<InitResult> {
+	async initialize(
+		client: ClientSideConnection,
+		capabilities?: {
+			fs?: { readTextFile?: boolean; writeTextFile?: boolean };
+			terminal?: boolean;
+		}
+	): Promise<InitResult> {
 		try {
 			const result = await client.initialize({
 				protocolVersion: 1, // Protocol version (must be <= 65535)
 				clientCapabilities: {
 					fs: {
-						readTextFile: true,
-						writeTextFile: true,
+						readTextFile: capabilities?.fs?.readTextFile ?? true,
+						writeTextFile: capabilities?.fs?.writeTextFile ?? true,
 					},
+					terminal: capabilities?.terminal ?? false,
 				},
 			});
 
@@ -538,6 +586,36 @@ export class ACPClientManager {
 				success: true,
 				result: { stopReason: result.stopReason },
 			};
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: errorMessage,
+			};
+		}
+	}
+
+	/**
+	 * Cancels an ongoing prompt turn.
+	 * Uses the session/cancel notification (ACP spec).
+	 * @param client The ACP client connection
+	 * @param sessionId The session ID to cancel
+	 */
+	async cancelSession(
+		client: ClientSideConnection,
+		sessionId: string
+	): Promise<{ success: boolean; error?: string }> {
+		try {
+			// Check if cancel is available
+			if (typeof client.cancel !== "function") {
+				return {
+					success: false,
+					error: "Client does not support cancel",
+				};
+			}
+
+			await client.cancel({ sessionId });
+			return { success: true };
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			return {
@@ -710,18 +788,19 @@ export class ACPClientManager {
 			 */
 			async requestPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {
 				const toolCall = params.toolCall;
-				const options = params.options.map((opt) => ({
-					optionId: opt.optionId,
-					label: opt.name,
-				}));
+				const sessionId = params.sessionId;
 
 				if (callbacks.requestPermission) {
-					const optionId = await callbacks.requestPermission({
+					const optionId = await callbacks.requestPermission(sessionId, {
 						toolCall: {
+							toolCallId: toolCall.toolCallId ?? "unknown",
 							title: toolCall.title ?? "Unknown",
-							// description is not available in ToolCallUpdate, use content as fallback
 						},
-						options,
+						options: params.options.map((opt) => ({
+							optionId: opt.optionId,
+							name: opt.name,
+							kind: opt.kind as PermissionOptionKind,
+						})),
 					});
 					return {
 						outcome: { outcome: "selected", optionId },
@@ -733,7 +812,7 @@ export class ACPClientManager {
 				return {
 					outcome: {
 						outcome: "selected",
-						optionId: options[0]?.optionId ?? "default",
+						optionId: params.options[0]?.optionId ?? "default",
 					},
 				};
 			},
@@ -773,8 +852,13 @@ export class ACPClientManager {
 			 */
 			async readTextFile(params: ReadTextFileRequest): Promise<ReadTextFileResponse> {
 				if (callbacks.readTextFile) {
-					// Pass complete protocol parameters: path, line, limit (may be null)
-					const content = await callbacks.readTextFile(params.path, params.line ?? undefined, params.limit ?? undefined);
+					// Pass complete protocol parameters: sessionId, path, line, limit
+					const content = await callbacks.readTextFile(
+						params.sessionId,
+						params.path,
+						params.line ?? undefined,
+						params.limit ?? undefined
+					);
 					return { content };
 				}
 
@@ -812,8 +896,8 @@ export class ACPClientManager {
 			 */
 			async writeTextFile(params: WriteTextFileRequest): Promise<WriteTextFileResponse> {
 				if (callbacks.writeTextFile) {
-					// Pass complete protocol parameters: path, content
-					await callbacks.writeTextFile(params.path, params.content);
+					// Pass complete protocol parameters: sessionId, path, content
+					await callbacks.writeTextFile(params.sessionId, params.path, params.content);
 					return {};
 				}
 
@@ -831,9 +915,22 @@ export class ACPClientManager {
 				const terminalId = `terminal-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 				const cwd = params.cwd ?? undefined;
 				const env = params.env ?? undefined;
+				// Convert bigint to number if needed (ACP protocol uses u64 but JS callbacks use number)
+				// Also handle null values from protocol
+				const rawLimit = params.outputByteLimit;
+				const outputByteLimit = rawLimit !== undefined && rawLimit !== null
+					? (typeof rawLimit === 'bigint' ? Number(rawLimit) : rawLimit)
+					: undefined;
 
 				if (callbacks.createTerminal) {
-					const terminal = await callbacks.createTerminal(params.sessionId, params.command, params.args, cwd, env);
+					const terminal = await callbacks.createTerminal(
+						params.sessionId,
+						params.command,
+						params.args,
+						cwd,
+						env,
+						outputByteLimit
+					);
 					terminalIdToHandle.set(terminal.terminalId, {
 						name: terminal.name,
 						command: params.command,
@@ -862,17 +959,17 @@ export class ACPClientManager {
 			 */
 			async terminalOutput(params: TerminalOutputRequest): Promise<TerminalOutputResponse> {
 				if (callbacks.getTerminalOutput) {
-					// Pass complete protocol parameters: terminalId
-					const result = await callbacks.getTerminalOutput(params.terminalId);
+					// Pass complete protocol parameters: sessionId, terminalId
+					const result = await callbacks.getTerminalOutput(params.sessionId, params.terminalId);
 					return {
 						output: result.output,
-						truncated: false,
-						exitStatus: result.exitCode !== undefined ? { exitCode: result.exitCode } : undefined,
+						truncated: result.truncated,
+						exitStatus: result.exitStatus,
 					};
 				}
 
 				// Default: return empty output
-				return { output: "", truncated: true };
+				return { output: "", truncated: false };
 			},
 
 			/**
@@ -880,7 +977,7 @@ export class ACPClientManager {
 			 */
 			async releaseTerminal(params: ReleaseTerminalRequest): Promise<ReleaseTerminalResponse | void> {
 				if (callbacks.releaseTerminal) {
-					await callbacks.releaseTerminal(params.terminalId);
+					await callbacks.releaseTerminal(params.sessionId, params.terminalId);
 				}
 				terminalIdToHandle.delete(params.terminalId);
 			},
@@ -890,8 +987,8 @@ export class ACPClientManager {
 			 */
 			async waitForTerminalExit(params: WaitForTerminalExitRequest): Promise<WaitForTerminalExitResponse> {
 				if (callbacks.waitForTerminalExit) {
-					const result = await callbacks.waitForTerminalExit(params.terminalId);
-					return { exitCode: result.exitCode };
+					const result = await callbacks.waitForTerminalExit(params.sessionId, params.terminalId);
+					return { exitCode: result.exitCode, signal: result.signal };
 				}
 
 				// Default: return undefined exit status
@@ -903,7 +1000,7 @@ export class ACPClientManager {
 			 */
 			async killTerminal(params: KillTerminalCommandRequest): Promise<KillTerminalCommandResponse | void> {
 				if (callbacks.killTerminal) {
-					await callbacks.killTerminal(params.terminalId);
+					await callbacks.killTerminal(params.sessionId, params.terminalId);
 				}
 			},
 

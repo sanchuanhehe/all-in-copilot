@@ -12,6 +12,10 @@ export {
 	type MCPServerConfig,
 	type ClientCallbacks,
 	type IVsCodeTerminal,
+	// New v2 API types
+	type TerminalOutputResultFull,
+	type TerminalExitResult,
+	type PermissionOptionKind,
 } from "./clientManager";
 export type {
 	ClientSideConnection,

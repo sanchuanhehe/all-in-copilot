@@ -4,11 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ITerminalService } from "../../platform/terminal/common/terminalService";
-import type { IACPTerminalAdapter, ACPEnvVariable } from "./types";
+import type { IACPTerminalAdapter, ACPEnvVariable, ACPTerminalExitStatus } from "./types";
 import { ACPTerminalAdapter } from "./acpTerminalAdapter";
 
 /**
- * Terminal callbacks compatible with ACPClientManager.ClientCallbacks
+ * Terminal output result with full ACP protocol fields
+ */
+export interface TerminalOutputResult {
+	output: string;
+	truncated: boolean;
+	exitStatus?: ACPTerminalExitStatus;
+}
+
+/**
+ * Terminal exit result with full ACP protocol fields
+ */
+export interface TerminalExitResult {
+	exitCode?: number;
+	signal?: string;
+}
+
+/**
+ * Terminal callbacks compatible with ACPClientManager.ClientCallbacks (v2 API)
+ * All callbacks now include sessionId as the first parameter for full ACP protocol compliance.
  */
 export interface ACPTerminalCallbacks {
 	createTerminal: (
@@ -16,12 +34,13 @@ export interface ACPTerminalCallbacks {
 		command: string,
 		args?: string[],
 		cwd?: string,
-		env?: Array<{ name: string; value: string }>
+		env?: Array<{ name: string; value: string }>,
+		outputByteLimit?: number
 	) => Promise<{ terminalId: string; name: string; sendText: (text: string, shouldExecute?: boolean) => void; show: (preserveFocus?: boolean) => void; hide: () => void; dispose: () => void }>;
-	getTerminalOutput: (terminalId: string) => Promise<{ output: string; exitCode?: number }>;
-	releaseTerminal: (terminalId: string) => Promise<void>;
-	waitForTerminalExit: (terminalId: string) => Promise<{ exitCode?: number }>;
-	killTerminal: (terminalId: string) => Promise<void>;
+	getTerminalOutput: (sessionId: string, terminalId: string) => Promise<TerminalOutputResult>;
+	releaseTerminal: (sessionId: string, terminalId: string) => Promise<void>;
+	waitForTerminalExit: (sessionId: string, terminalId: string) => Promise<TerminalExitResult>;
+	killTerminal: (sessionId: string, terminalId: string) => Promise<void>;
 }
 
 /**
@@ -52,6 +71,7 @@ export function createTerminalCallbacks(
 	options?: {
 		shellPath?: string;
 		shellArgs?: string[];
+		defaultOutputByteLimit?: number;
 	}
 ): { callbacks: ACPTerminalCallbacks; adapter: IACPTerminalAdapter } {
 	const adapter = new ACPTerminalAdapter(terminalService, options);
@@ -62,7 +82,8 @@ export function createTerminalCallbacks(
 			command: string,
 			args?: string[],
 			cwd?: string,
-			env?: Array<{ name: string; value: string }>
+			env?: Array<{ name: string; value: string }>,
+			outputByteLimit?: number
 		) {
 			const response = await adapter.createTerminal({
 				sessionId,
@@ -70,6 +91,7 @@ export function createTerminalCallbacks(
 				args,
 				cwd,
 				env: env as ACPEnvVariable[],
+				outputByteLimit: outputByteLimit ?? options?.defaultOutputByteLimit,
 			});
 
 			// Return a mock terminal handle that the client manager expects
@@ -83,26 +105,28 @@ export function createTerminalCallbacks(
 			};
 		},
 
-		async getTerminalOutput(terminalId: string) {
+		async getTerminalOutput(_sessionId: string, terminalId: string): Promise<TerminalOutputResult> {
 			const response = await adapter.getOutput({ terminalId });
 			return {
 				output: response.output,
-				exitCode: response.exitStatus?.exitCode,
+				truncated: response.truncated,
+				exitStatus: response.exitStatus,
 			};
 		},
 
-		async releaseTerminal(terminalId: string) {
+		async releaseTerminal(_sessionId: string, terminalId: string) {
 			await adapter.release({ terminalId });
 		},
 
-		async waitForTerminalExit(terminalId: string) {
+		async waitForTerminalExit(_sessionId: string, terminalId: string): Promise<TerminalExitResult> {
 			const response = await adapter.waitForExit({ terminalId });
 			return {
 				exitCode: response.exitCode,
+				signal: response.signal,
 			};
 		},
 
-		async killTerminal(terminalId: string) {
+		async killTerminal(_sessionId: string, terminalId: string) {
 			await adapter.killCommand({ terminalId });
 		},
 	};

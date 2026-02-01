@@ -300,8 +300,8 @@ export class ACPChatParticipant {
 
 							// Wait for command to complete and get output
 							const [outputResult] = await Promise.all([
-								this.terminalCallbacks.getTerminalOutput(terminal.terminalId),
-								this.terminalCallbacks.waitForTerminalExit(terminal.terminalId),
+								this.terminalCallbacks.getTerminalOutput(session.sessionId, terminal.terminalId),
+								this.terminalCallbacks.waitForTerminalExit(session.sessionId, terminal.terminalId),
 							]);
 
 							terminalOutput = outputResult.output;

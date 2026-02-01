@@ -192,20 +192,20 @@ const clientCallbacks: ClientCallbacks = {
 	 * Gets terminal output for the specified terminal.
 	 * Uses ACP Terminal Adapter for consistent buffer access with byte limits.
 	 */
-	async getTerminalOutput(terminalId: string): Promise<{ output: string; exitCode?: number }> {
+	async getTerminalOutput(sessionId: string, terminalId: string): Promise<{ output: string; truncated: boolean; exitStatus?: { exitCode?: number; signal?: string } }> {
 		if (!terminalCallbacks) {
-			return { output: "", exitCode: 0 };
+			return { output: "", truncated: false, exitStatus: { exitCode: 0 } };
 		}
 
-		return terminalCallbacks.getTerminalOutput(terminalId);
+		return terminalCallbacks.getTerminalOutput(sessionId, terminalId);
 	},
 
 	/**
 	 * Releases a terminal, cleaning up resources.
 	 */
-	async releaseTerminal(terminalId: string): Promise<void> {
+	async releaseTerminal(sessionId: string, terminalId: string): Promise<void> {
 		if (terminalCallbacks) {
-			await terminalCallbacks.releaseTerminal(terminalId);
+			await terminalCallbacks.releaseTerminal(sessionId, terminalId);
 		}
 	},
 
@@ -213,20 +213,20 @@ const clientCallbacks: ClientCallbacks = {
 	 * Waits for a terminal command to exit and returns its exit status.
 	 * Uses ACP Terminal Adapter's enhanced wait mechanism.
 	 */
-	async waitForTerminalExit(terminalId: string): Promise<{ exitCode?: number }> {
+	async waitForTerminalExit(sessionId: string, terminalId: string): Promise<{ exitCode?: number; signal?: string }> {
 		if (!terminalCallbacks) {
 			return { exitCode: undefined };
 		}
 
-		return terminalCallbacks.waitForTerminalExit(terminalId);
+		return terminalCallbacks.waitForTerminalExit(sessionId, terminalId);
 	},
 
 	/**
 	 * Kills a terminal command.
 	 */
-	async killTerminal(terminalId: string): Promise<void> {
+	async killTerminal(sessionId: string, terminalId: string): Promise<void> {
 		if (terminalCallbacks) {
-			await terminalCallbacks.killTerminal(terminalId);
+			await terminalCallbacks.killTerminal(sessionId, terminalId);
 		}
 	},
 
@@ -234,7 +234,7 @@ const clientCallbacks: ClientCallbacks = {
 	 * Reads a text file using VS Code Copilot tools via lm.invokeTool.
 	 * Routes through Copilot's permission confirmation system for unified management.
 	 */
-	async readTextFile(path: string, line?: number | null, limit?: number | null): Promise<string> {
+	async readTextFile(sessionId: string, path: string, line?: number | null, limit?: number | null): Promise<string> {
 		const startLine = line ?? 1;
 		const endLine = limit !== undefined ? startLine + limit : undefined;
 
@@ -288,7 +288,7 @@ const clientCallbacks: ClientCallbacks = {
 	 * Uses createFile for new files, applyPatch for existing files.
 	 * Routes through Copilot's permission confirmation system for unified management.
 	 */
-	async writeTextFile(path: string, content: string): Promise<void> {
+	async writeTextFile(sessionId: string, path: string, content: string): Promise<void> {
 		try {
 			// First try applyPatch (works for both new and existing files)
 			const patchContent = `*** Begin Patch
@@ -332,9 +332,9 @@ ${content}
 	/**
 	 * Handles permission requests from the agent.
 	 */
-	async requestPermission(request: {
-		toolCall: { title: string; description?: string };
-		options: Array<{ optionId: string; label: string }>;
+	async requestPermission(sessionId: string, request: {
+		toolCall: { toolCallId: string; title: string; description?: string };
+		options: Array<{ optionId: string; name: string; kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always' }>;
 	}): Promise<string> {
 		// Auto-approve safe operations
 		const safePatterns = [
@@ -348,15 +348,18 @@ ${content}
 
 		for (const pattern of safePatterns) {
 			if (pattern.test(request.toolCall.title)) {
-				return request.options[0]?.optionId ?? "approved";
+				// Find the allow_once option or use first option
+				const allowOnce = request.options.find(opt => opt.kind === 'allow_once');
+				return allowOnce?.optionId ?? request.options[0]?.optionId ?? "approved";
 			}
 		}
 
 		// For potentially dangerous operations, show a confirmation
 		const selection = await vscode.window.showQuickPick(
 			request.options.map((opt) => ({
-				label: opt.label,
-				description: opt.optionId,
+				label: opt.name,
+				description: `(${opt.kind})`,
+				optionId: opt.optionId,
 			})),
 			{
 				placeHolder: request.toolCall.title + (request.toolCall.description ? `\n${request.toolCall.description}` : ""),
@@ -365,10 +368,15 @@ ${content}
 		);
 
 		if (!selection) {
+			// Find reject_once option or throw
+			const rejectOnce = request.options.find(opt => opt.kind === 'reject_once');
+			if (rejectOnce) {
+				return rejectOnce.optionId;
+			}
 			throw new Error("Permission denied by user");
 		}
 
-		return selection.description;
+		return (selection as { optionId: string }).optionId;
 	},
 
 	/**
