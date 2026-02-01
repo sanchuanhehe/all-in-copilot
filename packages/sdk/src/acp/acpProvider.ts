@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sdk";
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
+import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
+import { executeInTerminal } from "./terminalProvider";
 
 // Note: For enhanced tool invocation UI (ChatToolInvocationPart), VS Code's official
 // implementation uses the ChatParticipant API with ChatResponseStream, not the
@@ -103,12 +105,16 @@ function formatToolInput(rawInput: unknown): string {
 export class ACPProvider implements vscode.LanguageModelChatProvider {
 	private readonly options: ACPProviderOptions;
 	private readonly clientManager: ACPClientManager;
+	private readonly terminalService: TerminalServiceImpl;
 	private readonly sessions = new Map<string, ACPSession>();
 	private connection: ClientSideConnection | null = null;
 
 	constructor(options: ACPProviderOptions) {
 		this.options = options;
 		this.clientManager = new ACPClientManager(options.clientInfo);
+		this.terminalService = new TerminalServiceImpl({
+			environmentVariableCollection: {} as { append: (v: string, val: string) => void; prepend: (v: string, val: string) => void; delete: (v: string) => void; description?: string },
+		});
 	}
 
 	async provideLanguageModelChatInformation(
@@ -348,14 +354,35 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 						console.log(`[ACPProvider] Tool input: ${JSON.stringify(rawInput)}`);
 					}
 
+					// For terminal tools, execute in real VS Code terminal
+					const commandText = formatToolInput(rawInput);
+					const isTerminal = isTerminalTool(toolName, rawInput);
+					let terminalOutput = "";
+					if (isTerminal && commandText) {
+						try {
+							console.log('[ACPProvider] Executing terminal command:', commandText.substring(0, 100) + '...');
+							const result = await executeInTerminal(
+								this.terminalService,
+								session.sessionId,
+								commandText,
+								{ showTerminal: true }
+							);
+							terminalOutput = result.output;
+							console.log('[ACPProvider] Terminal command completed, output length:', terminalOutput.length);
+						} catch (err) {
+							terminalOutput = `Terminal error: ${err instanceof Error ? err.message : String(err)}`;
+							console.error(`[ACPProvider] Terminal error:`, err);
+						}
+					}
+
 					// Report tool call using the stable LanguageModelChatProvider API
 					// For terminal tools, we report the command in the input for better visibility
 					const inputObject = rawInput !== undefined ? (rawInput as object) : {};
 					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, inputObject);
 					progress.report(toolCallPart);
 
-					// Initialize pending tool call
-					pendingTools.set(toolCallId, { name: toolName, result: "" });
+					// Initialize pending tool call with terminal output
+					pendingTools.set(toolCallId, { name: toolName, result: terminalOutput });
 
 					// CRITICAL: Register a dedicated listener for this tool's updates
 					// This listener will send the tool result back to Agent immediately
@@ -397,16 +424,29 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 						if ((status === "completed" || status === "success") && updateToolCallId) {
 							console.log(`[ACPProvider] Tool completed: ${updateToolCallId}, sending result to Agent`);
 
+							// Get stored tool info (includes terminalOutput)
+							const toolInfo = pendingTools.get(updateToolCallId);
+							const terminalOutput = toolInfo?.result || "";
+
+							// Collect tool result content
+							let combinedResult = "";
+							if (terminalOutput) {
+								combinedResult = terminalOutput;
+								console.log(`[ACPProvider] Including terminal output (${terminalOutput.length} chars)`);
+							}
+							if (toolResultText) {
+								combinedResult += (combinedResult ? "\n" : "") + toolResultText;
+							}
+
 							// Update pending tools map
-							if (pendingTools.has(updateToolCallId)) {
-								const toolInfo = pendingTools.get(updateToolCallId)!;
-								toolInfo.result = toolResultText;
+							if (toolInfo) {
+								toolInfo.result = combinedResult;
 							}
 
 							// Send LanguageModelToolResultPart to progress
 							const toolResultContent: vscode.LanguageModelTextPart[] = [];
-							if (toolResultText) {
-								toolResultContent.push(new vscode.LanguageModelTextPart(toolResultText));
+							if (combinedResult) {
+								toolResultContent.push(new vscode.LanguageModelTextPart(combinedResult));
 							}
 							const toolResultPart = new vscode.LanguageModelToolResultPart(updateToolCallId, toolResultContent);
 							progress.report(toolResultPart);
@@ -415,7 +455,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 							// This is the key fix - send result while prompt() is still pending
 							const toolResultContentBlock: ContentBlock = {
 								type: "text",
-								text: `[Tool Result for ${updateToolCallId}]: ${toolResultText || "(no output)"}`
+								text: `[Tool Result for ${updateToolCallId}]: ${combinedResult || "(no output)"}`
 							};
 
 							try {

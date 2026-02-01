@@ -165,17 +165,25 @@ export class ACPChatParticipant {
 		stream: vscode.ChatResponseStream,
 		token: vscode.CancellationToken
 	): Promise<vscode.ChatResult> {
+		console.log('[ACP-Chat] requestHandler called', {
+			promptLength: request.prompt?.length,
+			hasContext: context?.history?.length > 0
+		});
+
 		// Initialize connection if not already done
 		if (!this.connection) {
+			console.log('[ACP-Chat] Initializing client connection...');
 			const initResult = await this.initializeClient();
 			if (!initResult.success) {
 				stream.markdown(`Failed to initialize: ${initResult.error ?? "Unknown error"}`);
 				return { errorDetails: { message: initResult.error ?? "Initialization failed" } };
 			}
+			console.log('[ACP-Chat] Client initialized successfully');
 		}
 
 		try {
 			// Create a new session
+			console.log('[ACP-Chat] Creating new session...');
 			const sessionResult = await this.clientManager.newSession(this.connection!, {
 				cwd: this.options.clientConfig.cwd ?? process.cwd(),
 			});
@@ -189,6 +197,7 @@ export class ACPChatParticipant {
 				sessionId: sessionResult.sessionId,
 			};
 			this.sessions.set(sessionResult.sessionId, session);
+			console.log('[ACP-Chat] Session created:', sessionResult.sessionId);
 
 			// Send the user's message and stream the response
 			await this.streamChatResponse(session, request.prompt, stream, token);
@@ -290,7 +299,7 @@ export class ACPChatParticipant {
 					let terminalOutput = "";
 					if (isTerminal && commandText) {
 						try {
-							console.log(`[ACPChatParticipant] Executing terminal command: ${commandText}`);
+							console.log('[ACP-Chat] Executing terminal command:', commandText.substring(0, 100) + '...');
 							const result = await executeInTerminal(
 								this.terminalService,  // Use terminalService directly
 								session.sessionId,
@@ -298,7 +307,7 @@ export class ACPChatParticipant {
 								{ showTerminal: true }
 							);
 							terminalOutput = result.output;
-							console.log(`[ACPChatParticipant] Terminal output length: ${terminalOutput.length}`);
+							console.log('[ACP-Chat] Terminal command completed, output length:', terminalOutput.length);
 						} catch (err) {
 							terminalOutput = `Terminal error: ${err instanceof Error ? err.message : String(err)}`;
 							console.error(`[ACPChatParticipant] Terminal error:`, err);
@@ -411,16 +420,25 @@ export class ACPChatParticipant {
 			}
 		});
 
-		try {
+			try {
 			// Send the prompt and wait for the result
-			console.log("[ACPChatParticipant] Sending prompt...");
+			console.log('[ACP-Chat] Sending prompt to agent...');
 			const promptResult = await this.clientManager.prompt(session.connection, {
 				sessionId: session.sessionId,
 				prompt: content,
 			});
 
-			console.log(`[ACPChatParticipant] Prompt completed, stopReason: ${promptResult.result?.stopReason ?? "unknown"}`);
+			const stopReason = promptResult.result?.stopReason ?? "unknown";
+			console.log('[ACP-Chat] Prompt completed', {
+				stopReason,
+				hasResult: !!promptResult.result,
+				success: promptResult.success
+			});
 
+			// Log final result for debugging
+			if (stopReason !== 'unknown') {
+				console.log('[ACP-Chat] Turn completed with stopReason:', stopReason);
+			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			console.error(`[ACPChatParticipant] Error in streamChatResponse: ${errorMessage}`);

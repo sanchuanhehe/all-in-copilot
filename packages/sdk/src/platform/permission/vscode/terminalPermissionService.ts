@@ -261,21 +261,32 @@ export class TerminalPermissionService implements ITerminalPermissionService {
 	 * Request user confirmation for a terminal command
 	 */
 	async requestTerminalConfirmation(details: TerminalConfirmationDetails): Promise<PermissionResult> {
+		console.log('[ACP-Permission] requestTerminalConfirmation called', {
+			command: details.command?.substring(0, 50),
+			shellType: details.shellType,
+			cwd: details.cwd
+		});
+
 		// Check if command is dangerous and requires confirmation
 		const isDangerous = this.isDangerousCommand(details.command);
+		console.log('[ACP-Permission] Command danger check:', isDangerous);
 
 		// Auto-approve safe commands if configured
 		if (!isDangerous && this.autoApproveSafeCommands) {
+			console.log('[ACP-Permission] Auto-approving safe command');
 			return PermissionResult.Allow;
 		}
 
 		// Skip confirmation for non-dangerous commands if not confirming
 		if (!isDangerous && !this.confirmDangerousCommands) {
+			console.log('[ACP-Permission] Auto-approving (confirmation disabled for non-dangerous)');
 			return PermissionResult.Allow;
 		}
 
 		// Show confirmation dialog
-		return this.showConfirmationDialog(details);
+		const result = await this.showConfirmationDialog(details);
+		console.log('[ACP-Permission] Confirmation dialog result:', result);
+		return result;
 	}
 
 	/**
@@ -283,19 +294,23 @@ export class TerminalPermissionService implements ITerminalPermissionService {
 	 */
 	isDangerousCommand(command: string): boolean {
 		const trimmedCommand = command.trim();
+		console.log('[ACP-Permission] Checking if command is dangerous:', trimmedCommand.substring(0, 50));
 
 		// Check against dangerous patterns
 		for (const pattern of this.dangerousPatterns) {
 			if (pattern.pattern.test(trimmedCommand)) {
+				console.log('[ACP-Permission] Command matches dangerous pattern:', pattern.pattern, 'severity:', pattern.severity);
 				return true;
 			}
 		}
 
 		// Check if it's a known safe command
 		const baseCommand = this.getBaseCommand(trimmedCommand);
-		return !SAFE_COMMAND_PREFIXES.some(safe =>
+		const isSafe = SAFE_COMMAND_PREFIXES.some(safe =>
 			baseCommand.toLowerCase().startsWith(safe.toLowerCase())
 		);
+		console.log('[ACP-Permission] Command base:', baseCommand, 'isKnownSafe:', isSafe);
+		return !isSafe;
 	}
 
 	/**
