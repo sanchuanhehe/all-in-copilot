@@ -42,3 +42,41 @@ export { ACPChatParticipant, registerACPChatParticipant, type ACPChatParticipant
 
 // VS Code Terminal Provider for real integrated terminals
 export { ACPTerminalProvider, executeInTerminal, executeInNewTerminal } from "./terminalProvider";
+
+// ACP Terminal Adapter - Full ACP protocol terminal operations
+export {
+	// Types
+	type ACPCreateTerminalRequest,
+	type ACPCreateTerminalResponse,
+	type ACPTerminalOutputRequest,
+	type ACPTerminalOutputResponse,
+	type ACPWaitForExitRequest,
+	type ACPWaitForExitResponse,
+	type ACPKillRequest,
+	type ACPKillResponse,
+	type ACPReleaseRequest,
+	type ACPReleaseResponse,
+	type ITerminalHandle,
+	type IACPTerminalAdapter,
+	type TerminalState,
+	type ACPEnvVariable,
+	type ExitStatus,
+	// Buffer Manager
+	generateTerminalId,
+	initializeTerminalBuffer,
+	appendToTerminalBuffer,
+	getBufferInfo,
+	getTerminalById,
+	waitForTerminalCompletion,
+	isTerminalCompleted,
+	getTerminalExitStatus,
+	cleanupTerminalById,
+	installEnhancedTerminalListeners,
+	// Adapter
+	ACPTerminalAdapter,
+	createACPTerminalAdapter,
+	// Callback Integration
+	type ACPTerminalCallbacks,
+	createTerminalCallbacks,
+	disposeTerminalAdapter,
+} from "./terminal";

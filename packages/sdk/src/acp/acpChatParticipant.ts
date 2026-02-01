@@ -6,6 +6,22 @@ import { ACPTerminalProvider } from "./terminalProvider";
 import { isTerminalTool } from "./terminalExecution";
 
 /**
+ * Type definition for ChatTerminalToolInvocationData (proposed API)
+ * Matches VS Code's official implementation for terminal tool UI.
+ */
+interface ChatTerminalToolInvocationData {
+	commandLine: {
+		original: string;
+		userEdited?: string;
+		toolEdited?: string;
+	};
+	language: string;
+	output?: {
+		text: string;
+	};
+}
+
+/**
  * Options for the ACP Chat Participant.
  * Provides rich tool invocation UI using ChatParticipant API.
  */
@@ -205,6 +221,8 @@ export class ACPChatParticipant {
 		const pendingTools = new Map<string, {
 			name: string;
 			rawInput?: unknown;
+			command?: string;
+			isTerminal: boolean;
 			listenerUnsubscribe: () => void;
 		}>();
 
@@ -230,27 +248,62 @@ export class ACPChatParticipant {
 
 					console.log(`[ACPChatParticipant] Tool call: ${toolName} (${toolCallId})`);
 
-					// Note: In standard ACP protocol, terminal commands come from terminal/create request,
-					// not from tool_call's title or rawInput. We do not extract commands from tool_call.
+					// Extract command for terminal tools from rawInput
+					const inputObj = rawInput as { command?: string } | undefined;
+					const command = inputObj?.command || "";
 
 					// Create ChatToolInvocationPart with proper API
 					// Constructor: toolName, toolCallId, isError?
 					const toolPart = new vscode.ChatToolInvocationPart(toolName, toolCallId, false);
 
-					// Set invocation message
-					const markdown = new vscode.MarkdownString();
-					markdown.appendText(`🔄 Running ${toolName}...`);
-					toolPart.invocationMessage = markdown;
+					// Set invocation message - matching official Copilot UI
+					const invocationMd = new vscode.MarkdownString();
+					invocationMd.appendText(`🔄 Running ${toolName}`);
+					if (command) {
+						invocationMd.appendText(": ");
+						invocationMd.appendCodeblock(command, "bash");
+					}
+					toolPart.invocationMessage = invocationMd;
+
+					// Set toolSpecificData for terminal tools - matching official Copilot UI
+					const isTerminal = isTerminalTool(toolName);
+					if (isTerminal && command) {
+						const terminalData: ChatTerminalToolInvocationData = {
+							commandLine: {
+								original: command,
+								userEdited: undefined,
+								toolEdited: undefined,
+							},
+							language: "bash",  // Default to bash, could be detected from shell
+							output: undefined,  // Will be set when tool completes
+						};
+						toolPart.toolSpecificData = terminalData;
+					}
 
 					// Push the tool part to stream
 					stream.push(toolPart);
 
-					// For terminal tools, we cannot execute without terminal/create request
-					const isTerminal = isTerminalTool(toolName);
-					const terminalOutput = "";
-					if (isTerminal) {
-						console.log(`[ACPChatParticipant] Terminal tool '${toolName}' called but no terminal/create request found.`);
-						console.log(`[ACPChatParticipant] In standard ACP protocol, terminal commands must use terminal/create request.`);
+					// Execute terminal command if this is a terminal tool
+					let terminalOutput = "";
+					if (isTerminal && command) {
+						try {
+							console.log(`[ACPChatParticipant] Executing terminal command: ${command}`);
+
+							// Use terminal provider to execute command
+							const result = await this.terminalProvider.executeCommand(
+								session.sessionId,
+								command,
+								{
+									showTerminal: true,
+								}
+							);
+
+							terminalOutput = result.output;
+							console.log(`[ACPChatParticipant] Terminal command executed, output length: ${terminalOutput.length}`);
+						} catch (error) {
+							terminalOutput = `Error: ${error instanceof Error ? error.message : String(error)}`;
+							console.error(`[ACPChatParticipant] Terminal error: ${terminalOutput}`);
+						}
 					}
 
 					// CRITICAL: Register tool update listener IMMEDIATELY after receiving tool_call
@@ -272,6 +325,9 @@ export class ACPChatParticipant {
 
 						const contentData = (toolUpdateData as { content?: Array<{ text?: string }> }).content;
 						const rawOutput = (toolUpdateData as { rawOutput?: unknown }).rawOutput;
+
+						// Check if this is a terminal tool early for scope access
+						const isTerminalToolCheck = isTerminalTool(toolName);
 
 						// Collect tool result
 						let toolResultText = "";
@@ -302,6 +358,8 @@ export class ACPChatParticipant {
 								pendingTools.set(updateToolCallId, {
 									name: toolName,
 									rawInput,
+									command,
+									isTerminal: isTerminalToolCheck,
 									listenerUnsubscribe: toolListenerUnsubscribe,
 								});
 							}
@@ -315,6 +373,23 @@ export class ACPChatParticipant {
 							const pastTenseMarkdown = new vscode.MarkdownString();
 							pastTenseMarkdown.appendText(`✅ ${toolName} completed`);
 							completedToolPart.pastTenseMessage = pastTenseMarkdown;
+
+							// Update toolSpecificData with output - matching official Copilot UI
+							const toolInfo = pendingTools.get(updateToolCallId);
+							if (isTerminalToolCheck && toolResultText && toolInfo?.command) {
+								const terminalData: ChatTerminalToolInvocationData = {
+									commandLine: {
+										original: toolInfo.command,
+										userEdited: undefined,
+										toolEdited: undefined,
+									},
+									language: "bash",
+									output: {
+										text: toolResultText,
+									},
+								};
+								completedToolPart.toolSpecificData = terminalData;
+							}
 
 							// Push completed tool part
 							stream.push(completedToolPart);
@@ -352,7 +427,13 @@ export class ACPChatParticipant {
 					});
 
 					// Track this tool with its listener
-					pendingTools.set(toolCallId, { name: toolName, rawInput, listenerUnsubscribe: toolListenerUnsubscribe });
+					pendingTools.set(toolCallId, {
+						name: toolName,
+						rawInput,
+						command,
+						isTerminal,
+						listenerUnsubscribe: toolListenerUnsubscribe
+					});
 
 					break;
 				}
