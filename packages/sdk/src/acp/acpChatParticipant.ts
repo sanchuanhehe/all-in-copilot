@@ -3,7 +3,7 @@ import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sd
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
 import { ACPTerminalProvider, executeInTerminal } from "./terminalProvider";
 import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
-import { isTerminalTool, extractTerminalCommand } from "./terminalExecution";
+import { isTerminalTool } from "./terminalExecution";
 
 /**
  * Options for the ACP Chat Participant.
@@ -234,46 +234,27 @@ export class ACPChatParticipant {
 
 					console.log(`[ACPChatParticipant] Tool call: ${toolName} (${toolCallId})`);
 
-					// Extract command using comprehensive strategy (ACP protocol + OpenCode compatibility)
-					let commandText = extractTerminalCommand(title, rawInput, collectedText, toolName);
+					// Note: In standard ACP protocol, terminal commands come from terminal/create request,
+					// not from tool_call's title or rawInput. We do not extract commands from tool_call.
 
 					// Create ChatToolInvocationPart with proper API
 					// Constructor: toolName, toolCallId, isError?
 					const toolPart = new vscode.ChatToolInvocationPart(toolName, toolCallId, false);
 
 					// Set invocation message
-					if (commandText) {
-						const markdown = new vscode.MarkdownString();
-						markdown.appendText(`🔄 Running ${toolName}:\n`);
-						markdown.appendCodeblock(commandText, "bash");
-						toolPart.invocationMessage = markdown;
-					} else {
-						const markdown = new vscode.MarkdownString();
-						markdown.appendText(`🔄 Running ${toolName}...`);
-						toolPart.invocationMessage = markdown;
-					}
+					const markdown = new vscode.MarkdownString();
+					markdown.appendText(`🔄 Running ${toolName}...`);
+					toolPart.invocationMessage = markdown;
 
 					// Push the tool part to stream
 					stream.push(toolPart);
 
-					// For terminal tools, execute in real VS Code terminal
+					// For terminal tools, we cannot execute without terminal/create request
 					const isTerminal = isTerminalTool(toolName);
 					let terminalOutput = "";
-					if (isTerminal && commandText) {
-						try {
-							console.log('[ACP-Chat] Executing terminal command:', commandText.substring(0, 100) + '...');
-							const result = await executeInTerminal(
-								this.terminalService,  // Use terminalService directly
-								session.sessionId,
-								commandText,
-								{ showTerminal: true }
-							);
-							terminalOutput = result.output;
-							console.log('[ACP-Chat] Terminal command completed, output length:', terminalOutput.length);
-						} catch (err) {
-							terminalOutput = `Terminal error: ${err instanceof Error ? err.message : String(err)}`;
-							console.error(`[ACPChatParticipant] Terminal error:`, err);
-						}
+					if (isTerminal) {
+						console.log(`[ACPChatParticipant] Terminal tool '${toolName}' called but no terminal/create request found.`);
+						console.log(`[ACPChatParticipant] In standard ACP protocol, terminal commands must use terminal/create request.`);
 					}
 
 					// CRITICAL: Register tool update listener IMMEDIATELY after receiving tool_call

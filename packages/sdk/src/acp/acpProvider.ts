@@ -3,7 +3,7 @@ import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sd
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
 import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
 import { executeInTerminal } from "./terminalProvider";
-import { isTerminalTool, extractTerminalCommand } from "./terminalExecution";
+import { isTerminalTool } from "./terminalExecution";
 
 // Note: For enhanced tool invocation UI (ChatToolInvocationPart), VS Code's official
 // implementation uses the ChatParticipant API with ChatResponseStream, not the
@@ -311,28 +311,16 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 						console.log(`[ACPProvider] Tool input: ${JSON.stringify(rawInput)}`);
 					}
 
-					// Extract command using comprehensive strategy (ACP protocol + OpenCode compatibility)
-					const commandText = extractTerminalCommand(title, rawInput, collectedText, toolName);
-					console.log(`[ACPProvider] Extracted command: "${commandText}"`);
+					// Note: In standard ACP protocol, terminal commands come from terminal/create request,
+					// not from tool_call's title or rawInput. We do not extract commands from tool_call.
+					// If the agent follows the standard, it will use terminal/create for terminal commands.
 
-					// For terminal tools, execute in real VS Code terminal
+					// For terminal tools, we cannot execute without terminal/create request
 					const isTerminal = isTerminalTool(toolName);
 					let terminalOutput = "";
-					if (isTerminal && commandText) {
-						try {
-							console.log('[ACPProvider] Executing terminal command:', commandText.substring(0, 100) + '...');
-							const result = await executeInTerminal(
-								this.terminalService,
-								session.sessionId,
-								commandText,
-								{ showTerminal: true }
-							);
-							terminalOutput = result.output;
-							console.log('[ACPProvider] Terminal command completed, output length:', terminalOutput.length);
-						} catch (err) {
-							terminalOutput = `Terminal error: ${err instanceof Error ? err.message : String(err)}`;
-							console.error(`[ACPProvider] Terminal error:`, err);
-						}
+					if (isTerminal) {
+						console.log(`[ACPProvider] Terminal tool '${toolName}' called but no terminal/create request found.`);
+						console.log(`[ACPProvider] In standard ACP protocol, terminal commands must use terminal/create request.`);
 					}
 
 					// Report tool call using the stable LanguageModelChatProvider API
@@ -341,7 +329,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, inputObject);
 					progress.report(toolCallPart);
 
-					// Initialize pending tool call with terminal output
+					// Initialize pending tool call
 					pendingTools.set(toolCallId, { name: toolName, result: terminalOutput });
 
 					// CRITICAL: Register a dedicated listener for this tool's updates
