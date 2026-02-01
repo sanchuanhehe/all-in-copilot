@@ -3,6 +3,7 @@ import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sd
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
 import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
 import { executeInTerminal } from "./terminalProvider";
+import { isTerminalTool, extractTerminalCommand } from "./terminalExecution";
 
 // Note: For enhanced tool invocation UI (ChatToolInvocationPart), VS Code's official
 // implementation uses the ChatParticipant API with ChatResponseStream, not the
@@ -52,50 +53,6 @@ export interface ACPProviderOptions {
 interface ACPSession {
 	connection: ClientSideConnection;
 	sessionId: string;
-}
-
-/**
- * Check if a tool call is a terminal/shell command based on tool name or input
- */
-function isTerminalTool(toolName: string, rawInput?: unknown): boolean {
-	const terminalToolNames = ["bash", "shell", "exec", "terminal", "command", "run", "execute"];
-	const isTerminalName = terminalToolNames.some((name) => toolName.toLowerCase().includes(name));
-
-	// Also check if input looks like a shell command
-	if (rawInput !== undefined && typeof rawInput === "object") {
-		const inputObj = rawInput as Record<string, unknown>;
-		if ("command" in inputObj || "cmd" in inputObj || "script" in inputObj) {
-			return true;
-		}
-	}
-
-	return isTerminalName;
-}
-
-/**
- * Format a tool input for display
- */
-function formatToolInput(rawInput: unknown): string {
-	if (rawInput === undefined) {
-		return "";
-	}
-	if (typeof rawInput === "string") {
-		return rawInput;
-	}
-	if (typeof rawInput === "object") {
-		const inputObj = rawInput as Record<string, unknown>;
-		if ("command" in inputObj && typeof inputObj.command === "string") {
-			return inputObj.command;
-		}
-		if ("cmd" in inputObj && typeof inputObj.cmd === "string") {
-			return inputObj.cmd;
-		}
-		if ("script" in inputObj && typeof inputObj.script === "string") {
-			return inputObj.script;
-		}
-		return JSON.stringify(rawInput, null, 2);
-	}
-	return String(rawInput);
 }
 
 /**
@@ -354,9 +311,12 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 						console.log(`[ACPProvider] Tool input: ${JSON.stringify(rawInput)}`);
 					}
 
+					// Extract command using comprehensive strategy (ACP protocol + OpenCode compatibility)
+					const commandText = extractTerminalCommand(title, rawInput, collectedText, toolName);
+					console.log(`[ACPProvider] Extracted command: "${commandText}"`);
+
 					// For terminal tools, execute in real VS Code terminal
-					const commandText = formatToolInput(rawInput);
-					const isTerminal = isTerminalTool(toolName, rawInput);
+					const isTerminal = isTerminalTool(toolName);
 					let terminalOutput = "";
 					if (isTerminal && commandText) {
 						try {
@@ -689,15 +649,6 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		}
 
 		return null;
-	}
-
-	/**
-	 * Disposes of the provider and all resources.
-	 */
-	async dispose(): Promise<void> {
-		await this.clientManager.dispose();
-		this.sessions.clear();
-		this.connection = null;
 	}
 }
 

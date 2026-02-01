@@ -3,6 +3,7 @@ import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sd
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
 import { ACPTerminalProvider, executeInTerminal } from "./terminalProvider";
 import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
+import { isTerminalTool, extractTerminalCommand } from "./terminalExecution";
 
 /**
  * Options for the ACP Chat Participant.
@@ -37,50 +38,6 @@ export interface ACPChatParticipantOptions {
 interface ACPSession {
 	connection: ClientSideConnection;
 	sessionId: string;
-}
-
-/**
- * Check if a tool call is a terminal/shell command based on tool name or input
- */
-function isTerminalTool(toolName: string, rawInput?: unknown): boolean {
-	const terminalToolNames = ["bash", "shell", "exec", "terminal", "command", "run", "execute"];
-	const isTerminalName = terminalToolNames.some((name) => toolName.toLowerCase().includes(name));
-
-	// Also check if input looks like a shell command
-	if (rawInput !== undefined && typeof rawInput === "object") {
-		const inputObj = rawInput as Record<string, unknown>;
-		if ("command" in inputObj || "cmd" in inputObj || "script" in inputObj) {
-			return true;
-		}
-	}
-
-	return isTerminalName;
-}
-
-/**
- * Format a tool input for display
- */
-function formatToolInput(rawInput: unknown): string {
-	if (rawInput === undefined) {
-		return "";
-	}
-	if (typeof rawInput === "string") {
-		return rawInput;
-	}
-	if (typeof rawInput === "object") {
-		const inputObj = rawInput as Record<string, unknown>;
-		if ("command" in inputObj && typeof inputObj.command === "string") {
-			return inputObj.command;
-		}
-		if ("cmd" in inputObj && typeof inputObj.cmd === "string") {
-			return inputObj.cmd;
-		}
-		if ("script" in inputObj && typeof inputObj.script === "string") {
-			return inputObj.script;
-		}
-		return JSON.stringify(rawInput, null, 2);
-	}
-	return String(rawInput);
 }
 
 /**
@@ -251,6 +208,9 @@ export class ACPChatParticipant {
 			listenerUnsubscribe: () => void;
 		}>();
 
+		// Collect all text for OpenCode command extraction
+		let collectedText = "";
+
 		// Main listener for session updates - single listener for all updates
 		const mainUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (update) => {
 			const updateData = update.update;
@@ -259,7 +219,9 @@ export class ACPChatParticipant {
 				case "agent_message_chunk": {
 					const contentBlock = updateData.content;
 					if (contentBlock && "text" in contentBlock) {
-						stream.markdown(String(contentBlock.text));
+						const text = String(contentBlock.text);
+						stream.markdown(text);
+						collectedText += text;
 					}
 					break;
 				}
@@ -272,8 +234,8 @@ export class ACPChatParticipant {
 
 					console.log(`[ACPChatParticipant] Tool call: ${toolName} (${toolCallId})`);
 
-					// Format the command for display
-					const commandText = formatToolInput(rawInput);
+					// Extract command using comprehensive strategy (ACP protocol + OpenCode compatibility)
+					let commandText = extractTerminalCommand(title, rawInput, collectedText, toolName);
 
 					// Create ChatToolInvocationPart with proper API
 					// Constructor: toolName, toolCallId, isError?
@@ -295,7 +257,7 @@ export class ACPChatParticipant {
 					stream.push(toolPart);
 
 					// For terminal tools, execute in real VS Code terminal
-					const isTerminal = isTerminalTool(toolName, rawInput);
+					const isTerminal = isTerminalTool(toolName);
 					let terminalOutput = "";
 					if (isTerminal && commandText) {
 						try {
@@ -386,7 +348,7 @@ export class ACPChatParticipant {
 								resultMarkdown.isTrusted = true;
 
 								// Add header for terminal output
-								if (isTerminalTool(toolName, rawInput)) {
+								if (isTerminalTool(toolName)) {
 									resultMarkdown.appendText("### 📟 终端输出\n\n");
 								}
 
