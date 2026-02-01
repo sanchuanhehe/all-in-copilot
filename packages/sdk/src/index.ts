@@ -89,7 +89,6 @@ export {
 } from "./acp";
 
 // Utilities
-export { mapVsCodeRole, convertVsCodeContent } from "./utils/messageConverter";
 export { estimateTokens, estimateMessagesTokens } from "./utils/tokenCounter";
 export { sanitizeFunctionName, pruneUnknownSchemaKeywords } from "./utils/toolConverter";
 
