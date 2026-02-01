@@ -277,8 +277,8 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			listener?: () => void;
 		}>();
 
-		// Process session updates for tool calls
-		this.clientManager.onSessionUpdate(session.sessionId, async (updateData) => {
+		// Main listener for session updates
+		const mainUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (updateData) => {
 			const sessionUpdate = updateData.update.sessionUpdate;
 			if (sessionUpdate !== "tool_call") {
 				return;

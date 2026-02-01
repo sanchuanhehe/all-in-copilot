@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sdk";
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
 import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
+import { ACPTerminalProvider } from "./terminalProvider";
 import { isTerminalTool } from "./terminalExecution";
 
 /**
