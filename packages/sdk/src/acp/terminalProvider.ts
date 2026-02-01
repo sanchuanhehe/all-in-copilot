@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import type { ITerminalService, ShellIntegrationQuality } from "../platform/terminal/common/terminalService";
+import type { ITerminalService } from "../platform/terminal/common/terminalService";
 
 /**
  * ACP-specific terminal callbacks using VS Code Terminal API

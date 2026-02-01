@@ -2,7 +2,6 @@ import * as vscode from "vscode";
 import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sdk";
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
 import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
-import { executeInTerminal } from "./terminalProvider";
 import { isTerminalTool } from "./terminalExecution";
 
 // Note: For enhanced tool invocation UI (ChatToolInvocationPart), VS Code's official
@@ -269,7 +268,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		const CHUNK_DELAY = 8;
 
 		// Collect all text first, then stream with typewriter effect
-		let collectedText = "";
+		const collectedText = "";
 
 		// Track pending tool calls and their results
 		const pendingTools = new Map<string, {
@@ -278,182 +277,133 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			listener?: () => void;
 		}>();
 
-		// Flag to track if we're in a tool execution phase
-		let isInToolExecution = false;
-
-		// Track if we've sent the initial prompt
-		let initialPromptSent = false;
-
-		// Main listener for session updates (tracks overall progress)
-		const mainUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (update) => {
-			const updateData = update.update;
-
-			switch (updateData.sessionUpdate) {
-				case "agent_message_chunk": {
-					const content = updateData.content;
-					if (content && "text" in content) {
-						collectedText += String(content.text);
-					}
-					break;
-				}
-
-				case "tool_call": {
-					// Mark that we're entering tool execution phase
-					isInToolExecution = true;
-
-					const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
-					const title = (updateData as { title?: string }).title ?? "Unknown Tool";
-					const rawInput = (updateData as { rawInput?: unknown }).rawInput;
-					const toolName = title.split(" ")[0] || "tool";
-
-					console.log(`[ACPProvider] Tool call received: ${toolName} (${toolCallId})`);
-					if (rawInput !== undefined) {
-						console.log(`[ACPProvider] Tool input: ${JSON.stringify(rawInput)}`);
-					}
-
-					// Note: In standard ACP protocol, terminal commands come from terminal/create request,
-					// not from tool_call's title or rawInput. We do not extract commands from tool_call.
-					// If the agent follows the standard, it will use terminal/create for terminal commands.
-
-					// For terminal tools, we cannot execute without terminal/create request
-					const isTerminal = isTerminalTool(toolName);
-					let terminalOutput = "";
-					if (isTerminal) {
-						console.log(`[ACPProvider] Terminal tool '${toolName}' called but no terminal/create request found.`);
-						console.log(`[ACPProvider] In standard ACP protocol, terminal commands must use terminal/create request.`);
-					}
-
-					// Report tool call using the stable LanguageModelChatProvider API
-					// For terminal tools, we report the command in the input for better visibility
-					const inputObject = rawInput !== undefined ? (rawInput as object) : {};
-					const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, inputObject);
-					progress.report(toolCallPart);
-
-					// Initialize pending tool call
-					pendingTools.set(toolCallId, { name: toolName, result: terminalOutput });
-
-					// CRITICAL: Register a dedicated listener for this tool's updates
-					// This listener will send the tool result back to Agent immediately
-					const toolListenerUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (toolUpdate) => {
-						const toolUpdateData = toolUpdate.update;
-
-						if (toolUpdateData.sessionUpdate !== "tool_call_update") {
-							return;
-						}
-
-						const status = (toolUpdateData as { status?: string }).status;
-						const updateToolCallId = (toolUpdateData as { toolCallId?: string }).toolCallId;
-
-						// Only process updates for this specific tool
-						if (updateToolCallId !== toolCallId) {
-							return;
-						}
-
-						const content = (toolUpdateData as { content?: Array<{ text?: string }> }).content;
-						const rawOutput = (toolUpdateData as { rawOutput?: unknown }).rawOutput;
-
-						// Collect tool result content
-						let toolResultText = "";
-						if (content && Array.isArray(content)) {
-							for (const item of content) {
-								if (item && "text" in item) {
-									toolResultText += String(item.text);
-								}
-							}
-						}
-						if (rawOutput && typeof rawOutput === "object") {
-							const rawOutputStr = JSON.stringify(rawOutput);
-							if (rawOutputStr && rawOutputStr !== "{}") {
-								toolResultText += `\nRaw output: ${rawOutputStr}`;
-							}
-						}
-
-						// When tool completes, send result back to Agent IMMEDIATELY
-						if ((status === "completed" || status === "success") && updateToolCallId) {
-							console.log(`[ACPProvider] Tool completed: ${updateToolCallId}, sending result to Agent`);
-
-							// Get stored tool info (includes terminalOutput)
-							const toolInfo = pendingTools.get(updateToolCallId);
-							const terminalOutput = toolInfo?.result || "";
-
-							// Collect tool result content
-							let combinedResult = "";
-							if (terminalOutput) {
-								combinedResult = terminalOutput;
-								console.log(`[ACPProvider] Including terminal output (${terminalOutput.length} chars)`);
-							}
-							if (toolResultText) {
-								combinedResult += (combinedResult ? "\n" : "") + toolResultText;
-							}
-
-							// Update pending tools map
-							if (toolInfo) {
-								toolInfo.result = combinedResult;
-							}
-
-							// Send LanguageModelToolResultPart to progress
-							const toolResultContent: vscode.LanguageModelTextPart[] = [];
-							if (combinedResult) {
-								toolResultContent.push(new vscode.LanguageModelTextPart(combinedResult));
-							}
-							const toolResultPart = new vscode.LanguageModelToolResultPart(updateToolCallId, toolResultContent);
-							progress.report(toolResultPart);
-
-							// CRITICAL: Send tool result back to Agent IMMEDIATELY
-							// This is the key fix - send result while prompt() is still pending
-							const toolResultContentBlock: ContentBlock = {
-								type: "text",
-								text: `[Tool Result for ${updateToolCallId}]: ${combinedResult || "(no output)"}`
-							};
-
-							try {
-								const followUpResult = await session.connection.prompt({
-									sessionId: session.sessionId,
-									prompt: [toolResultContentBlock],
-								});
-								console.log(`[ACPProvider] Tool result sent, stopReason: ${followUpResult.stopReason}`);
-
-								// Collect any text from the follow-up
-								// Note: This is a simplified approach; in a full implementation,
-								// we might want to stream this response too
-							} catch (followUpError) {
-								console.error(`[ACPProvider] Error sending tool result: ${followUpError}`);
-							}
-
-							// Remove this tool from pending and clean up listener
-							pendingTools.delete(updateToolCallId);
-							toolListenerUnsubscribe();
-
-							// If no more pending tools, we're done with tool execution
-							if (pendingTools.size === 0) {
-								isInToolExecution = false;
-							}
-						}
-					});
-
-					// Store listener reference for cleanup
-					if (pendingTools.has(toolCallId)) {
-						pendingTools.get(toolCallId)!.listener = toolListenerUnsubscribe;
-					}
-					break;
-				}
-
-				case "user_message_chunk": {
-					// Agent is waiting for user input - tool execution complete
-					isInToolExecution = false;
-					break;
-				}
-
-				default:
-					break;
+		// Process session updates for tool calls
+		this.clientManager.onSessionUpdate(session.sessionId, async (updateData) => {
+			const sessionUpdate = updateData.update.sessionUpdate;
+			if (sessionUpdate !== "tool_call") {
+				return;
 			}
+
+			const toolCallId = (updateData.update as { toolCallId?: string }).toolCallId ?? String(Date.now());
+			const title = (updateData.update as { title?: string }).title ?? "Unknown Tool";
+			const rawInput = (updateData.update as { rawInput?: unknown }).rawInput;
+			const toolName = title.split(" ")[0] || "tool";
+
+			console.log(`[ACPProvider] Tool call received: ${toolName} (${toolCallId})`);
+
+			// Note: In standard ACP protocol, terminal commands come from terminal/create request,
+			// not from tool_call's title or rawInput. We do not extract commands from tool_call.
+			// If the agent follows the standard, it will use terminal/create for terminal commands.
+
+			// For terminal tools, we cannot execute without terminal/create request
+			const isTerminal = isTerminalTool(toolName);
+			const terminalOutput = "";
+			if (isTerminal) {
+				console.log(`[ACPProvider] Terminal tool '${toolName}' called but no terminal/create request found.`);
+				console.log(`[ACPProvider] In standard ACP protocol, terminal commands must use terminal/create request.`);
+			}
+
+			// Report tool call using the stable LanguageModelChatProvider API
+			// For terminal tools, we report the command in the input for better visibility
+			const inputObject = rawInput !== undefined ? (rawInput as object) : {};
+			const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, inputObject);
+			progress.report(toolCallPart);
+
+			// Initialize pending tool call
+			pendingTools.set(toolCallId, { name: toolName, result: terminalOutput });
+
+			// Also set up a listener for tool call updates
+			this.clientManager.onSessionUpdate(session.sessionId, async (toolUpdate) => {
+				const toolUpdateData = toolUpdate.update;
+
+				if (toolUpdateData.sessionUpdate !== "tool_call_update") {
+					return;
+				}
+
+				const status = (toolUpdateData as { status?: string }).status;
+				const updateToolCallId = (toolUpdateData as { toolCallId?: string }).toolCallId;
+
+				// Only process updates for this specific tool
+				if (updateToolCallId !== toolCallId) {
+					return;
+				}
+
+				const content = (toolUpdateData as { content?: Array<{ text?: string }> }).content;
+				const rawOutput = (toolUpdateData as { rawOutput?: unknown }).rawOutput;
+
+				// Collect tool result content
+				let toolResultText = "";
+				if (content && Array.isArray(content)) {
+					for (const item of content) {
+						if (item && "text" in item) {
+							toolResultText += String(item.text);
+						}
+					}
+				}
+				if (rawOutput && typeof rawOutput === "object") {
+					const rawOutputStr = JSON.stringify(rawOutput);
+					if (rawOutputStr && rawOutputStr !== "{}") {
+						toolResultText += `\nRaw output: ${rawOutputStr}`;
+					}
+				}
+
+				// When tool completes, send result back to Agent IMMEDIATELY
+				if ((status === "completed" || status === "success") && updateToolCallId) {
+					console.log(`[ACPProvider] Tool completed: ${updateToolCallId}, sending result to Agent`);
+
+					// Get stored tool info (includes terminalOutput)
+					const toolInfo = pendingTools.get(updateToolCallId);
+					const toolTerminalOutput = toolInfo?.result || "";
+
+					// Collect tool result content
+					let combinedResult = "";
+					if (toolTerminalOutput) {
+						combinedResult = toolTerminalOutput;
+						console.log(`[ACPProvider] Including terminal output (${toolTerminalOutput.length} chars)`);
+					}
+					if (toolResultText) {
+						combinedResult += (combinedResult ? "\n" : "") + toolResultText;
+					}
+
+					// Update pending tools map
+					if (toolInfo) {
+						toolInfo.result = combinedResult;
+					}
+
+					// Send LanguageModelToolResultPart to progress
+					const toolResultContent: vscode.LanguageModelTextPart[] = [];
+					if (combinedResult) {
+						toolResultContent.push(new vscode.LanguageModelTextPart(combinedResult));
+					}
+					const toolResultPart = new vscode.LanguageModelToolResultPart(updateToolCallId, toolResultContent);
+					progress.report(toolResultPart);
+
+					// CRITICAL: Send tool result back to Agent IMMEDIATELY
+					const toolResultContentBlock: ContentBlock = {
+						type: "text",
+						text: `[Tool Result for ${updateToolCallId}]: ${combinedResult || "(no output)"}`
+					};
+
+					try {
+						const followUpResult = await session.connection.prompt({
+							sessionId: session.sessionId,
+							prompt: [toolResultContentBlock],
+						});
+						console.log(`[ACPProvider] Tool result sent, stopReason: ${followUpResult.stopReason}`);
+					} catch (followUpError) {
+						console.error(`[ACPProvider] Error sending tool result: ${followUpError}`);
+					}
+
+					// Remove this tool from pending
+					pendingTools.delete(updateToolCallId);
+				}
+			});
 		});
 
 		try {
 			// Send the initial prompt - this will trigger sessionUpdate notifications
 			// including tool_call and tool_call_update
 			console.log("[ACPProvider] Sending initial prompt...");
-			initialPromptSent = true;
 			const result = await session.connection.prompt({
 				sessionId: session.sessionId,
 				prompt,

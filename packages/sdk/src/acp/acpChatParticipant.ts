@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sdk";
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
-import { ACPTerminalProvider, executeInTerminal } from "./terminalProvider";
 import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
 import { isTerminalTool } from "./terminalExecution";
 
@@ -57,7 +56,7 @@ export class ACPChatParticipant {
 	private connection: ClientSideConnection | null = null;
 	private participant: vscode.ChatParticipant | null = null;
 	private participantDisposable: vscode.Disposable;
-	private ownsClientManager: boolean = false;
+	private ownsClientManager = false;
 
 	// Required by ChatParticipant (proposed API) - using EventEmitter for compatibility
 	// Note: These may not be available in stable VS Code API
@@ -196,7 +195,7 @@ export class ACPChatParticipant {
 		session: ACPSession,
 		prompt: string,
 		stream: vscode.ChatResponseStream,
-		token: vscode.CancellationToken
+		_token: vscode.CancellationToken
 	): Promise<void> {
 		// Convert chat message to ACP content blocks with proper type
 		const content: ContentBlock[] = [{ type: "text", text: prompt }];
@@ -208,9 +207,6 @@ export class ACPChatParticipant {
 			listenerUnsubscribe: () => void;
 		}>();
 
-		// Collect all text for OpenCode command extraction
-		let collectedText = "";
-
 		// Main listener for session updates - single listener for all updates
 		const mainUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (update) => {
 			const updateData = update.update;
@@ -221,7 +217,6 @@ export class ACPChatParticipant {
 					if (contentBlock && "text" in contentBlock) {
 						const text = String(contentBlock.text);
 						stream.markdown(text);
-						collectedText += text;
 					}
 					break;
 				}
@@ -251,7 +246,7 @@ export class ACPChatParticipant {
 
 					// For terminal tools, we cannot execute without terminal/create request
 					const isTerminal = isTerminalTool(toolName);
-					let terminalOutput = "";
+					const terminalOutput = "";
 					if (isTerminal) {
 						console.log(`[ACPChatParticipant] Terminal tool '${toolName}' called but no terminal/create request found.`);
 						console.log(`[ACPChatParticipant] In standard ACP protocol, terminal commands must use terminal/create request.`);
