@@ -3,6 +3,7 @@ export {
 	type ACPClientConfig,
 	type AgentInfo,
 	type InitResult,
+	type InitResultFull,
 	type NewSessionResult,
 	type NewSessionResponse,
 	type PromptResult,
@@ -16,6 +17,12 @@ export {
 	type TerminalOutputResultFull,
 	type TerminalExitResult,
 	type PermissionOptionKind,
+	// Session management types
+	type LoadSessionResult,
+	type ResumeSessionResult,
+	type SetSessionModeResult,
+	type AuthenticateResult,
+	type AgentCapabilities,
 } from "./clientManager";
 export type {
 	ClientSideConnection,

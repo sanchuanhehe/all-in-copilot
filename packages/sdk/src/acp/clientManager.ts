@@ -106,6 +106,87 @@ export interface TerminalOutputResult {
 }
 
 /**
+ * Result of a load session attempt.
+ */
+export interface LoadSessionResult {
+	success: boolean;
+	modes?: {
+		currentModeId: string;
+		availableModes: Array<{
+			id: string;
+			name: string;
+			description?: string;
+		}>;
+	};
+	error?: string;
+}
+
+/**
+ * Result of a resume session attempt.
+ */
+export interface ResumeSessionResult {
+	success: boolean;
+	modes?: {
+		currentModeId: string;
+		availableModes: Array<{
+			id: string;
+			name: string;
+			description?: string;
+		}>;
+	};
+	error?: string;
+}
+
+/**
+ * Result of a set session mode attempt.
+ */
+export interface SetSessionModeResult {
+	success: boolean;
+	error?: string;
+}
+
+/**
+ * Result of an authentication attempt.
+ */
+export interface AuthenticateResult {
+	success: boolean;
+	error?: string;
+}
+
+/**
+ * Agent capabilities returned from initialization.
+ */
+export interface AgentCapabilities {
+	loadSession?: boolean;
+	mcpCapabilities?: {
+		http?: boolean;
+		sse?: boolean;
+	};
+	promptCapabilities?: {
+		embeddedContext?: boolean;
+		image?: boolean;
+		audio?: boolean;
+	};
+	sessionCapabilities?: {
+		fork?: boolean;
+		list?: boolean;
+		resume?: boolean;
+	};
+}
+
+/**
+ * Extended initialization result with full agent capabilities.
+ */
+export interface InitResultFull extends InitResult {
+	agentCapabilities?: AgentCapabilities;
+	authMethods?: Array<{
+		id: string;
+		name: string;
+		description?: string;
+	}>;
+}
+
+/**
  * Configuration for creating an ACP client.
  */
 export interface ACPClientConfig {
@@ -479,6 +560,39 @@ export class ACPClientManager {
 	}
 
 	/**
+	 * Authenticates with the agent using a specified authentication method.
+	 * Call this after initialize if the agent requires authentication.
+	 * The methodId must be one of the methods advertised in the initialize response.
+	 *
+	 * @param client The client connection
+	 * @param methodId The authentication method ID to use
+	 * @returns Success status or error message
+	 */
+	async authenticate(
+		client: ClientSideConnection,
+		methodId: string
+	): Promise<AuthenticateResult> {
+		try {
+			// Check if authenticate is available
+			if (typeof client.authenticate !== "function") {
+				return {
+					success: false,
+					error: "Client does not support authenticate",
+				};
+			}
+
+			await client.authenticate({ methodId });
+			return { success: true };
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: errorMessage,
+			};
+		}
+	}
+
+	/**
 	 * Creates a new session with an agent.
 	 */
 	async newSession(
@@ -626,6 +740,134 @@ export class ACPClientManager {
 	}
 
 	/**
+	 * Loads an existing session to resume a previous conversation.
+	 * The agent should replay the entire conversation history via session/update notifications.
+	 * Only available if the agent advertises the `loadSession` capability.
+	 *
+	 * @param client The ACP client connection
+	 * @param params Load session parameters
+	 * @returns Success status with session modes or error message
+	 */
+	async loadSession(
+		client: ClientSideConnection,
+		params: {
+			sessionId: string;
+			cwd: string;
+			mcpServers?: Array<{ name: string; command: string; args?: string[]; env?: Record<string, string> }>;
+		}
+	): Promise<LoadSessionResult> {
+		try {
+			// Check if loadSession is available
+			if (typeof client.loadSession !== "function") {
+				return {
+					success: false,
+					error: "Client does not support loadSession",
+				};
+			}
+
+			// Convert mcpServers to proper format
+			const mcpServers = (params.mcpServers ?? []).map((server) => ({
+				type: "stdio" as const,
+				name: server.name,
+				command: server.command,
+				args: server.args ?? [],
+				env: server.env ? Object.entries(server.env).map(([name, value]) => ({ name, value })) : [],
+			}));
+
+			const result = await client.loadSession({
+				sessionId: params.sessionId,
+				cwd: params.cwd,
+				mcpServers,
+			});
+
+			// Convert SDK SessionModeState to our LoadSessionResult format
+			const modes = result.modes ? {
+				currentModeId: result.modes.currentModeId,
+				availableModes: result.modes.availableModes.map((mode) => ({
+					id: mode.id,
+					name: mode.name,
+					description: mode.description ?? undefined,
+				})),
+			} : undefined;
+
+			return {
+				success: true,
+				modes,
+			};
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: errorMessage,
+			};
+		}
+	}
+
+	/**
+	 * Resumes an existing session without replaying the message history.
+	 * Unlike loadSession, this doesn't stream back the conversation history.
+	 * Only available if the agent advertises the `session.resume` capability.
+	 *
+	 * @param client The ACP client connection
+	 * @param params Resume session parameters
+	 * @returns Success status with session modes or error message
+	 */
+	async resumeSession(
+		client: ClientSideConnection,
+		params: {
+			sessionId: string;
+			cwd: string;
+			mcpServers?: Array<{ name: string; command: string; args?: string[]; env?: Record<string, string> }>;
+		}
+	): Promise<ResumeSessionResult> {
+		try {
+			// Check if resumeSession is available
+			if (typeof client.unstable_resumeSession !== "function") {
+				return {
+					success: false,
+					error: "Client does not support resumeSession (unstable feature)",
+				};
+			}
+
+			// Convert mcpServers to proper format
+			const mcpServers = (params.mcpServers ?? []).map((server) => ({
+				type: "stdio" as const,
+				name: server.name,
+				command: server.command,
+				args: server.args ?? [],
+				env: server.env ? Object.entries(server.env).map(([name, value]) => ({ name, value })) : [],
+			}));
+
+			const result = await client.unstable_resumeSession({
+				sessionId: params.sessionId,
+				cwd: params.cwd,
+				mcpServers,
+			});
+
+			// Convert SDK SessionModeState to our ResumeSessionResult format
+			const modes = result.modes ? {
+				currentModeId: result.modes.currentModeId,
+				availableModes: result.modes.availableModes.map((mode) => ({
+					id: mode.id,
+					name: mode.name,
+					description: mode.description ?? undefined,
+				})),
+			} : undefined;
+
+			return {
+				success: true,
+				modes,
+			};
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: errorMessage,
+			};
+		}
+	}
+
+	/**
 	 * Sets the model for a session.
 	 * Uses the unstable session/set_model method (ACP spec).
 	 * @param client The ACP client connection
@@ -650,6 +892,45 @@ export class ACPClientManager {
 			await (client as { unstable_setSessionModel: (args: { sessionId: string; modelId: string }) => Promise<unknown> }).unstable_setSessionModel({
 				sessionId,
 				modelId,
+			});
+
+			return { success: true };
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: errorMessage,
+			};
+		}
+	}
+
+	/**
+	 * Sets the mode for a session.
+	 * Uses the session/set_mode method (ACP spec).
+	 * Only available if the agent advertises session mode capabilities.
+	 *
+	 * @param client The ACP client connection
+	 * @param sessionId The session ID to set the mode for
+	 * @param modeId The mode ID to set (e.g., 'agent', 'plan', 'ask')
+	 * @returns Success status or error message
+	 */
+	async setSessionMode(
+		client: ClientSideConnection,
+		sessionId: string,
+		modeId: string
+	): Promise<SetSessionModeResult> {
+		try {
+			// Check if setSessionMode is available
+			if (typeof client.setSessionMode !== "function") {
+				return {
+					success: false,
+					error: "Client does not support setSessionMode",
+				};
+			}
+
+			await client.setSessionMode({
+				sessionId,
+				modeId,
 			});
 
 			return { success: true };
