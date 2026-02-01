@@ -140,9 +140,30 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Create an extension terminal with the given options
 	 */
 	createTerminal(options: ExtensionTerminalOptions): Terminal;
-	createTerminal(name?: unknown, shellPath?: unknown, shellArgs?: unknown): Terminal {
+	createTerminal(nameOrOptions?: unknown, shellPath?: unknown, shellArgs?: unknown): Terminal {
+		// Check if first argument is an options object
+		if (nameOrOptions && typeof nameOrOptions === "object" && nameOrOptions !== null) {
+			const options = nameOrOptions as { name?: string; shellPath?: string; shellArgs?: unknown; isTransient?: boolean };
+			const terminalName = options.name || "ACP Terminal";
+			const terminalShellArgs = options.shellArgs as string[] | string | undefined;
+
+			if (options.isTransient) {
+				// For transient terminals, use ExtensionTerminalOptions with type assertion
+				return window.createTerminal({
+					name: terminalName,
+					shellPath: options.shellPath,
+					shellArgs: terminalShellArgs,
+					isTransient: true,
+				} as ExtensionTerminalOptions & { shellPath?: string; shellArgs?: string[] | string | undefined });
+			}
+			return window.createTerminal({
+				name: terminalName,
+				shellPath: options.shellPath,
+				shellArgs: terminalShellArgs,
+			});
+		}
 		return window.createTerminal(
-			name as string | undefined,
+			nameOrOptions as string | undefined,
 			shellPath as string | undefined,
 			shellArgs as readonly string[] | string | undefined
 		);
