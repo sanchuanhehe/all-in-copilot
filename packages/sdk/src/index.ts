@@ -2,28 +2,8 @@
  * SDK Main Entry Point
  */
 
-// Core types
-export {
-	ApiMode,
-	ProviderConfig,
-	ModelConfig,
-	MessageRole,
-	TextContent,
-	ImageContent,
-	MessageContent,
-	ChatMessage,
-	ToolCall,
-} from "./core/types";
-
-// Model fetcher
-export {
-	fetchModels,
-	createCachedModelFetcher,
-	CachedModelFetcher,
-	type ModelsResponse,
-	type RemoteModelItem,
-	type ModelFetchOptions,
-} from "./core/modelFetcher";
+// Core types (for templates)
+export { ProviderConfig, ModelConfig } from "./core/types";
 
 // VS Code Provider Helpers (the main export for templates)
 export {
@@ -57,14 +37,15 @@ export {
 	processAnthropicStream,
 	// Request builder for templates
 	buildRequest,
+	// Complete request/response handling
+	sendChatRequest,
+	sendChatRequestWithProvider,
+	type SendChatRequestConfig,
+	type ChatResponseCallbacks,
 } from "./utils/format";
 
-// Tool conversion (re-exported for templates)
-export { convertToolsToOpenAI, convertToolsToAnthropic } from "./utils/toolConverter";
-
-// Providers (using official SDKs - for advanced use cases)
-export { OpenAIProvider } from "./providers/openaiProvider";
-export { AnthropicProvider } from "./providers/anthropicProvider";
+// Tool conversion
+export { sanitizeFunctionName, pruneUnknownSchemaKeywords } from "./utils/toolConverter";
 
 // ACP Protocol (Agent Client Protocol)
 export {
@@ -90,7 +71,6 @@ export {
 
 // Utilities
 export { estimateTokens, estimateMessagesTokens } from "./utils/tokenCounter";
-export { sanitizeFunctionName, pruneUnknownSchemaKeywords } from "./utils/toolConverter";
 
 // Model fetching
 export { fetchModelsFromAPI } from "./core/modelFetcher";

@@ -16,11 +16,9 @@ import type {
 import {
 	type ModelConfig,
 	type VsCodeMessage,
-	processOpenAIStream,
-	processAnthropicStream,
+	sendChatRequestWithProvider,
 	fetchModelsFromAPI,
 	estimateTokens,
-	buildRequest,
 } from "@all-in-copilot/sdk";
 import { PROVIDER_CONFIG, FALLBACK_MODELS, filterModels } from "./config";
 
@@ -126,71 +124,29 @@ class ExtensionProvider implements LanguageModelChatProvider {
 		const apiMode =
 			PROVIDER_CONFIG.apiMode === "gemini" || PROVIDER_CONFIG.apiMode === "ollama" ? "openai" : PROVIDER_CONFIG.apiMode;
 
-		// Build request using SDK helper
-		const requestBody = buildRequest(
-			apiMode,
+		// Use SDK's sendChatRequestWithProvider for complete request/response handling
+		await sendChatRequestWithProvider(
+			{
+				baseUrl: PROVIDER_CONFIG.baseUrl,
+				apiKey,
+				apiMode,
+				headers: PROVIDER_CONFIG.headers,
+			},
+			PROVIDER_CONFIG.name,
 			model.id,
 			messages as unknown as readonly VsCodeMessage[],
 			options.tools,
-			model.maxOutputTokens
-		);
-
-		// Make streaming request with error handling
-		const controller = new AbortController();
-		token.onCancellationRequested(() => controller.abort());
-
-		let response: Response;
-		try {
-			response = await fetch(PROVIDER_CONFIG.baseUrl, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					// Use appropriate auth header based on API mode
-					...(apiMode === "anthropic"
-						? {
-								"x-api-key": apiKey,
-								"anthropic-version": "2023-06-01",
-							}
-						: { Authorization: `Bearer ${apiKey}` }),
-					...PROVIDER_CONFIG.headers,
-				},
-				body: JSON.stringify(requestBody),
-				signal: controller.signal,
-			});
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error";
-			if (error instanceof DOMException && error.name === "AbortError") {
-				throw new Error("Request was cancelled");
-			}
-			throw new Error(`Failed to connect to ${PROVIDER_CONFIG.name}: ${errorMessage}`);
-		}
-
-		if (!response.ok) {
-			const text = await response.text().catch(() => "");
-			throw new Error(`API request failed: ${response.status} ${response.statusText}${text ? `\n${text}` : ""}`);
-		}
-
-		// Process streaming response using SDK helpers with error handling
-		const processStream = apiMode === "anthropic" ? processAnthropicStream : processOpenAIStream;
-
-		try {
-			await processStream(
-				response,
-				(text: string) => {
+			model.maxOutputTokens,
+			{
+				onText: (text: string) => {
 					progress.report(new vscode.LanguageModelTextPart(text));
 				},
-				(callId: string, name: string, args: object) => {
+				onToolCall: (callId: string, name: string, args: object) => {
 					progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
 				},
-				controller.signal
-			);
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error";
-			if (error instanceof DOMException && error.name === "AbortError") {
-				throw new Error("Response stream was cancelled");
-			}
-			throw new Error(`Failed to process response: ${errorMessage}`);
-		}
+			},
+			token
+		);
 	}
 
 	/**

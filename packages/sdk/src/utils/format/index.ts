@@ -23,3 +23,6 @@ export { ROLE, buildRequest, ensureValidMessageOrder } from "./providerHelpers";
 
 // Streaming processors
 export * from "./streaming";
+
+// Send chat request (complete HTTP request/response handling)
+export { sendChatRequest, sendChatRequestWithProvider, type SendChatRequestConfig, type ChatResponseCallbacks } from "./sendChatRequest";
