@@ -40,7 +40,24 @@ export { ACPProvider, registerACPProvider, type ACPModelInfo, type ACPProviderOp
 // VS Code ACP Integration - ChatParticipant (rich UI with ChatToolInvocationPart)
 export { ACPChatParticipant, registerACPChatParticipant, type ACPChatParticipantOptions } from "./acpChatParticipant";
 
-// VS Code Terminal Provider for real integrated terminals
+/**
+ * @deprecated Use `createTerminalCallbacks()` from "./terminal" instead.
+ * These exports will be removed in v2.0.
+ *
+ * Migration example:
+ * ```typescript
+ * // Before (deprecated):
+ * import { ACPTerminalProvider } from "@all-in-copilot/sdk/acp";
+ * const provider = new ACPTerminalProvider(terminalService);
+ * await provider.executeCommand(command);
+ *
+ * // After (recommended):
+ * import { createTerminalCallbacks } from "@all-in-copilot/sdk/acp";
+ * const { callbacks, adapter } = createTerminalCallbacks(terminalService);
+ * const terminal = await callbacks.createTerminal(sessionId, command);
+ * const output = await callbacks.getTerminalOutput(terminal.terminalId);
+ * ```
+ */
 export { ACPTerminalProvider, executeInTerminal, executeInNewTerminal } from "./terminalProvider";
 
 // ACP Terminal Adapter - Full ACP protocol terminal operations

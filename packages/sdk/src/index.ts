@@ -54,14 +54,23 @@ export {
 	registerACPProvider,
 	ACPChatParticipant,
 	registerACPChatParticipant,
-	ACPTerminalProvider,
-	executeInTerminal,
-	executeInNewTerminal,
-	// ACP Terminal Adapter
+	// ACP Terminal Adapter (NEW - recommended)
 	ACPTerminalAdapter,
 	createACPTerminalAdapter,
 	createTerminalCallbacks,
 	disposeTerminalAdapter,
+	/**
+	 * @deprecated Use `createTerminalCallbacks()` instead. Will be removed in v2.0.
+	 */
+	ACPTerminalProvider,
+	/**
+	 * @deprecated Use `createTerminalCallbacks()` instead. Will be removed in v2.0.
+	 */
+	executeInTerminal,
+	/**
+	 * @deprecated Use `createTerminalCallbacks()` instead. Will be removed in v2.0.
+	 */
+	executeInNewTerminal,
 	type ACPClientConfig,
 	type ACPModelInfo,
 	type ACPProviderOptions,

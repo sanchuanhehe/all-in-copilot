@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { ClientSideConnection, ContentBlock } from "@agentclientprotocol/sdk";
 import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clientManager";
 import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
-import { ACPTerminalProvider } from "./terminalProvider";
+import { createTerminalCallbacks, type ACPTerminalCallbacks, type IACPTerminalAdapter } from "./terminal";
 import { isTerminalTool } from "./terminalExecution";
 
 /**
@@ -67,8 +67,9 @@ export class ACPChatParticipant {
 
 	private readonly options: ACPChatParticipantOptions;
 	private readonly clientManager: ACPClientManager;
-	private readonly terminalProvider: ACPTerminalProvider;
-	private readonly terminalService: TerminalServiceImpl; // Store service for executeInTerminal calls
+	private readonly terminalCallbacks: ACPTerminalCallbacks;
+	private readonly terminalAdapter: IACPTerminalAdapter;
+	private readonly terminalService: TerminalServiceImpl;
 	private readonly sessions = new Map<string, ACPSession>();
 	private connection: ClientSideConnection | null = null;
 	private participant: vscode.ChatParticipant | null = null;
@@ -101,11 +102,13 @@ export class ACPChatParticipant {
 		});
 		this.terminalService = terminalService;
 
-		// Create terminal provider using ITerminalService
-		this.terminalProvider = new ACPTerminalProvider(terminalService, {
+		// Create terminal callbacks using new ACP Terminal Adapter
+		const { callbacks, adapter } = createTerminalCallbacks(terminalService, {
 			shellPath: options.clientConfig.shellPath,
 			shellArgs: options.clientConfig.shellArgs,
 		});
+		this.terminalCallbacks = callbacks;
+		this.terminalAdapter = adapter;
 
 		// Create the chat request handler
 		const boundHandler = this.requestHandler.bind(this);
@@ -289,16 +292,19 @@ export class ACPChatParticipant {
 						try {
 							console.log(`[ACPChatParticipant] Executing terminal command: ${command}`);
 
-							// Use terminal provider to execute command
-							const result = await this.terminalProvider.executeCommand(
+							// Use terminal callbacks to execute command
+							const terminal = await this.terminalCallbacks.createTerminal(
 								session.sessionId,
-								command,
-								{
-									showTerminal: true,
-								}
+								command
 							);
 
-							terminalOutput = result.output;
+							// Wait for command to complete and get output
+							const [outputResult] = await Promise.all([
+								this.terminalCallbacks.getTerminalOutput(terminal.terminalId),
+								this.terminalCallbacks.waitForTerminalExit(terminal.terminalId),
+							]);
+
+							terminalOutput = outputResult.output;
 							console.log(`[ACPChatParticipant] Terminal command executed, output length: ${terminalOutput.length}`);
 						} catch (error) {
 							terminalOutput = `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -502,9 +508,14 @@ export class ACPChatParticipant {
 		// Clear sessions
 		this.sessions.clear();
 
-		// Dispose terminal provider
-		if (this.terminalProvider) {
-			this.terminalProvider.dispose();
+		// Dispose terminal adapter
+		if (this.terminalAdapter && 'dispose' in this.terminalAdapter) {
+			(this.terminalAdapter as { dispose: () => void }).dispose();
+		}
+
+		// Dispose terminal service
+		if (this.terminalService) {
+			this.terminalService.dispose();
 		}
 	}
 }

@@ -1,12 +1,30 @@
 /*---------------------------------------------------------------------------------------------
  *  ACP Terminal Provider
  *  Uses VS Code Terminal API for proper terminal integration
+ *
+ *  @deprecated Use `createTerminalCallbacks()` from `./terminal` instead.
+ *  This module will be removed in a future version.
+ *
+ *  Migration example:
+ *  ```typescript
+ *  // Old:
+ *  import { ACPTerminalProvider } from "@all-in-copilot/sdk";
+ *  const provider = new ACPTerminalProvider(terminalService);
+ *  await provider.executeCommand(sessionId, command);
+ *
+ *  // New:
+ *  import { createTerminalCallbacks, TerminalServiceImpl } from "@all-in-copilot/sdk";
+ *  const { callbacks, adapter } = createTerminalCallbacks(new TerminalServiceImpl());
+ *  const terminal = await callbacks.createTerminal(sessionId, command);
+ *  ```
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
 import type { ITerminalService } from "../platform/terminal/common/terminalService";
 
 /**
+ * @deprecated Use `createTerminalCallbacks()` from `./terminal` instead.
+ *
  * ACP-specific terminal callbacks using VS Code Terminal API
  * Creates real terminals that appear in VS Code terminal panel
  */
