@@ -42,7 +42,8 @@
 	"enabledApiProposals": [
 		"chatParticipantAdditions",
 		"chatParticipantPrivate",
-		"defaultChatParticipant"
+		"defaultChatParticipant",
+		"terminalDataWriteEvent"
 	],
 	"dependencies": {
 		"@all-in-copilot/sdk": "workspace:*",

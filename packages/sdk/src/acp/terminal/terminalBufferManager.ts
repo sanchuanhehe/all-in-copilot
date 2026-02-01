@@ -422,10 +422,13 @@ export function installEnhancedTerminalListeners(): Disposable[] {
 					appendToTerminalBuffer(e.terminal, e.data);
 				})
 			);
+			console.log("[ACP-Terminal] onDidWriteTerminalData listener installed successfully");
+		} else {
+			console.log("[ACP-Terminal] onDidWriteTerminalData not available, output capture limited");
 		}
-	} catch {
+	} catch (error) {
 		// onDidWriteTerminalData is not available
-		console.log("[ACP-Terminal] onDidWriteTerminalData not available, output capture limited");
+		console.log("[ACP-Terminal] onDidWriteTerminalData not available, output capture limited", error);
 	}
 
 	// Try to use onDidEndTerminalShellExecution if available (proposed API)
