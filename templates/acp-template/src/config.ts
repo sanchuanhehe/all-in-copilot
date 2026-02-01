@@ -12,12 +12,18 @@ import type {
 	IVsCodeTerminal,
 	TerminalPermissionService,
 	TerminalConfirmationDetails,
+	IACPTerminalAdapter,
+	ACPTerminalCallbacks,
 } from "@all-in-copilot/sdk";
-import { createTerminalPermissionService } from "@all-in-copilot/sdk";
+import {
+	createTerminalPermissionService,
+	TerminalServiceImpl,
+	createTerminalCallbacks,
+	disposeTerminalAdapter,
+} from "@all-in-copilot/sdk";
 import * as vscode from "vscode";
 import { execSync } from "child_process";
 import { existsSync } from "fs";
-import { randomUUID } from "crypto";
 
 // Initialize terminal permission service with custom dangerous command patterns
 const terminalPermissionService = createTerminalPermissionService({
@@ -89,81 +95,58 @@ function expandPath(path: string): string {
 }
 
 /**
- * Terminal state management for ACP terminal operations
+ * ACP Terminal Adapter instance and callbacks
+ * Uses the SDK's enhanced terminal adapter for consistent VS Code Copilot-like experience
  */
-interface TerminalState {
-	terminal: vscode.Terminal;
-	command: string;
-	isBackground: boolean;
-	resolveOutput?: (output: string) => void;
-	rejectOutput?: (error: Error) => void;
-	outputPromise?: Promise<string>;
-	output?: string;
-	exitCode?: number;
-}
-
-const terminalStateMap = new Map<string, TerminalState>();
+let terminalService: TerminalServiceImpl | null = null;
+let terminalAdapter: IACPTerminalAdapter | null = null;
+let terminalCallbacks: ACPTerminalCallbacks | null = null;
 
 /**
- * Get or create a terminal for the given session
+ * Initialize terminal adapter (called during extension activation)
  */
-function getOrCreateTerminal(sessionId: string, shellName?: string): vscode.Terminal {
-	const terminalName = `ACP-${shellName || "Agent"}-${sessionId.slice(0, 8)}`;
-
-	// Look for existing terminal with same name
-	for (const [, state] of terminalStateMap) {
-		if (state.terminal.name === terminalName && !state.terminal.exitStatus) {
-			return state.terminal;
-		}
+export function initializeTerminalAdapter(): void {
+	if (terminalAdapter) {
+		return; // Already initialized
 	}
 
-	// Create new terminal
-	const terminalOptions: vscode.TerminalOptions = {
-		name: terminalName,
-	};
+	// Create terminal service
+	terminalService = new TerminalServiceImpl();
 
-	const terminal = vscode.window.createTerminal(terminalOptions);
+	// Create terminal callbacks using SDK
+	const result = createTerminalCallbacks(terminalService, {
+		// Use default shell
+	});
 
-	return terminal;
+	terminalAdapter = result.adapter;
+	terminalCallbacks = result.callbacks;
+
+	console.log("[ACP Config] Terminal adapter initialized");
 }
 
 /**
- * Implementation of VS Code Terminal interface for ACP
+ * Dispose terminal adapter (called during extension deactivation)
  */
-class ACPVsCodeTerminal implements IVsCodeTerminal {
-	constructor(
-		public readonly terminalId: string,
-		public readonly name: string
-	) {}
-
-	async show(): Promise<void> {
-		const state = terminalStateMap.get(this.terminalId);
-		if (state) {
-			state.terminal.show();
-		}
+export function disposeTerminalAdapterInstance(): void {
+	if (terminalAdapter) {
+		disposeTerminalAdapter(terminalAdapter);
+		terminalAdapter = null;
 	}
 
-	async hide(): Promise<void> {
-		const state = terminalStateMap.get(this.terminalId);
-		if (state) {
-			state.terminal.hide();
-		}
+	if (terminalService) {
+		terminalService.dispose();
+		terminalService = null;
 	}
 
-	sendText(text: string, _shouldExecute?: boolean): void {
-		const state = terminalStateMap.get(this.terminalId);
-		if (state) {
-			state.terminal.sendText(text);
-		}
-	}
+	terminalCallbacks = null;
+	console.log("[ACP Config] Terminal adapter disposed");
+}
 
-	async dispose(): Promise<void> {
-		const state = terminalStateMap.get(this.terminalId);
-		if (state) {
-			state.terminal.dispose();
-			terminalStateMap.delete(this.terminalId);
-		}
-	}
+/**
+ * Get terminal callbacks for client configuration
+ */
+export function getTerminalCallbacks(): ACPTerminalCallbacks | null {
+	return terminalCallbacks;
 }
 
 /**
@@ -173,30 +156,24 @@ class ACPVsCodeTerminal implements IVsCodeTerminal {
 const clientCallbacks: ClientCallbacks = {
 	/**
 	 * Creates a new terminal and executes a command.
-	 * Uses VS Code's native run_in_terminal tool with permission service for security.
+	 * Uses ACP Terminal Adapter for consistent VS Code Copilot-like experience.
 	 * Shows confirmation dialog for potentially dangerous commands.
 	 */
-	async createTerminal(_sessionId: string, command: string, _args?: string[]): Promise<IVsCodeTerminal> {
-		const terminalId = randomUUID();
+	async createTerminal(sessionId: string, command: string, args?: string[], cwd?: string, env?: Array<{ name: string; value: string }>): Promise<IVsCodeTerminal> {
+		// Ensure terminal adapter is initialized
+		if (!terminalCallbacks) {
+			initializeTerminalAdapter();
+		}
 
-		// Determine if this should be a background process
-		// Check for common background patterns in the command
-		const isBackground =
-			command.includes("npm run watch") ||
-			command.includes("pnpm watch") ||
-			command.includes("npm run dev") ||
-			command.includes("pnpm dev") ||
-			command.includes("dev --watch") ||
-			command.includes("vite") ||
-			command.includes("--watch") ||
-			command.includes("nodemon") ||
-			command.includes("ts-node --watch");
+		if (!terminalCallbacks) {
+			throw new Error("Terminal adapter not available");
+		}
 
 		// Request permission for the command using the terminal permission service
 		const confirmationDetails: TerminalConfirmationDetails = {
 			command,
 			description: terminalPermissionService.getCommandDescription(command),
-			isBackground,
+			isBackground: false,
 			isDangerous: terminalPermissionService.isDangerousCommand(command),
 		};
 
@@ -207,103 +184,49 @@ const clientCallbacks: ClientCallbacks = {
 			throw new Error(`Command execution denied by user: ${command}`);
 		}
 
-		// Create terminal (cwd and env not supported in current protocol)
-		const terminal = getOrCreateTerminal(terminalId, "Agent");
-		const terminalState: TerminalState = {
-			terminal,
-			command,
-			isBackground,
-		};
-
-		terminalStateMap.set(terminalId, terminalState);
-
-		return new ACPVsCodeTerminal(terminalId, terminal.name);
+		// Use the SDK's terminal adapter callbacks
+		return terminalCallbacks.createTerminal(sessionId, command, args, cwd, env);
 	},
 
 	/**
 	 * Gets terminal output for the specified terminal.
-	 * Uses SDK's ITerminalService for consistent buffer access.
-	 * For background processes, waits for completion and returns output.
+	 * Uses ACP Terminal Adapter for consistent buffer access with byte limits.
 	 */
 	async getTerminalOutput(terminalId: string): Promise<{ output: string; exitCode?: number }> {
-		const state = terminalStateMap.get(terminalId);
-		if (!state) {
+		if (!terminalCallbacks) {
 			return { output: "", exitCode: 0 };
 		}
 
-		try {
-			// Use SDK's terminal service for consistent buffer access
-			const buffer = state.terminal.buffer;
-			if (buffer && buffer.length > 0) {
-				// Get the last line or full buffer
-				const lines: string[] = [];
-				for (let i = 0; i < buffer.length; i++) {
-					lines.push(buffer[i].line);
-				}
-				state.output = lines.join('\n');
-			}
-		} catch {
-			// Fallback: output remains undefined, return empty
-		}
-
-		const output = state.output ?? "";
-		const exitCode = state.exitCode;
-
-		// Clean up if not a persistent terminal
-		if (!state.isBackground) {
-			terminalStateMap.delete(terminalId);
-		}
-
-		return { output, exitCode };
+		return terminalCallbacks.getTerminalOutput(terminalId);
 	},
 
 	/**
 	 * Releases a terminal, cleaning up resources.
 	 */
 	async releaseTerminal(terminalId: string): Promise<void> {
-		const state = terminalStateMap.get(terminalId);
-		if (state) {
-			// Just hide the terminal but keep it for reuse
-			state.terminal.hide();
+		if (terminalCallbacks) {
+			await terminalCallbacks.releaseTerminal(terminalId);
 		}
 	},
 
 	/**
 	 * Waits for a terminal command to exit and returns its exit status.
-	 * Uses VS Code's terminal shell execution events.
+	 * Uses ACP Terminal Adapter's enhanced wait mechanism.
 	 */
 	async waitForTerminalExit(terminalId: string): Promise<{ exitCode?: number }> {
-		const state = terminalStateMap.get(terminalId);
-		if (!state) {
+		if (!terminalCallbacks) {
 			return { exitCode: undefined };
 		}
 
-		// For background processes, we need to wait for the execution to complete
-		if (state.isBackground && !state.exitCode) {
-			// Show the terminal and wait for execution
-			state.terminal.show();
-
-			// If we have a pending output promise, wait for it
-			if (state.outputPromise) {
-				try {
-					await state.outputPromise;
-				} catch {
-					// Ignore errors from cancelled execution
-				}
-			}
-		}
-
-		return { exitCode: state.exitCode };
+		return terminalCallbacks.waitForTerminalExit(terminalId);
 	},
 
 	/**
 	 * Kills a terminal command.
 	 */
 	async killTerminal(terminalId: string): Promise<void> {
-		const state = terminalStateMap.get(terminalId);
-		if (state) {
-			state.terminal.dispose();
-			terminalStateMap.delete(terminalId);
+		if (terminalCallbacks) {
+			await terminalCallbacks.killTerminal(terminalId);
 		}
 	},
 

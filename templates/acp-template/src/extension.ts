@@ -7,7 +7,14 @@
 
 import * as vscode from "vscode";
 import { ACPChatParticipant, ACPClientManager, ACPProvider, registerACPChatParticipant } from "@all-in-copilot/sdk";
-import { AGENT_CONFIG, getACPModels, getOpenCodeConfig, toACPClientConfig } from "./config";
+import {
+	AGENT_CONFIG,
+	getACPModels,
+	getOpenCodeConfig,
+	toACPClientConfig,
+	initializeTerminalAdapter,
+	disposeTerminalAdapterInstance,
+} from "./config";
 
 /**
  * Get the active agent configuration (throws if not available)
@@ -90,6 +97,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	logToChannel(`[${agentName}] Activating ACP extension...`);
 
 	try {
+		// Initialize terminal adapter first
+		initializeTerminalAdapter();
+
 		// Initialize the ACP client manager
 		// The manager will spawn OpenCode using stdio transport for ACP protocol
 		clientManager = new ACPClientManager({
@@ -189,6 +199,9 @@ export async function deactivate(): Promise<void> {
 		await clientManager.dispose();
 		clientManager = null;
 	}
+
+	// Clean up terminal adapter
+	disposeTerminalAdapterInstance();
 
 	extensionContext = null;
 	logToChannel(`[${agentName}] Extension deactivated`);

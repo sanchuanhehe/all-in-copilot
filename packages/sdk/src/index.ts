@@ -57,6 +57,11 @@ export {
 	ACPTerminalProvider,
 	executeInTerminal,
 	executeInNewTerminal,
+	// ACP Terminal Adapter
+	ACPTerminalAdapter,
+	createACPTerminalAdapter,
+	createTerminalCallbacks,
+	disposeTerminalAdapter,
 	type ACPClientConfig,
 	type ACPModelInfo,
 	type ACPProviderOptions,
@@ -67,6 +72,8 @@ export {
 	type ClientCallbacks,
 	type IVsCodeTerminal,
 	type ACPChatParticipantOptions,
+	type IACPTerminalAdapter,
+	type ACPTerminalCallbacks,
 } from "./acp";
 
 // Utilities
