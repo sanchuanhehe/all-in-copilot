@@ -4,18 +4,8 @@ import { ACPClientManager, type ACPClientConfig, type InitResult } from "./clien
 import { TerminalServiceImpl } from "../platform/terminal/vscode/terminalServiceImpl";
 import { isTerminalTool } from "./terminalExecution";
 
-// Note: For enhanced tool invocation UI (ChatToolInvocationPart), VS Code's official
-// implementation uses the ChatParticipant API with ChatResponseStream, not the
-// LanguageModelChatProvider API that we're implementing here.
-//
-// LanguageModelChatProvider uses Progress<LanguageModelResponsePart> which only accepts:
-// - LanguageModelTextPart
-// - LanguageModelToolCallPart
-// - LanguageModelToolResultPart
-// - LanguageModelDataPart
-//
-// ChatParticipant uses ChatResponseStream which accepts ExtendedChatResponsePart
-// including ChatToolInvocationPart for richer UI.
+// Check if LanguageModelThinkingPart is available (proposed API)
+const hasThinkingPart = "LanguageModelThinkingPart" in vscode;
 
 /**
  * Information about an ACP model that can be used with the provider.
@@ -55,6 +45,15 @@ interface ACPSession {
 }
 
 /**
+ * Terminal tracking for output capture.
+ */
+interface TrackedTerminal {
+	terminal: vscode.Terminal;
+	command: string;
+	output: string;
+}
+
+/**
  * ACP Provider implementing LanguageModelChatProvider for VS Code.
  * This allows VS Code to use ACP-compliant agents (like Claude Code) as language models.
  */
@@ -63,6 +62,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 	private readonly clientManager: ACPClientManager;
 	private readonly terminalService: TerminalServiceImpl;
 	private readonly sessions = new Map<string, ACPSession>();
+	private readonly trackedTerminals = new Map<string, TrackedTerminal>();
 	private connection: ClientSideConnection | null = null;
 
 	constructor(options: ACPProviderOptions) {
@@ -256,6 +256,11 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 	 * KEY INSIGHT: In ACP protocol, when Agent sends tool_call notification,
 	 * the Client MUST immediately execute the tool AND send the result back
 	 * via another prompt() call - NOT wait for the initial prompt() to return.
+	 *
+	 * Handles three types of session updates:
+	 * - agent_message_chunk: Text content from the agent (displayed to user)
+	 * - agent_thought_chunk: Thinking/reasoning content (optional display)
+	 * - tool_call: Tool invocation requests
 	 */
 	private async streamResponse(
 		session: ACPSession,
@@ -263,13 +268,6 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 		progress: vscode.Progress<vscode.LanguageModelResponsePart>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		// Typewriter configuration
-		const CHUNK_SIZE = 3;
-		const CHUNK_DELAY = 8;
-
-		// Collect all text first, then stream with typewriter effect
-		const collectedText = "";
-
 		// Track pending tool calls and their results
 		const pendingTools = new Map<string, {
 			name: string;
@@ -277,9 +275,76 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			listener?: () => void;
 		}>();
 
-		// Main listener for session updates
+		// Track thinking state
+		let isThinking = false;
+		let thinkingText = "";
+
+		// Main listener for session updates - handles all sessionUpdate types
 		const mainUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (updateData) => {
 			const sessionUpdate = updateData.update.sessionUpdate;
+
+			// Handle agent message chunks (main text output)
+			if (sessionUpdate === "agent_message_chunk") {
+				const content = (updateData.update as { content?: { text?: string } }).content;
+				const text = content?.text || "";
+				if (text) {
+					console.log(`[ACPProvider] Agent message chunk: "${text.slice(0, 50)}..."`);
+					progress.report(new vscode.LanguageModelTextPart(text));
+				}
+				return;
+			}
+
+			// Handle agent thought chunks (reasoning/thinking)
+			if (sessionUpdate === "agent_thought_chunk") {
+				const content = (updateData.update as { content?: { text?: string } }).content;
+				const thoughtText = content?.text || "";
+				const isLastChunk = (updateData.update as { isLastChunk?: boolean }).isLastChunk ?? false;
+
+				if (hasThinkingPart && thoughtText) {
+					// Use LanguageModelThinkingPart if available (proposed API)
+					if (!isThinking) {
+						// First chunk of thinking
+						progress.report(new (vscode as any).LanguageModelThinkingPart(thoughtText));
+						isThinking = true;
+					} else {
+						// Append to thinking
+						progress.report(new (vscode as any).LanguageModelThinkingPart(thoughtText));
+					}
+					thinkingText += thoughtText;
+				} else if (thoughtText) {
+					// Fallback: report as text part
+					progress.report(new vscode.LanguageModelTextPart(thoughtText));
+				}
+
+				// End thinking stream
+				if (isLastChunk && isThinking && hasThinkingPart) {
+					progress.report(new (vscode as any).LanguageModelThinkingPart("", "", { vscode_reasoning_done: true }));
+					isThinking = false;
+				}
+				return;
+			}
+
+			// Handle terminal output requests from agent
+			// This is used when the agent wants to read terminal output
+			// Note: terminal/output is not in the SDK type, so we use a broader check
+			const sessionUpdateAny = updateData.update as { sessionUpdate?: string };
+			if (sessionUpdateAny.sessionUpdate === "terminal/output") {
+				const terminalId = (updateData.update as { terminalId?: string }).terminalId;
+
+				if (terminalId) {
+					const tracked = this.trackedTerminals.get(terminalId);
+					if (tracked) {
+						console.log(`[ACPProvider] Terminal output request for ${terminalId}: "${tracked.output.slice(0, 50)}..."`);
+						// Send terminal output back to agent via sessionUpdate response
+						// The agent will handle the output via its terminal callbacks
+					} else {
+						console.log(`[ACPProvider] Terminal output request for unknown terminal: ${terminalId}`);
+					}
+				}
+				return;
+			}
+
+			// Only process tool_call in the main listener
 			if (sessionUpdate !== "tool_call") {
 				return;
 			}
@@ -291,20 +356,58 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 
 			console.log(`[ACPProvider] Tool call received: ${toolName} (${toolCallId})`);
 
-			// Note: In standard ACP protocol, terminal commands come from terminal/create request,
-			// not from tool_call's title or rawInput. We do not extract commands from tool_call.
-			// If the agent follows the standard, it will use terminal/create for terminal commands.
-
-			// For terminal tools, we cannot execute without terminal/create request
+			// Check if this is a terminal tool (bash/shell)
 			const isTerminal = isTerminalTool(toolName);
-			const terminalOutput = "";
+			let terminalId = "";
+			let terminalOutput = "";
+
 			if (isTerminal) {
-				console.log(`[ACPProvider] Terminal tool '${toolName}' called but no terminal/create request found.`);
-				console.log(`[ACPProvider] In standard ACP protocol, terminal commands must use terminal/create request.`);
+				// Extract command from rawInput for terminal tools
+				// rawInput structure: { command: string, timeout?: number, ... }
+				const inputObj = rawInput as { command?: string } | undefined;
+				const command = inputObj?.command || "";
+
+				if (command) {
+					console.log(`[ACPProvider] Terminal tool '${toolName}' executing: ${command}`);
+
+					try {
+						// Generate unique terminal ID for tracking
+						terminalId = `acp-terminal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+						// Create a terminal for executing the command
+						const terminal = vscode.window.createTerminal({
+							name: `ACP: ${toolName}`,
+							isTransient: true,
+						});
+
+						// Send the command
+						terminal.sendText(command, true);
+
+						// Show the terminal to the user
+						terminal.show(true);
+
+						// Track this terminal for output capture
+						this.trackedTerminals.set(terminalId, {
+							terminal,
+							command,
+							output: "",
+						});
+
+						// Simulate immediate output (VS Code Terminal API doesn't provide output capture)
+						// The actual output would come from terminal/output requests
+						terminalOutput = `Command sent to terminal (${terminalId}): ${command}`;
+						console.log(`[ACPProvider] Terminal created with ID: ${terminalId}`);
+					} catch (error) {
+						terminalOutput = `Error: ${error instanceof Error ? error.message : String(error)}`;
+						console.error(`[ACPProvider] Terminal error: ${terminalOutput}`);
+					}
+				} else {
+					console.log(`[ACPProvider] Terminal tool '${toolName}' called without command in rawInput`);
+					terminalOutput = "(no command provided)";
+				}
 			}
 
 			// Report tool call using the stable LanguageModelChatProvider API
-			// For terminal tools, we report the command in the input for better visibility
 			const inputObject = rawInput !== undefined ? (rawInput as object) : {};
 			const toolCallPart = new vscode.LanguageModelToolCallPart(toolCallId, toolName, inputObject);
 			progress.report(toolCallPart);
@@ -312,7 +415,7 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			// Initialize pending tool call
 			pendingTools.set(toolCallId, { name: toolName, result: terminalOutput });
 
-			// Also set up a listener for tool call updates
+			// Set up a listener for tool call updates
 			this.clientManager.onSessionUpdate(session.sessionId, async (toolUpdate) => {
 				const toolUpdateData = toolUpdate.update;
 
@@ -416,16 +519,6 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 				return;
 			}
 
-			// Stream the collected text with typewriter effect
-			for (let i = 0; i < collectedText.length; i += CHUNK_SIZE) {
-				if (token.isCancellationRequested) {
-					return;
-				}
-				const chunk = collectedText.slice(i, i + CHUNK_SIZE);
-				progress.report(new vscode.LanguageModelTextPart(chunk));
-				await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY));
-			}
-
 			// Report completion with stop reason
 			const stopReasonText = this.formatStopReason(result.stopReason);
 			if (stopReasonText) {
@@ -447,6 +540,13 @@ export class ACPProvider implements vscode.LanguageModelChatProvider {
 			}
 			pendingTools.clear();
 			mainUnsubscribe();
+
+			// Clean up all tracked terminals
+			for (const [id, tracked] of this.trackedTerminals) {
+				console.log(`[ACPProvider] Disposing terminal: ${id}`);
+				tracked.terminal.dispose();
+			}
+			this.trackedTerminals.clear();
 		}
 	}
 
