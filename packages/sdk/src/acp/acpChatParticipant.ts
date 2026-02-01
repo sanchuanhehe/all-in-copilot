@@ -19,6 +19,20 @@ interface ChatTerminalToolInvocationData {
 	output?: {
 		text: string;
 	};
+	state?: {
+		exitCode?: number;
+		duration?: number;
+	};
+}
+
+/**
+ * Type definition for ChatToolInvocationStreamData (proposed API)
+ * Used for streaming tool invocation updates.
+ * Defined locally to avoid type version conflicts with VS Code API.
+ */
+interface ChatToolInvocationStreamData {
+	/** Partial or not-yet-validated arguments from the language model */
+	partialInput?: unknown;
 }
 
 /**
@@ -209,7 +223,9 @@ export class ACPChatParticipant {
 	}
 
 	/**
-	 * Stream chat response from the agent, handling tool calls with rich UI
+	 * Stream chat response from the agent, handling tool calls with rich UI.
+	 * Uses beginToolInvocation/updateToolInvocation for streaming tool progress,
+	 * matching VS Code Copilot's official implementation.
 	 */
 	private async streamChatResponse(
 		session: ACPSession,
@@ -226,6 +242,7 @@ export class ACPChatParticipant {
 			rawInput?: unknown;
 			command?: string;
 			isTerminal: boolean;
+			startTime: number;
 			listenerUnsubscribe: () => void;
 		}>();
 
@@ -243,20 +260,44 @@ export class ACPChatParticipant {
 					break;
 				}
 
+				// Handle agent thought/reasoning updates
+				case "agent_thought_chunk": {
+					const thoughtContent = updateData.content;
+					if (thoughtContent && "thought" in thoughtContent) {
+						// Use thinkingProgress if available (proposed API)
+						if (stream.thinkingProgress) {
+							stream.thinkingProgress({
+								text: String(thoughtContent.thought),
+								id: session.sessionId,
+							});
+						}
+					}
+					break;
+				}
+
 				case "tool_call": {
 					const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
 					const title = (updateData as { title?: string }).title ?? "Unknown Tool";
 					const rawInput = (updateData as { rawInput?: unknown }).rawInput;
 					const toolName = title.split(" ")[0] || "tool";
+					const startTime = Date.now();
 
 					console.log(`[ACPChatParticipant] Tool call: ${toolName} (${toolCallId})`);
 
 					// Extract command for terminal tools from rawInput
 					const inputObj = rawInput as { command?: string } | undefined;
 					const command = inputObj?.command || "";
+					const isTerminal = isTerminalTool(toolName);
 
-					// Create ChatToolInvocationPart with proper API
-					// Constructor: toolName, toolCallId, isError?
+					// Use beginToolInvocation for streaming tool progress (proposed API)
+					// This matches VS Code Copilot's implementation
+					if (stream.beginToolInvocation) {
+						stream.beginToolInvocation(toolCallId, toolName, {
+							partialInput: rawInput,
+						});
+					}
+
+					// Also create ChatToolInvocationPart for fallback/complete state
 					const toolPart = new vscode.ChatToolInvocationPart(toolName, toolCallId, false);
 
 					// Set invocation message - matching official Copilot UI
@@ -269,7 +310,6 @@ export class ACPChatParticipant {
 					toolPart.invocationMessage = invocationMd;
 
 					// Set toolSpecificData for terminal tools - matching official Copilot UI
-					const isTerminal = isTerminalTool(toolName);
 					if (isTerminal && command) {
 						const terminalData: ChatTerminalToolInvocationData = {
 							commandLine: {
@@ -288,6 +328,8 @@ export class ACPChatParticipant {
 
 					// Execute terminal command if this is a terminal tool
 					let terminalOutput = "";
+					let exitCode: number | undefined;
+					let commandDuration: number | undefined;
 					if (isTerminal && command) {
 						try {
 							console.log(`[ACPChatParticipant] Executing terminal command: ${command}`);
@@ -299,13 +341,15 @@ export class ACPChatParticipant {
 							);
 
 							// Wait for command to complete and get output
-							const [outputResult] = await Promise.all([
+							const [outputResult, exitResult] = await Promise.all([
 								this.terminalCallbacks.getTerminalOutput(session.sessionId, terminal.terminalId),
 								this.terminalCallbacks.waitForTerminalExit(session.sessionId, terminal.terminalId),
 							]);
 
 							terminalOutput = outputResult.output;
-							console.log(`[ACPChatParticipant] Terminal command executed, output length: ${terminalOutput.length}`);
+							exitCode = exitResult.exitCode;
+							commandDuration = Date.now() - startTime;
+							console.log(`[ACPChatParticipant] Terminal command executed, output length: ${terminalOutput.length}, exitCode: ${exitCode}`);
 						} catch (error) {
 							terminalOutput = `Error: ${error instanceof Error ? error.message : String(error)}`;
 							console.error(`[ACPChatParticipant] Terminal error: ${terminalOutput}`);
@@ -366,6 +410,7 @@ export class ACPChatParticipant {
 									rawInput,
 									command,
 									isTerminal: isTerminalToolCheck,
+									startTime,
 									listenerUnsubscribe: toolListenerUnsubscribe,
 								});
 							}
@@ -393,6 +438,11 @@ export class ACPChatParticipant {
 									output: {
 										text: toolResultText,
 									},
+									// Add state with exitCode and duration - matching official Copilot UI
+									state: exitCode !== undefined ? {
+										exitCode,
+										duration: commandDuration,
+									} : undefined,
 								};
 								completedToolPart.toolSpecificData = terminalData;
 							}
@@ -438,6 +488,7 @@ export class ACPChatParticipant {
 						rawInput,
 						command,
 						isTerminal,
+						startTime,
 						listenerUnsubscribe: toolListenerUnsubscribe
 					});
 
