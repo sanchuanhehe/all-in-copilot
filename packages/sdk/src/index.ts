@@ -50,11 +50,10 @@ export { sanitizeFunctionName, pruneUnknownSchemaKeywords } from "./utils/toolCo
 // ACP Protocol (Agent Client Protocol)
 export {
 	ACPClientManager,
-	ACPProvider,
-	registerACPProvider,
-	ACPChatParticipant,
-	registerACPChatParticipant,
-	// ACP Terminal Adapter (NEW - recommended)
+	// Unified Provider (ChatParticipant + LanguageModelChatProvider)
+	ACPUnifiedProvider,
+	registerACPUnifiedProvider,
+	// ACP Terminal Adapter
 	ACPTerminalAdapter,
 	createACPTerminalAdapter,
 	createTerminalCallbacks,
@@ -73,14 +72,13 @@ export {
 	executeInNewTerminal,
 	type ACPClientConfig,
 	type ACPModelInfo,
-	type ACPProviderOptions,
+	type ACPUnifiedProviderOptions,
 	type ContentBlock,
 	type TerminalCreateResult,
 	type TerminalOutputResult,
 	type MCPServerConfig,
 	type ClientCallbacks,
 	type IVsCodeTerminal,
-	type ACPChatParticipantOptions,
 	type IACPTerminalAdapter,
 	type ACPTerminalCallbacks,
 } from "./acp";

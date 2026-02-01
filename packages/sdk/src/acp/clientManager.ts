@@ -1193,6 +1193,7 @@ export class ACPClientManager {
 			 * Uses callback if provided, otherwise stores terminal info for later use.
 			 */
 			async createTerminal(params: CreateTerminalRequest): Promise<CreateTerminalResponse> {
+				console.log(`[ACP Client] createTerminal called: command="${params.command}", sessionId="${params.sessionId}"`);
 				const terminalId = `terminal-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 				const cwd = params.cwd ?? undefined;
 				const env = params.env ?? undefined;
@@ -1204,6 +1205,7 @@ export class ACPClientManager {
 					: undefined;
 
 				if (callbacks.createTerminal) {
+					console.log(`[ACP Client] Using callbacks.createTerminal for: ${params.command}`);
 					const terminal = await callbacks.createTerminal(
 						params.sessionId,
 						params.command,
@@ -1219,6 +1221,7 @@ export class ACPClientManager {
 						cwd,
 						env,
 					});
+					console.log(`[ACP Client] Terminal created via callback: ${terminal.terminalId}`);
 					return { terminalId: terminal.terminalId };
 				}
 

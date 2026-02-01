@@ -6,7 +6,7 @@
  */
 
 import * as vscode from "vscode";
-import { ACPChatParticipant, ACPClientManager, ACPProvider, registerACPChatParticipant } from "@all-in-copilot/sdk";
+import { ACPClientManager, ACPUnifiedProvider } from "@all-in-copilot/sdk";
 import {
 	AGENT_CONFIG,
 	getACPModels,
@@ -31,7 +31,7 @@ function getAgentConfig(): NonNullable<typeof AGENT_CONFIG> {
  */
 let extensionContext: vscode.ExtensionContext | null = null;
 let clientManager: ACPClientManager | null = null;
-let acpProvider: ACPProvider | null = null;
+let unifiedProvider: ACPUnifiedProvider | null = null;
 let opencodeOutputChannel: vscode.OutputChannel | null = null;
 
 /**
@@ -118,43 +118,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			},
 		});
 
-		// Create and register the ACP provider using the SDK
-		acpProvider = new ACPProvider({
+		// Create and register the Unified ACP provider
+		// This provides BOTH:
+		// 1. ChatParticipant (rich UI with tool invocations, thinking progress)
+		// 2. LanguageModelChatProvider (allows other extensions to use this as a language model)
+		unifiedProvider = new ACPUnifiedProvider({
+			id: opencodeConfig.participantId,
+			name: agentName,
+			description: `A coding assistant powered by ${agentName}`,
+			iconPath: new vscode.ThemeIcon("robot"),
 			models,
 			clientConfig,
 			clientInfo: {
 				name: agentId,
 				version: "1.0.0",
 			},
+			clientManager, // Share the clientManager
+			vendorId: agentId, // Vendor ID for LanguageModelChatProvider
 		});
 
-		// Register with VS Code's language model system
-		// Vendor must be globally unique - use simple ID without dots
-		const vendorId = agentId.replace(/[^a-zA-Z0-9]/g, "");
-		const providerDisposable = vscode.lm.registerLanguageModelChatProvider(vendorId, acpProvider);
-		context.subscriptions.push(providerDisposable);
-
-		// Register chat participant for conversational AI with rich tool invocation UI
-		// Uses ACPChatParticipant from SDK for proper tool call handling
-		const chatParticipant = new ACPChatParticipant({
-			id: opencodeConfig.participantId,
-			name: agentName,
-			description: `A coding assistant powered by ${agentName}`,
-			iconPath: new vscode.ThemeIcon("robot"),
-			clientConfig: toACPClientConfig(opencodeConfig, {
-				extensionContext: {
-					extensionUri: context.extensionUri.toString(),
-					secrets: context.secrets,
-				},
-			}),
-			clientInfo: {
-				name: agentId,
-				version: "1.0.0",
-			},
-			clientManager, // Share the clientManager with the participant
-		});
-
-		context.subscriptions.push(chatParticipant);
+		// Register both ChatParticipant and LanguageModelChatProvider
+		const unifiedDisposable = unifiedProvider.register();
+		context.subscriptions.push(unifiedDisposable);
 
 		// Register configuration command
 		const configCommand = vscode.commands.registerCommand(`${agentId}.configure`, async () => {
@@ -169,7 +154,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		context.subscriptions.push(restartCommand);
 
 		logToChannel(`[${agentName}] Extension activated successfully`);
-		logToChannel(`[${agentName}] Registered models: ${models.map((m) => m.id).join(", ")}`);
+		logToChannel(`[${agentName}] Registered as ChatParticipant: ${opencodeConfig.participantId}`);
+		logToChannel(`[${agentName}] Registered as LanguageModel vendor: ${agentId}`);
+		logToChannel(`[${agentName}] Available models: ${models.map((m) => m.id).join(", ")}`);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : "Unknown error";
 		logToChannel(`[${agentName}] Activation failed: ${errorMessage}`);
@@ -188,10 +175,10 @@ export async function deactivate(): Promise<void> {
 	const agentName = getAgentConfig().name;
 	logToChannel(`[${agentName}] Deactivating extension...`);
 
-	// Clean up provider first
-	if (acpProvider) {
-		await acpProvider.dispose();
-		acpProvider = null;
+	// Clean up unified provider (disposes both ChatParticipant and LanguageModelChatProvider)
+	if (unifiedProvider) {
+		unifiedProvider.dispose();
+		unifiedProvider = null;
 	}
 
 	// Clean up client manager - this will also kill the spawned process
@@ -255,9 +242,10 @@ async function restartAgent(): Promise<void> {
 		},
 		async (_progress) => {
 			try {
-				// Dispose of existing connections
-				if (acpProvider) {
-					await acpProvider.dispose();
+				// Dispose of existing provider
+				if (unifiedProvider) {
+					unifiedProvider.dispose();
+					unifiedProvider = null;
 				}
 
 				if (clientManager) {
@@ -270,14 +258,24 @@ async function restartAgent(): Promise<void> {
 					version: "1.0.0",
 				});
 
-				acpProvider = new ACPProvider({
+				// Create new unified provider
+				unifiedProvider = new ACPUnifiedProvider({
+					id: agentConfig.participantId,
+					name: agentConfig.name,
+					description: `A coding assistant powered by ${agentConfig.name}`,
+					iconPath: new vscode.ThemeIcon("robot"),
 					models: getACPModels(),
 					clientConfig: toACPClientConfig(agentConfig),
 					clientInfo: {
 						name: agentConfig.id,
 						version: "1.0.0",
 					},
+					clientManager,
+					vendorId: agentConfig.id,
 				});
+
+				// Re-register
+				unifiedProvider.register();
 
 				vscode.window.showInformationMessage(`${agentConfig.name} restarted successfully`);
 			} catch (error) {

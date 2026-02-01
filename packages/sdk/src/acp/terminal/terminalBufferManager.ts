@@ -204,7 +204,7 @@ export function markTerminalCompleted(
  */
 export function waitForTerminalCompletion(
 	terminal: Terminal,
-	timeoutMs: number = 0
+	timeoutMs = 0
 ): Promise<{ exitCode?: number; signal?: string } | undefined> {
 	const buffer = terminalBuffers.get(terminal);
 	if (!buffer) {

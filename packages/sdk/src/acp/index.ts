@@ -45,11 +45,14 @@ export type {
 	KillTerminalCommandResponse,
 } from "@agentclientprotocol/sdk";
 
-// VS Code ACP Integration - LanguageModelChatProvider (stable API)
-export { ACPProvider, registerACPProvider, type ACPModelInfo, type ACPProviderOptions } from "./acpProvider";
-
-// VS Code ACP Integration - ChatParticipant (rich UI with ChatToolInvocationPart)
-export { ACPChatParticipant, registerACPChatParticipant, type ACPChatParticipantOptions } from "./acpChatParticipant";
+// VS Code ACP Integration - Unified Provider (ChatParticipant + LanguageModelChatProvider)
+// Provides both rich chat UI and model API in a single class
+export {
+	ACPUnifiedProvider,
+	registerACPUnifiedProvider,
+	type ACPUnifiedProviderOptions,
+	type ACPModelInfo,
+} from "./acpUnifiedProvider";
 
 /**
  * @deprecated Use `createTerminalCallbacks()` from "./terminal" instead.

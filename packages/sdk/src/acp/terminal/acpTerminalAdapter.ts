@@ -24,7 +24,6 @@ import {
 	generateTerminalId,
 	initializeTerminalBuffer,
 	getBufferInfo,
-	getTerminalById,
 	waitForTerminalCompletion,
 	isTerminalCompleted,
 	getTerminalExitStatus,
