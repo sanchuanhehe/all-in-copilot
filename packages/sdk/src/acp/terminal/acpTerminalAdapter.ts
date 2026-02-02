@@ -320,6 +320,13 @@ export class ACPTerminalAdapter implements IACPTerminalAdapter {
 	}
 
 	/**
+	 * Get terminal handle by ID (for direct VS Code terminal access)
+	 */
+	getTerminalHandle(terminalId: string): ITerminalHandle | undefined {
+		return this.terminals.get(terminalId);
+	}
+
+	/**
 	 * Clean up all resources
 	 */
 	dispose(): void {

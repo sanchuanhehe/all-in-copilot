@@ -78,8 +78,8 @@
 		"chatParticipants": [
 			{
 				"id": "opencode.agent",
-				"name": "agent-name",
-				"description": "Ask questions or get help with coding tasks"
+				"name": "opencode",
+				"description": "Ask questions or get help with coding tasks using OpenCode Agent"
 			}
 		],
 		"commands": [

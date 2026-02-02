@@ -8,8 +8,13 @@ import { isTerminalTool } from "./terminalExecution";
 /**
  * Type definition for ChatTerminalToolInvocationData (proposed API)
  * Matches VS Code's official implementation for terminal tool UI.
+ *
+ * IMPORTANT: VS Code checks `toolSpecificData?.kind === 'terminal'` to decide
+ * whether to render the terminal UI. While the converter should add this automatically,
+ * we include it explicitly for reliability.
  */
 interface ChatTerminalToolInvocationData {
+	kind?: 'terminal';  // VS Code uses this to identify terminal tools
 	commandLine: {
 		original: string;
 		userEdited?: string;
@@ -418,22 +423,29 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 					const toolCallId = (updateData as { toolCallId?: string }).toolCallId ?? String(Date.now());
 					const title = (updateData as { title?: string }).title ?? "Unknown Tool";
 					const rawInput = (updateData as { rawInput?: unknown }).rawInput;
+					const toolKind = (updateData as { kind?: string }).kind ?? "other";
 					const toolName = title.split(" ")[0] || "tool";
 					const startTime = Date.now();
 
-					console.log(`[ACPUnifiedProvider] Tool call: ${toolName} (${toolCallId})`);
+					console.log(`[ACPUnifiedProvider] Tool call: ${toolName} (${toolCallId}), kind: ${toolKind}`);
 
 					const inputObj = rawInput as { command?: string } | undefined;
 					const command = inputObj?.command || "";
-					const isTerminal = isTerminalTool(toolName);
+
+					// Check if this is a terminal tool by:
+					// 1. ACP protocol kind = "execute" (running commands or code)
+					// 2. Tool name contains terminal-related words
+					const isTerminal = toolKind.toLowerCase() === "execute" || isTerminalTool(toolName);
 
 					// Use beginToolInvocation for streaming progress (proposed API)
 					if (stream.beginToolInvocation) {
 						stream.beginToolInvocation(toolCallId, toolName, { partialInput: rawInput });
 					}
 
-					// Create ChatToolInvocationPart
+					// Create ChatToolInvocationPart (reuse same object for updates)
 					const toolPart = new vscode.ChatToolInvocationPart(toolName, toolCallId, false);
+					toolPart.isConfirmed = false;
+					toolPart.isComplete = false;
 
 					const invocationMd = new vscode.MarkdownString();
 					invocationMd.appendText(`🔄 Running ${toolName}`);
@@ -443,38 +455,80 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 					}
 					toolPart.invocationMessage = invocationMd;
 
-					// Set terminal-specific data
+					// Set terminal-specific data for initial progress display
+					// CRITICAL: Must set toolSpecificData with correct structure for VS Code to render terminal UI
+					console.log(`[ACPUnifiedProvider] isTerminal: ${isTerminal}, command: "${command}"`);
 					if (isTerminal && command) {
 						const terminalData: ChatTerminalToolInvocationData = {
+							kind: 'terminal',  // Required for VS Code to render terminal UI
 							commandLine: { original: command },
 							language: "bash",
 						};
 						toolPart.toolSpecificData = terminalData;
+						console.log(`[ACPUnifiedProvider] Set toolSpecificData:`, JSON.stringify(terminalData));
 					}
 
 					stream.push(toolPart);
+					console.log(`[ACPUnifiedProvider] Pushed initial toolPart, hasToolSpecificData: ${!!toolPart.toolSpecificData}`);
 
-					// Execute terminal command
+					// Execute terminal command - creates a VISIBLE terminal in VS Code panel
 					let terminalOutput = "";
 					let exitCode: number | undefined;
 					let commandDuration: number | undefined;
+					let terminalId = "";
 
 					if (isTerminal && command) {
 						try {
-							const terminal = await this.terminalCallbacks.createTerminal(session.sessionId, command);
+							// Create terminal and show it in VS Code terminal panel
+							const terminalResult = await this.terminalCallbacks.createTerminal(session.sessionId, command);
+							terminalId = terminalResult.terminalId;
+
+							// Show terminal explicitly to ensure it's visible
+							terminalResult.show(false); // false = don't preserve focus, bring terminal to front
+
+							// Wait for command to complete and get output
 							const [outputResult, exitResult] = await Promise.all([
-								this.terminalCallbacks.getTerminalOutput(session.sessionId, terminal.terminalId),
-								this.terminalCallbacks.waitForTerminalExit(session.sessionId, terminal.terminalId),
+								this.terminalCallbacks.getTerminalOutput(session.sessionId, terminalId),
+								this.terminalCallbacks.waitForTerminalExit(session.sessionId, terminalId),
 							]);
 							terminalOutput = outputResult.output;
 							exitCode = exitResult.exitCode;
 							commandDuration = Date.now() - startTime;
+
+							console.log(`[ACPUnifiedProvider] Terminal completed: exitCode=${exitCode}, duration=${commandDuration}ms, output length=${terminalOutput.length}`);
+
+							// Update toolPart with output and state immediately after terminal completes
+							toolPart.isComplete = true;
+							toolPart.isConfirmed = true;
+							toolPart.isError = exitCode !== 0 && exitCode !== undefined;
+
+							const pastTenseMd = new vscode.MarkdownString();
+							pastTenseMd.appendText(exitCode === 0 ? `✅ ${toolName} completed` : `⚠️ ${toolName} exited with code ${exitCode}`);
+							toolPart.pastTenseMessage = pastTenseMd;
+
+							// Update toolSpecificData with output and state
+							const terminalDataComplete: ChatTerminalToolInvocationData = {
+								kind: 'terminal',  // Required for VS Code to render terminal UI
+								commandLine: { original: command },
+								language: "bash",
+								output: { text: terminalOutput.replace(/\n/g, '\r\n') },
+								state: { exitCode: exitCode ?? 0, duration: commandDuration },
+							};
+							toolPart.toolSpecificData = terminalDataComplete;
+							console.log(`[ACPUnifiedProvider] Updated toolSpecificData:`, JSON.stringify(terminalDataComplete));
+
+							// Push updated toolPart to reflect changes
+							stream.push(toolPart);
+							console.log(`[ACPUnifiedProvider] Pushed completed toolPart for terminal`);
 						} catch (error) {
 							terminalOutput = `Error: ${error instanceof Error ? error.message : String(error)}`;
+							toolPart.isComplete = true;
+							toolPart.isError = true;
+							stream.push(toolPart);
 						}
 					}
 
-					// Tool update listener
+					// Tool update listener for ACP protocol updates
 					const toolListenerUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (toolUpdate) => {
 						if (toolUpdate.update.sessionUpdate !== "tool_call_update") {
 							return;
@@ -487,19 +541,38 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 							return;
 						}
 
+						// Extract rawInput from update (in_progress status includes actual input data)
+						const updateRawInput = (toolUpdate.update as { rawInput?: unknown }).rawInput;
+						const updateKind = (toolUpdate.update as { kind?: string }).kind;
 						const contentData = (toolUpdate.update as { content?: Array<{ text?: string }> }).content;
 						const rawOutput = (toolUpdate.update as { rawOutput?: unknown }).rawOutput;
 
-						let toolResultText = "";
+						// Check if this is a terminal tool (may have more info in update than initial call)
+						const updateInputObj = updateRawInput as { command?: string } | undefined;
+						const updateCommand = updateInputObj?.command || command;
+						const updateIsTerminal = (updateKind?.toLowerCase() === "execute") || isTerminal || isTerminalTool(toolName);
+
+						console.log(`[ACPUnifiedProvider] tool_call_update: status=${status}, kind=${updateKind}, command="${updateCommand}", isTerminal=${updateIsTerminal}`);
+
+						// If we now have command info and it's a terminal tool, update toolSpecificData
+						if (status === "in_progress" && updateIsTerminal && updateCommand && !toolPart.toolSpecificData) {
+							const terminalData: ChatTerminalToolInvocationData = {
+								kind: 'terminal',
+								commandLine: { original: updateCommand },
+								language: "bash",
+							};
+							toolPart.toolSpecificData = terminalData;
+							console.log(`[ACPUnifiedProvider] Updated toolSpecificData on in_progress:`, JSON.stringify(terminalData));
+							stream.push(toolPart);
+						}
+
+						let toolResultText = terminalOutput || "";
 						if (contentData && Array.isArray(contentData)) {
 							for (const item of contentData) {
 								if (item && "text" in item) {
 									toolResultText += String(item.text);
 								}
 							}
-						}
-						if (terminalOutput) {
-							toolResultText = terminalOutput + (toolResultText ? `\n${toolResultText}` : "");
 						}
 						if (rawOutput && typeof rawOutput === "object") {
 							const rawOutputStr = JSON.stringify(rawOutput);
@@ -509,29 +582,20 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 						}
 
 						if ((status === "completed" || status === "success") && updateToolCallId) {
-							// Create completed tool part
-							const completedToolPart = new vscode.ChatToolInvocationPart(toolName, updateToolCallId, false);
-							completedToolPart.isComplete = true;
+							// For non-terminal tools, update and push the part
+							if (!isTerminal) {
+								toolPart.isComplete = true;
+								toolPart.isConfirmed = true;
 
-							const pastTenseMarkdown = new vscode.MarkdownString();
-							pastTenseMarkdown.appendText(`✅ ${toolName} completed`);
-							completedToolPart.pastTenseMessage = pastTenseMarkdown;
+								const pastTenseMarkdown = new vscode.MarkdownString();
+								pastTenseMarkdown.appendText(`✅ ${toolName} completed`);
+								toolPart.pastTenseMessage = pastTenseMarkdown;
 
-							const toolInfo = pendingTools.get(updateToolCallId);
-							if (isTerminal && toolResultText && toolInfo?.command) {
-								const terminalData: ChatTerminalToolInvocationData = {
-									commandLine: { original: toolInfo.command },
-									language: "bash",
-									output: { text: toolResultText },
-									state: exitCode !== undefined ? { exitCode, duration: commandDuration } : undefined,
-								};
-								completedToolPart.toolSpecificData = terminalData;
+								stream.push(toolPart);
 							}
 
-							stream.push(completedToolPart);
-
 							// Send result back to Agent
-							const resultMessage: ContentBlock[] = [{ type: "text", text: toolResultText }];
+							const resultMessage: ContentBlock[] = [{ type: "text", text: toolResultText || "(no output)" }];
 							await this.clientManager.prompt(session.connection, {
 								sessionId: session.sessionId,
 								prompt: resultMessage,

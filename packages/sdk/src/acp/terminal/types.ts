@@ -201,6 +201,11 @@ export interface IACPTerminalAdapter {
 	disposeSession(sessionId: string): Promise<void>;
 
 	/**
+	 * Get terminal handle by ID (for direct VS Code terminal access)
+	 */
+	getTerminalHandle(terminalId: string): ITerminalHandle | undefined;
+
+	/**
 	 * Clean up all resources
 	 */
 	dispose(): void;

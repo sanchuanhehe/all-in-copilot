@@ -94,13 +94,23 @@ export function createTerminalCallbacks(
 				outputByteLimit: outputByteLimit ?? options?.defaultOutputByteLimit,
 			});
 
-			// Return a mock terminal handle that the client manager expects
+			// Get the actual terminal handle for show/hide operations
+			const handle = adapter.getTerminalHandle(response.terminalId);
+
+			// Return terminal interface with actual show/hide functionality
 			return {
 				terminalId: response.terminalId,
 				name: `ACP: ${command.slice(0, 30)}...`,
-				sendText: () => { /* no-op - command already sent */ },
-				show: () => { /* no-op - terminal shown by adapter */ },
-				hide: () => { /* no-op */ },
+				sendText: (text: string, shouldExecute?: boolean) => {
+					handle?.terminal.sendText(text, shouldExecute ?? true);
+				},
+				show: (preserveFocus?: boolean) => {
+					// Show terminal in VS Code terminal panel
+					handle?.terminal.show(preserveFocus ?? false);
+				},
+				hide: () => {
+					handle?.terminal.hide();
+				},
 				dispose: () => adapter.release({ terminalId: response.terminalId }),
 			};
 		},
