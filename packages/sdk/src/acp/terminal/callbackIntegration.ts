@@ -85,6 +85,8 @@ export function createTerminalCallbacks(
 			env?: Array<{ name: string; value: string }>,
 			outputByteLimit?: number
 		) {
+			console.log(`[ACP-Terminal-Callbacks] Creating terminal for command: ${command}`);
+
 			const response = await adapter.createTerminal({
 				sessionId,
 				command,
@@ -96,6 +98,13 @@ export function createTerminalCallbacks(
 
 			// Get the actual terminal handle for show/hide operations
 			const handle = adapter.getTerminalHandle(response.terminalId);
+			console.log(`[ACP-Terminal-Callbacks] Terminal created with ID: ${response.terminalId}, handle exists: ${!!handle}`);
+
+			// Ensure terminal is shown in VS Code terminal panel immediately
+			if (handle?.terminal) {
+				handle.terminal.show(false); // false = bring terminal to front (don't preserve focus)
+				console.log(`[ACP-Terminal-Callbacks] Terminal shown in VS Code panel`);
+			}
 
 			// Return terminal interface with actual show/hide functionality
 			return {
@@ -106,7 +115,10 @@ export function createTerminalCallbacks(
 				},
 				show: (preserveFocus?: boolean) => {
 					// Show terminal in VS Code terminal panel
-					handle?.terminal.show(preserveFocus ?? false);
+					if (handle?.terminal) {
+						handle.terminal.show(preserveFocus ?? false);
+						console.log(`[ACP-Terminal-Callbacks] Terminal.show() called, preserveFocus: ${preserveFocus ?? false}`);
+					}
 				},
 				hide: () => {
 					handle?.terminal.hide();

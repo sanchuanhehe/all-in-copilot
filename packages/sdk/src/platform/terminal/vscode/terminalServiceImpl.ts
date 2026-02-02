@@ -73,8 +73,8 @@ export class TerminalServiceImpl implements ITerminalService {
 	private readonly terminalShellQuality: Map<Terminal, ShellIntegrationQuality> = new Map<Terminal, ShellIntegrationQuality>();
 
 	constructor(
-		private readonly extensionContext: {
-			readonly environmentVariableCollection: { append(variable: string, value: string): void; prepend(variable: string, value: string): void; delete(variable: string): void; description?: string };
+		private readonly extensionContext?: {
+			readonly environmentVariableCollection?: { append(variable: string, value: string): void; prepend(variable: string, value: string): void; delete(variable: string): void; description?: string };
 		}
 	) {
 		// Get the environment variable collection from extension context

@@ -137,9 +137,8 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 		}
 
 		// Create terminal service for real VS Code terminal integration
-		const terminalService = new TerminalServiceImpl({
-			environmentVariableCollection: {} as { append: (v: string, val: string) => void; prepend: (v: string, val: string) => void; delete: (v: string) => void; description?: string },
-		});
+		// Uses VS Code's window.createTerminal() to create terminals visible in the terminal panel
+		const terminalService = new TerminalServiceImpl();
 		this.terminalService = terminalService;
 
 		// Create terminal callbacks using new ACP Terminal Adapter
@@ -149,6 +148,21 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 		});
 		this.terminalCallbacks = callbacks;
 		this.terminalAdapter = adapter;
+	}
+
+	/**
+	 * Get the effective terminal callbacks.
+	 * External callbacks (from clientConfig) take priority as they may include permission confirmation.
+	 */
+	private getEffectiveTerminalCallbacks(): ACPTerminalCallbacks {
+		const external = this.options.clientConfig.callbacks;
+		return {
+			createTerminal: external?.createTerminal ?? this.terminalCallbacks.createTerminal.bind(this.terminalCallbacks),
+			getTerminalOutput: external?.getTerminalOutput ?? this.terminalCallbacks.getTerminalOutput.bind(this.terminalCallbacks),
+			releaseTerminal: external?.releaseTerminal ?? this.terminalCallbacks.releaseTerminal.bind(this.terminalCallbacks),
+			waitForTerminalExit: external?.waitForTerminalExit ?? this.terminalCallbacks.waitForTerminalExit.bind(this.terminalCallbacks),
+			killTerminal: external?.killTerminal ?? this.terminalCallbacks.killTerminal.bind(this.terminalCallbacks),
+		};
 	}
 
 	/**
@@ -336,23 +350,37 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 
 	/**
 	 * Initialize the ACP client with terminal callbacks.
+	 * External terminal callbacks (with permission confirmation) take priority over internal ones.
 	 */
 	private async initializeClient(): Promise<InitResult> {
 		try {
-			// Merge terminal callbacks into config.callbacks for proper ACP terminal support
+			// Get external terminal callbacks from clientConfig (may include permission confirmation)
+			const externalCallbacks = this.options.clientConfig.callbacks;
+
+			// Merge terminal callbacks: external callbacks take priority (for permission confirmation support)
+			// If external createTerminal is provided, use it (it may include permission checks)
+			// Otherwise, fall back to internal terminal callbacks
 			const configWithCallbacks: ACPClientConfig = {
 				...this.options.clientConfig,
 				callbacks: {
-					...this.options.clientConfig.callbacks,
-					createTerminal: this.terminalCallbacks.createTerminal.bind(this.terminalCallbacks),
-					getTerminalOutput: this.terminalCallbacks.getTerminalOutput.bind(this.terminalCallbacks),
-					releaseTerminal: this.terminalCallbacks.releaseTerminal.bind(this.terminalCallbacks),
-					waitForTerminalExit: this.terminalCallbacks.waitForTerminalExit.bind(this.terminalCallbacks),
-					killTerminal: this.terminalCallbacks.killTerminal.bind(this.terminalCallbacks),
+					...externalCallbacks,
+					// Use external createTerminal if provided (supports permission confirmation),
+					// otherwise use internal terminalCallbacks
+					createTerminal: externalCallbacks?.createTerminal
+						?? this.terminalCallbacks.createTerminal.bind(this.terminalCallbacks),
+					getTerminalOutput: externalCallbacks?.getTerminalOutput
+						?? this.terminalCallbacks.getTerminalOutput.bind(this.terminalCallbacks),
+					releaseTerminal: externalCallbacks?.releaseTerminal
+						?? this.terminalCallbacks.releaseTerminal.bind(this.terminalCallbacks),
+					waitForTerminalExit: externalCallbacks?.waitForTerminalExit
+						?? this.terminalCallbacks.waitForTerminalExit.bind(this.terminalCallbacks),
+					killTerminal: externalCallbacks?.killTerminal
+						?? this.terminalCallbacks.killTerminal.bind(this.terminalCallbacks),
 				},
 			};
 
 			console.log("[ACPUnifiedProvider] Initializing client with terminal callbacks...");
+			console.log("[ACPUnifiedProvider] Using external createTerminal:", !!externalCallbacks?.createTerminal);
 			const connection = await this.clientManager.getClient(configWithCallbacks);
 			const result = await this.clientManager.initialize(connection);
 
@@ -472,6 +500,8 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 					console.log(`[ACPUnifiedProvider] Pushed initial toolPart, hasToolSpecificData: ${!!toolPart.toolSpecificData}`);
 
 					// Execute terminal command - creates a VISIBLE terminal in VS Code panel
+					// Use effective callbacks (external with permission confirmation, or internal)
+					const effectiveCallbacks = this.getEffectiveTerminalCallbacks();
 					let terminalOutput = "";
 					let exitCode: number | undefined;
 					let commandDuration: number | undefined;
@@ -480,7 +510,8 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 					if (isTerminal && command) {
 						try {
 							// Create terminal and show it in VS Code terminal panel
-							const terminalResult = await this.terminalCallbacks.createTerminal(session.sessionId, command);
+							// External createTerminal may include permission confirmation dialog
+							const terminalResult = await effectiveCallbacks.createTerminal(session.sessionId, command);
 							terminalId = terminalResult.terminalId;
 
 							// Show terminal explicitly to ensure it's visible
@@ -488,8 +519,8 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 
 							// Wait for command to complete and get output
 							const [outputResult, exitResult] = await Promise.all([
-								this.terminalCallbacks.getTerminalOutput(session.sessionId, terminalId),
-								this.terminalCallbacks.waitForTerminalExit(session.sessionId, terminalId),
+								effectiveCallbacks.getTerminalOutput(session.sessionId, terminalId),
+								effectiveCallbacks.waitForTerminalExit(session.sessionId, terminalId),
 							]);
 							terminalOutput = outputResult.output;
 							exitCode = exitResult.exitCode;
@@ -705,8 +736,10 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 				const command = inputObj?.command || "";
 				if (command) {
 					try {
-						const terminal = await this.terminalCallbacks.createTerminal(session.sessionId, command);
-						const outputResult = await this.terminalCallbacks.getTerminalOutput(session.sessionId, terminal.terminalId);
+						// Use effective callbacks (with permission confirmation support)
+						const effectiveCallbacks = this.getEffectiveTerminalCallbacks();
+						const terminal = await effectiveCallbacks.createTerminal(session.sessionId, command);
+						const outputResult = await effectiveCallbacks.getTerminalOutput(session.sessionId, terminal.terminalId);
 						terminalOutput = outputResult.output;
 					} catch (error) {
 						terminalOutput = `Error: ${error instanceof Error ? error.message : String(error)}`;
