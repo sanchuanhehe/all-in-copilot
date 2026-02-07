@@ -54,16 +54,17 @@ function createAnthropicConfig(overrides?: Partial<SendChatRequestConfig>): Send
 	};
 }
 
-function createCallbacks(): ChatResponseCallbacks & { onText: ReturnType<typeof vi.fn>; onToolCall: ReturnType<typeof vi.fn> } {
+function createCallbacks(): ChatResponseCallbacks & {
+	onText: ReturnType<typeof vi.fn>;
+	onToolCall: ReturnType<typeof vi.fn>;
+} {
 	return {
 		onText: vi.fn(),
 		onToolCall: vi.fn(),
 	};
 }
 
-const simpleMessages = [
-	{ role: 1, content: [{ value: "Hello" }] },
-] as const;
+const simpleMessages = [{ role: 1, content: [{ value: "Hello" }] }] as const;
 
 // ============================================================================
 // Tests
@@ -86,10 +87,7 @@ describe("sendChatRequest", () => {
 	// --------------------------------------------------------------------------
 	describe("signal parameter type safety (regression)", () => {
 		it("should work correctly with a proper AbortSignal", async () => {
-			const openAIChunks = [
-				'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
-				"data: [DONE]\n\n",
-			];
+			const openAIChunks = ['data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n', "data: [DONE]\n\n"];
 			fetchSpy.mockResolvedValueOnce(createMockStreamResponse(openAIChunks));
 
 			const callbacks = createCallbacks();
@@ -134,23 +132,13 @@ describe("sendChatRequest", () => {
 		});
 
 		it("should work without signal (undefined)", async () => {
-			const openAIChunks = [
-				'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n',
-				"data: [DONE]\n\n",
-			];
+			const openAIChunks = ['data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n', "data: [DONE]\n\n"];
 			fetchSpy.mockResolvedValueOnce(createMockStreamResponse(openAIChunks));
 
 			const callbacks = createCallbacks();
 
 			// No signal passed - should work fine
-			await sendChatRequest(
-				createOpenAIConfig(),
-				"test-model",
-				simpleMessages,
-				undefined,
-				1024,
-				callbacks
-			);
+			await sendChatRequest(createOpenAIConfig(), "test-model", simpleMessages, undefined, 1024, callbacks);
 
 			expect(callbacks.onText).toHaveBeenCalledWith("Hello");
 		});
@@ -161,10 +149,7 @@ describe("sendChatRequest", () => {
 			//   token.onCancellationRequested(() => abortController.abort());
 			//   sendChatRequest(..., abortController.signal);
 
-			const openAIChunks = [
-				'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
-				"data: [DONE]\n\n",
-			];
+			const openAIChunks = ['data: {"choices":[{"delta":{"content":"test"}}]}\n\n', "data: [DONE]\n\n"];
 			fetchSpy.mockResolvedValueOnce(createMockStreamResponse(openAIChunks));
 
 			const callbacks = createCallbacks();
@@ -227,10 +212,7 @@ describe("sendChatRequest", () => {
 		});
 
 		it("should clean up event listeners after completion", async () => {
-			const openAIChunks = [
-				'data: {"choices":[{"delta":{"content":"done"}}]}\n\n',
-				"data: [DONE]\n\n",
-			];
+			const openAIChunks = ['data: {"choices":[{"delta":{"content":"done"}}]}\n\n', "data: [DONE]\n\n"];
 			fetchSpy.mockResolvedValueOnce(createMockStreamResponse(openAIChunks));
 
 			const abortController = new AbortController();
@@ -259,10 +241,7 @@ describe("sendChatRequest", () => {
 	// --------------------------------------------------------------------------
 	describe("request building", () => {
 		it("should use Bearer auth for OpenAI mode", async () => {
-			const openAIChunks = [
-				'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
-				"data: [DONE]\n\n",
-			];
+			const openAIChunks = ['data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', "data: [DONE]\n\n"];
 			fetchSpy.mockResolvedValueOnce(createMockStreamResponse(openAIChunks));
 
 			await sendChatRequest(
@@ -305,10 +284,7 @@ describe("sendChatRequest", () => {
 		});
 
 		it("should include custom headers", async () => {
-			const openAIChunks = [
-				'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
-				"data: [DONE]\n\n",
-			];
+			const openAIChunks = ['data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', "data: [DONE]\n\n"];
 			fetchSpy.mockResolvedValueOnce(createMockStreamResponse(openAIChunks));
 
 			await sendChatRequest(
@@ -338,14 +314,7 @@ describe("sendChatRequest", () => {
 			});
 
 			await expect(
-				sendChatRequest(
-					createOpenAIConfig(),
-					"test-model",
-					simpleMessages,
-					undefined,
-					1024,
-					createCallbacks()
-				)
+				sendChatRequest(createOpenAIConfig(), "test-model", simpleMessages, undefined, 1024, createCallbacks())
 			).rejects.toThrow("API request failed: 401 Unauthorized");
 		});
 
@@ -358,14 +327,7 @@ describe("sendChatRequest", () => {
 			});
 
 			await expect(
-				sendChatRequest(
-					createOpenAIConfig(),
-					"test-model",
-					simpleMessages,
-					undefined,
-					1024,
-					createCallbacks()
-				)
+				sendChatRequest(createOpenAIConfig(), "test-model", simpleMessages, undefined, 1024, createCallbacks())
 			).rejects.toThrow("Rate limit exceeded");
 		});
 	});
@@ -421,10 +383,7 @@ describe("sendChatRequestWithProvider", () => {
 	});
 
 	it("should work with proper AbortSignal from AbortController", async () => {
-		const openAIChunks = [
-			'data: {"choices":[{"delta":{"content":"response"}}]}\n\n',
-			"data: [DONE]\n\n",
-		];
+		const openAIChunks = ['data: {"choices":[{"delta":{"content":"response"}}]}\n\n', "data: [DONE]\n\n"];
 		fetchSpy.mockResolvedValueOnce(createMockStreamResponse(openAIChunks));
 
 		const callbacks = createCallbacks();

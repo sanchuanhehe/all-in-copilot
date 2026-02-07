@@ -6,5 +6,6 @@ dist/**
 **/*.yml
 **/*.json
 **/*.mjs
-**/*vscode.d.ts
+**/*.d.ts
+pnpm-lock.yaml
 .build/**

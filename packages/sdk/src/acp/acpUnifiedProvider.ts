@@ -14,7 +14,7 @@ import { isTerminalTool } from "./terminalExecution";
  * we include it explicitly for reliability.
  */
 interface ChatTerminalToolInvocationData {
-	kind?: 'terminal';  // VS Code uses this to identify terminal tools
+	kind?: "terminal"; // VS Code uses this to identify terminal tools
 	commandLine: {
 		original: string;
 		userEdited?: string;
@@ -158,9 +158,11 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 		const external = this.options.clientConfig.callbacks;
 		return {
 			createTerminal: external?.createTerminal ?? this.terminalCallbacks.createTerminal.bind(this.terminalCallbacks),
-			getTerminalOutput: external?.getTerminalOutput ?? this.terminalCallbacks.getTerminalOutput.bind(this.terminalCallbacks),
+			getTerminalOutput:
+				external?.getTerminalOutput ?? this.terminalCallbacks.getTerminalOutput.bind(this.terminalCallbacks),
 			releaseTerminal: external?.releaseTerminal ?? this.terminalCallbacks.releaseTerminal.bind(this.terminalCallbacks),
-			waitForTerminalExit: external?.waitForTerminalExit ?? this.terminalCallbacks.waitForTerminalExit.bind(this.terminalCallbacks),
+			waitForTerminalExit:
+				external?.waitForTerminalExit ?? this.terminalCallbacks.waitForTerminalExit.bind(this.terminalCallbacks),
 			killTerminal: external?.killTerminal ?? this.terminalCallbacks.killTerminal.bind(this.terminalCallbacks),
 		};
 	}
@@ -301,19 +303,19 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 		stream: vscode.ChatResponseStream,
 		token: vscode.CancellationToken
 	): Promise<vscode.ChatResult> {
-		console.log('[ACPUnifiedProvider] ChatParticipant request received', {
+		console.log("[ACPUnifiedProvider] ChatParticipant request received", {
 			promptLength: request.prompt?.length,
 		});
 
 		// Initialize connection if not already done
 		if (!this.connection) {
-			console.log('[ACPUnifiedProvider] Initializing client connection...');
+			console.log("[ACPUnifiedProvider] Initializing client connection...");
 			const initResult = await this.initializeClient();
 			if (!initResult.success) {
 				stream.markdown(`Failed to initialize: ${initResult.error ?? "Unknown error"}`);
 				return { errorDetails: { message: initResult.error ?? "Initialization failed" } };
 			}
-			console.log('[ACPUnifiedProvider] Client initialized successfully');
+			console.log("[ACPUnifiedProvider] Client initialized successfully");
 		}
 
 		try {
@@ -366,16 +368,18 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 					...externalCallbacks,
 					// Use external createTerminal if provided (supports permission confirmation),
 					// otherwise use internal terminalCallbacks
-					createTerminal: externalCallbacks?.createTerminal
-						?? this.terminalCallbacks.createTerminal.bind(this.terminalCallbacks),
-					getTerminalOutput: externalCallbacks?.getTerminalOutput
-						?? this.terminalCallbacks.getTerminalOutput.bind(this.terminalCallbacks),
-					releaseTerminal: externalCallbacks?.releaseTerminal
-						?? this.terminalCallbacks.releaseTerminal.bind(this.terminalCallbacks),
-					waitForTerminalExit: externalCallbacks?.waitForTerminalExit
-						?? this.terminalCallbacks.waitForTerminalExit.bind(this.terminalCallbacks),
-					killTerminal: externalCallbacks?.killTerminal
-						?? this.terminalCallbacks.killTerminal.bind(this.terminalCallbacks),
+					createTerminal:
+						externalCallbacks?.createTerminal ?? this.terminalCallbacks.createTerminal.bind(this.terminalCallbacks),
+					getTerminalOutput:
+						externalCallbacks?.getTerminalOutput ??
+						this.terminalCallbacks.getTerminalOutput.bind(this.terminalCallbacks),
+					releaseTerminal:
+						externalCallbacks?.releaseTerminal ?? this.terminalCallbacks.releaseTerminal.bind(this.terminalCallbacks),
+					waitForTerminalExit:
+						externalCallbacks?.waitForTerminalExit ??
+						this.terminalCallbacks.waitForTerminalExit.bind(this.terminalCallbacks),
+					killTerminal:
+						externalCallbacks?.killTerminal ?? this.terminalCallbacks.killTerminal.bind(this.terminalCallbacks),
 				},
 			};
 
@@ -409,14 +413,17 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 		const content: ContentBlock[] = [{ type: "text", text: prompt }];
 
 		// Track pending tool calls
-		const pendingTools = new Map<string, {
-			name: string;
-			rawInput?: unknown;
-			command?: string;
-			isTerminal: boolean;
-			startTime: number;
-			listenerUnsubscribe: () => void;
-		}>();
+		const pendingTools = new Map<
+			string,
+			{
+				name: string;
+				rawInput?: unknown;
+				command?: string;
+				isTerminal: boolean;
+				startTime: number;
+				listenerUnsubscribe: () => void;
+			}
+		>();
 
 		// Main listener for session updates
 		const mainUnsubscribe = this.clientManager.onSessionUpdate(session.sessionId, async (update) => {
@@ -488,7 +495,7 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 					console.log(`[ACPUnifiedProvider] isTerminal: ${isTerminal}, command: "${command}"`);
 					if (isTerminal && command) {
 						const terminalData: ChatTerminalToolInvocationData = {
-							kind: 'terminal',  // Required for VS Code to render terminal UI
+							kind: "terminal", // Required for VS Code to render terminal UI
 							commandLine: { original: command },
 							language: "bash",
 						};
@@ -497,7 +504,9 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 					}
 
 					stream.push(toolPart);
-					console.log(`[ACPUnifiedProvider] Pushed initial toolPart, hasToolSpecificData: ${!!toolPart.toolSpecificData}`);
+					console.log(
+						`[ACPUnifiedProvider] Pushed initial toolPart, hasToolSpecificData: ${!!toolPart.toolSpecificData}`
+					);
 
 					// Execute terminal command - creates a VISIBLE terminal in VS Code panel
 					// Use effective callbacks (external with permission confirmation, or internal)
@@ -526,7 +535,9 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 							exitCode = exitResult.exitCode;
 							commandDuration = Date.now() - startTime;
 
-							console.log(`[ACPUnifiedProvider] Terminal completed: exitCode=${exitCode}, duration=${commandDuration}ms, output length=${terminalOutput.length}`);
+							console.log(
+								`[ACPUnifiedProvider] Terminal completed: exitCode=${exitCode}, duration=${commandDuration}ms, output length=${terminalOutput.length}`
+							);
 
 							// Update toolPart with output and state immediately after terminal completes
 							toolPart.isComplete = true;
@@ -534,15 +545,17 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 							toolPart.isError = exitCode !== 0 && exitCode !== undefined;
 
 							const pastTenseMd = new vscode.MarkdownString();
-							pastTenseMd.appendText(exitCode === 0 ? `✅ ${toolName} completed` : `⚠️ ${toolName} exited with code ${exitCode}`);
+							pastTenseMd.appendText(
+								exitCode === 0 ? `✅ ${toolName} completed` : `⚠️ ${toolName} exited with code ${exitCode}`
+							);
 							toolPart.pastTenseMessage = pastTenseMd;
 
 							// Update toolSpecificData with output and state
 							const terminalDataComplete: ChatTerminalToolInvocationData = {
-								kind: 'terminal',  // Required for VS Code to render terminal UI
+								kind: "terminal", // Required for VS Code to render terminal UI
 								commandLine: { original: command },
 								language: "bash",
-								output: { text: terminalOutput.replace(/\n/g, '\r\n') },
+								output: { text: terminalOutput.replace(/\n/g, "\r\n") },
 								state: { exitCode: exitCode ?? 0, duration: commandDuration },
 							};
 							toolPart.toolSpecificData = terminalDataComplete;
@@ -581,19 +594,24 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 						// Check if this is a terminal tool (may have more info in update than initial call)
 						const updateInputObj = updateRawInput as { command?: string } | undefined;
 						const updateCommand = updateInputObj?.command || command;
-						const updateIsTerminal = (updateKind?.toLowerCase() === "execute") || isTerminal || isTerminalTool(toolName);
+						const updateIsTerminal = updateKind?.toLowerCase() === "execute" || isTerminal || isTerminalTool(toolName);
 
-						console.log(`[ACPUnifiedProvider] tool_call_update: status=${status}, kind=${updateKind}, command="${updateCommand}", isTerminal=${updateIsTerminal}`);
+						console.log(
+							`[ACPUnifiedProvider] tool_call_update: status=${status}, kind=${updateKind}, command="${updateCommand}", isTerminal=${updateIsTerminal}`
+						);
 
 						// If we now have command info and it's a terminal tool, update toolSpecificData
 						if (status === "in_progress" && updateIsTerminal && updateCommand && !toolPart.toolSpecificData) {
 							const terminalData: ChatTerminalToolInvocationData = {
-								kind: 'terminal',
+								kind: "terminal",
 								commandLine: { original: updateCommand },
 								language: "bash",
 							};
 							toolPart.toolSpecificData = terminalData;
-							console.log(`[ACPUnifiedProvider] Updated toolSpecificData on in_progress:`, JSON.stringify(terminalData));
+							console.log(
+								`[ACPUnifiedProvider] Updated toolSpecificData on in_progress:`,
+								JSON.stringify(terminalData)
+							);
 							stream.push(toolPart);
 						}
 
@@ -655,7 +673,7 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 				sessionId: session.sessionId,
 				prompt: content,
 			});
-			console.log('[ACPUnifiedProvider] Prompt completed', { stopReason: promptResult.result?.stopReason });
+			console.log("[ACPUnifiedProvider] Prompt completed", { stopReason: promptResult.result?.stopReason });
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			console.error(`[ACPUnifiedProvider] Error: ${errorMessage}`);
@@ -700,7 +718,13 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 
 				if (hasThinkingPart && thoughtText) {
 					// Use proposed LanguageModelThinkingPart API
-					const vscodeMod = vscode as unknown as { LanguageModelThinkingPart: new (text: string, id?: string, metadata?: object) => vscode.LanguageModelResponsePart };
+					const vscodeMod = vscode as unknown as {
+						LanguageModelThinkingPart: new (
+							text: string,
+							id?: string,
+							metadata?: object
+						) => vscode.LanguageModelResponsePart;
+					};
 					progress.report(new vscodeMod.LanguageModelThinkingPart(thoughtText));
 					isThinking = true;
 				} else if (thoughtText) {
@@ -708,7 +732,13 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 				}
 
 				if (isLastChunk && isThinking && hasThinkingPart) {
-					const vscodeMod = vscode as unknown as { LanguageModelThinkingPart: new (text: string, id?: string, metadata?: object) => vscode.LanguageModelResponsePart };
+					const vscodeMod = vscode as unknown as {
+						LanguageModelThinkingPart: new (
+							text: string,
+							id?: string,
+							metadata?: object
+						) => vscode.LanguageModelResponsePart;
+					};
 					progress.report(new vscodeMod.LanguageModelThinkingPart("", "", { vscode_reasoning_done: true }));
 					isThinking = false;
 				}
@@ -776,7 +806,7 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 					// Send result back to Agent
 					const toolResultContentBlock: ContentBlock = {
 						type: "text",
-						text: `[Tool Result for ${updateToolCallId}]: ${combinedResult || "(no output)"}`
+						text: `[Tool Result for ${updateToolCallId}]: ${combinedResult || "(no output)"}`,
 					};
 
 					await session.connection.prompt({
@@ -932,7 +962,7 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 		this.participant = null;
 
 		// Dispose terminal adapter
-		if (this.terminalAdapter && 'dispose' in this.terminalAdapter) {
+		if (this.terminalAdapter && "dispose" in this.terminalAdapter) {
 			(this.terminalAdapter as { dispose: () => void }).dispose();
 		}
 

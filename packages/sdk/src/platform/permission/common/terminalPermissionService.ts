@@ -7,8 +7,8 @@ import {
 	PermissionResult,
 	TerminalConfirmationDetails,
 	ITerminalPermissionService,
-	DangerousCommandPattern
-} from './terminalPermission';
+	DangerousCommandPattern,
+} from "./terminalPermission";
 
 /**
  * Null implementation of ITerminalPermissionService
@@ -38,7 +38,7 @@ export class NullTerminalPermissionService implements ITerminalPermissionService
 	 * Returns the base command by default
 	 */
 	getCommandDescription(command: string): string {
-		const baseCommand = command.trim().split(/\s+/)[0] || '';
+		const baseCommand = command.trim().split(/\s+/)[0] || "";
 		return `Running command: ${baseCommand}`;
 	}
 

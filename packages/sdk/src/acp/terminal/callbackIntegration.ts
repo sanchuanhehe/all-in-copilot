@@ -36,7 +36,14 @@ export interface ACPTerminalCallbacks {
 		cwd?: string,
 		env?: Array<{ name: string; value: string }>,
 		outputByteLimit?: number
-	) => Promise<{ terminalId: string; name: string; sendText: (text: string, shouldExecute?: boolean) => void; show: (preserveFocus?: boolean) => void; hide: () => void; dispose: () => void }>;
+	) => Promise<{
+		terminalId: string;
+		name: string;
+		sendText: (text: string, shouldExecute?: boolean) => void;
+		show: (preserveFocus?: boolean) => void;
+		hide: () => void;
+		dispose: () => void;
+	}>;
 	getTerminalOutput: (sessionId: string, terminalId: string) => Promise<TerminalOutputResult>;
 	releaseTerminal: (sessionId: string, terminalId: string) => Promise<void>;
 	waitForTerminalExit: (sessionId: string, terminalId: string) => Promise<TerminalExitResult>;
@@ -98,7 +105,9 @@ export function createTerminalCallbacks(
 
 			// Get the actual terminal handle for show/hide operations
 			const handle = adapter.getTerminalHandle(response.terminalId);
-			console.log(`[ACP-Terminal-Callbacks] Terminal created with ID: ${response.terminalId}, handle exists: ${!!handle}`);
+			console.log(
+				`[ACP-Terminal-Callbacks] Terminal created with ID: ${response.terminalId}, handle exists: ${!!handle}`
+			);
 
 			// Ensure terminal is shown in VS Code terminal panel immediately
 			if (handle?.terminal) {
@@ -169,7 +178,7 @@ export function createTerminalCallbacks(
  * ```
  */
 export function disposeTerminalAdapter(adapter: IACPTerminalAdapter): void {
-	if ('dispose' in adapter && typeof adapter.dispose === 'function') {
+	if ("dispose" in adapter && typeof adapter.dispose === "function") {
 		adapter.dispose();
 	}
 }

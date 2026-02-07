@@ -9,9 +9,9 @@
  * Permission result types
  */
 export enum PermissionResult {
-	Allow = 'allow',
-	Deny = 'deny',
-	Skip = 'skip'
+	Allow = "allow",
+	Deny = "deny",
+	Skip = "skip",
 }
 
 /**
@@ -103,18 +103,18 @@ export interface DangerousCommandPattern {
 	/** Description of why this pattern is dangerous */
 	reason: string;
 	/** Severity level of danger */
-	severity: 'low' | 'medium' | 'high' | 'critical';
+	severity: "low" | "medium" | "high" | "critical";
 }
 
 /**
  * Terminal shell type
  */
 export const enum ShellType {
-	Bash = 'bash',
-	PowerShell = 'powershell',
-	Cmd = 'cmd',
-	Zsh = 'zsh',
-	Fish = 'fish',
-	GitBash = 'gitbash',
-	Unknown = 'unknown'
+	Bash = "bash",
+	PowerShell = "powershell",
+	Cmd = "cmd",
+	Zsh = "zsh",
+	Fish = "fish",
+	GitBash = "gitbash",
+	Unknown = "unknown",
 }

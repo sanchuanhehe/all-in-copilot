@@ -5,9 +5,17 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionTerminalOptions, Terminal, TerminalExecutedCommand, TerminalOptions, Event, window, Uri } from 'vscode';
-import * as path from 'path';
-import { ITerminalService, ShellIntegrationQuality, IKnownTerminal } from '../common/terminalService';
+import {
+	ExtensionTerminalOptions,
+	Terminal,
+	TerminalExecutedCommand,
+	TerminalOptions,
+	Event,
+	window,
+	Uri,
+} from "vscode";
+import * as path from "path";
+import { ITerminalService, ShellIntegrationQuality, IKnownTerminal } from "../common/terminalService";
 import {
 	getActiveTerminalBuffer,
 	getActiveTerminalLastCommand,
@@ -15,16 +23,16 @@ import {
 	getActiveTerminalShellType,
 	getBufferForTerminal,
 	getLastCommandForTerminal,
-	installTerminalBufferListeners
-} from './terminalBufferListener';
+	installTerminalBufferListeners,
+} from "./terminalBufferListener";
 
 // Import proposed API types
 // @ts-expect-error - TerminalShellIntegrationChangeEvent is a proposed API
-import type { TerminalShellIntegrationChangeEvent } from '../../../vscode/vscode.proposed';
+import type { TerminalShellIntegrationChangeEvent } from "../../../vscode/vscode.proposed";
 // @ts-expect-error - TerminalShellExecutionEndEvent is a proposed API
-import type { TerminalShellExecutionEndEvent } from '../../../vscode/vscode.proposed';
+import type { TerminalShellExecutionEndEvent } from "../../../vscode/vscode.proposed";
 // @ts-expect-error - TerminalDataWriteEvent is a proposed API
-import type { TerminalDataWriteEvent } from '../../../vscode/vscode.proposed';
+import type { TerminalDataWriteEvent } from "../../../vscode/vscode.proposed";
 
 /**
  * Terminal service implementation for VS Code
@@ -45,7 +53,12 @@ export class TerminalServiceImpl implements ITerminalService {
 	/**
 	 * Environment variable collection for PATH modifications
 	 */
-	private readonly environmentVariableCollection: { append(variable: string, value: string): void; prepend(variable: string, value: string): void; delete(variable: string): void; description?: string };
+	private readonly environmentVariableCollection: {
+		append(variable: string, value: string): void;
+		prepend(variable: string, value: string): void;
+		delete(variable: string): void;
+		description?: string;
+	};
 
 	/**
 	 * Disposables for cleanup
@@ -70,18 +83,26 @@ export class TerminalServiceImpl implements ITerminalService {
 	/**
 	 * Shell integration quality tracking
 	 */
-	private readonly terminalShellQuality: Map<Terminal, ShellIntegrationQuality> = new Map<Terminal, ShellIntegrationQuality>();
+	private readonly terminalShellQuality: Map<Terminal, ShellIntegrationQuality> = new Map<
+		Terminal,
+		ShellIntegrationQuality
+	>();
 
 	constructor(
 		private readonly extensionContext?: {
-			readonly environmentVariableCollection?: { append(variable: string, value: string): void; prepend(variable: string, value: string): void; delete(variable: string): void; description?: string };
+			readonly environmentVariableCollection?: {
+				append(variable: string, value: string): void;
+				prepend(variable: string, value: string): void;
+				delete(variable: string): void;
+				description?: string;
+			};
 		}
 	) {
 		// Get the environment variable collection from extension context
 		this.environmentVariableCollection = extensionContext?.environmentVariableCollection ?? {
 			append: () => {},
 			prepend: () => {},
-			delete: () => {}
+			delete: () => {},
 		};
 
 		// Install terminal buffer listeners
@@ -102,7 +123,12 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
 	get onDidChangeTerminalShellIntegration(): Event<TerminalShellIntegrationChangeEvent> {
-		return window.onDidChangeTerminalShellIntegration ?? (() => { /* no-op */ });
+		return (
+			window.onDidChangeTerminalShellIntegration ??
+			(() => {
+				/* no-op */
+			})
+		);
 	}
 
 	/**
@@ -110,7 +136,12 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
 	get onDidEndTerminalShellExecution(): Event<TerminalShellExecutionEndEvent> {
-		return window.onDidEndTerminalShellExecution ?? (() => { /* no-op */ });
+		return (
+			window.onDidEndTerminalShellExecution ??
+			(() => {
+				/* no-op */
+			})
+		);
 	}
 
 	/**
@@ -125,7 +156,12 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Uses proposed API - may not be available in all VS Code versions
 	 */
 	get onDidWriteTerminalData(): Event<TerminalDataWriteEvent> {
-		return window.onDidWriteTerminalData ?? (() => { /* no-op */ });
+		return (
+			window.onDidWriteTerminalData ??
+			(() => {
+				/* no-op */
+			})
+		);
 	}
 
 	/**
@@ -143,16 +179,21 @@ export class TerminalServiceImpl implements ITerminalService {
 	createTerminal(nameOrOptions?: unknown, shellPath?: unknown, shellArgs?: unknown): Terminal {
 		// Check if first argument is an options object
 		if (nameOrOptions && typeof nameOrOptions === "object" && nameOrOptions !== null) {
-			const options = nameOrOptions as { name?: string; shellPath?: string; shellArgs?: unknown; isTransient?: boolean };
+			const options = nameOrOptions as {
+				name?: string;
+				shellPath?: string;
+				shellArgs?: unknown;
+				isTransient?: boolean;
+			};
 			const terminalName = options.name || "ACP Terminal";
 			const terminalShellArgs = options.shellArgs as string[] | string | undefined;
 
 			if (options.isTransient) {
 				// For transient terminals, use ExtensionTerminalOptions with type assertion
-				console.log('[ACP-Terminal] Creating transient terminal:', terminalName, {
+				console.log("[ACP-Terminal] Creating transient terminal:", terminalName, {
 					shellPath: options.shellPath,
 					shellArgs: terminalShellArgs,
-					isTransient: true
+					isTransient: true,
 				});
 				const terminal = window.createTerminal({
 					name: terminalName,
@@ -160,13 +201,13 @@ export class TerminalServiceImpl implements ITerminalService {
 					shellArgs: terminalShellArgs,
 					isTransient: true,
 				} as ExtensionTerminalOptions & { shellPath?: string; shellArgs?: string[] | string | undefined });
-				console.log('[ACP-Terminal] Transient terminal created successfully:', terminalName);
+				console.log("[ACP-Terminal] Transient terminal created successfully:", terminalName);
 				return terminal;
 			}
-			console.log('[ACP-Terminal] Creating terminal:', terminalName, {
+			console.log("[ACP-Terminal] Creating terminal:", terminalName, {
 				shellPath: options.shellPath,
 				shellArgs: terminalShellArgs,
-				isTransient: false
+				isTransient: false,
 			});
 			return window.createTerminal({
 				name: terminalName,
@@ -174,7 +215,12 @@ export class TerminalServiceImpl implements ITerminalService {
 				shellArgs: terminalShellArgs,
 			});
 		}
-		console.log('[ACP-Terminal] Creating terminal with positional args: name=', nameOrOptions, ' shellPath=', shellPath);
+		console.log(
+			"[ACP-Terminal] Creating terminal with positional args: name=",
+			nameOrOptions,
+			" shellPath=",
+			shellPath
+		);
 		return window.createTerminal(
 			nameOrOptions as string | undefined,
 			shellPath as string | undefined,
@@ -204,7 +250,7 @@ export class TerminalServiceImpl implements ITerminalService {
 		if (terminal) {
 			return this.getBufferForTerminal(terminal, maxChars);
 		}
-		return '';
+		return "";
 	}
 
 	/**
@@ -251,8 +297,13 @@ export class TerminalServiceImpl implements ITerminalService {
 	/**
 	 * Contribute a path to the terminal PATH environment variable
 	 */
-	contributePath(contributor: string, pathLocation: string, description?: string | { command: string }, prepend = false): void {
-		const entry = this.pathContributions.find(c => c.contributor === contributor);
+	contributePath(
+		contributor: string,
+		pathLocation: string,
+		description?: string | { command: string },
+		prepend = false
+	): void {
+		const entry = this.pathContributions.find((c) => c.contributor === contributor);
 		if (entry) {
 			entry.path = pathLocation;
 			entry.description = description;
@@ -267,7 +318,7 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Remove a path contribution from the terminal PATH environment variable
 	 */
 	removePathContribution(contributor: string): void {
-		const index = this.pathContributions.findIndex(c => c.contributor === contributor);
+		const index = this.pathContributions.findIndex((c) => c.contributor === contributor);
 		if (index !== -1) {
 			this.pathContributions.splice(index, 1);
 		}
@@ -287,7 +338,7 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * Update the PATH environment variable with all contributions
 	 */
 	private updateEnvironmentPath(): void {
-		const pathVariable = 'PATH';
+		const pathVariable = "PATH";
 
 		// Clear existing PATH modification
 		this.environmentVariableCollection.delete(pathVariable);
@@ -298,35 +349,35 @@ export class TerminalServiceImpl implements ITerminalService {
 
 		// Build combined description
 		const allDescriptions = this.pathContributions
-			.map(c => (c.description && typeof c.description === 'string') ? c.description : undefined)
+			.map((c) => (c.description && typeof c.description === "string" ? c.description : undefined))
 			.filter((d): d is string => d !== undefined);
 
-		let descriptions = '';
+		let descriptions = "";
 		if (allDescriptions.length === 1) {
 			descriptions = allDescriptions[0];
 		} else if (allDescriptions.length > 1) {
-			descriptions = `${allDescriptions.slice(0, -1).join(', ')} and ${allDescriptions[allDescriptions.length - 1]}`;
+			descriptions = `${allDescriptions.slice(0, -1).join(", ")} and ${allDescriptions[allDescriptions.length - 1]}`;
 		}
 
 		const allCommands = this.pathContributions
-			.map(c => (c.description && typeof c.description !== 'string') ? `\`${c.description.command}\`` : undefined)
+			.map((c) => (c.description && typeof c.description !== "string" ? `\`${c.description.command}\`` : undefined))
 			.filter((d): d is string => d !== undefined);
 
-		let commandsDescription = '';
+		let commandsDescription = "";
 		if (allCommands.length === 1) {
 			commandsDescription = `Enables use of ${allCommands[0]} command in the terminal`;
 		} else if (allCommands.length > 1) {
-			const commands = `${allCommands.slice(0, -1).join(', ')} and ${allCommands[allCommands.length - 1]}`;
+			const commands = `${allCommands.slice(0, -1).join(", ")} and ${allCommands[allCommands.length - 1]}`;
 			commandsDescription = `Enables use of ${commands} commands in the terminal`;
 		}
 
-		const description = [descriptions, commandsDescription].filter(d => d).join(' and ');
-		this.environmentVariableCollection.description = description || 'Enables additional commands in the terminal.';
+		const description = [descriptions, commandsDescription].filter((d) => d).join(" and ");
+		this.environmentVariableCollection.description = description || "Enables additional commands in the terminal.";
 
 		// Build combined path from all contributions
-		const allPaths = this.pathContributions.map(c => c.path);
+		const allPaths = this.pathContributions.map((c) => c.path);
 		void description;
-		if (this.pathContributions.some(c => c.prepend)) {
+		if (this.pathContributions.some((c) => c.prepend)) {
 			const pathVariableChange = allPaths.join(path.delimiter) + path.delimiter;
 			this.environmentVariableCollection.prepend(pathVariable, pathVariableChange);
 		} else {
@@ -353,10 +404,12 @@ export class TerminalServiceImpl implements ITerminalService {
 			return [];
 		}
 
-		return Array.from(terminals).filter(t => {
-			// Filter out closed terminals
-			return !t.exitStatus;
-		}).map(t => t as unknown as IKnownTerminal);
+		return Array.from(terminals)
+			.filter((t) => {
+				// Filter out closed terminals
+				return !t.exitStatus;
+			})
+			.map((t) => t as unknown as IKnownTerminal);
 	}
 
 	/**
@@ -365,7 +418,11 @@ export class TerminalServiceImpl implements ITerminalService {
 	 * @param sessionId The session identifier
 	 * @param shellIntegrationQuality The quality of shell integration
 	 */
-	async associateTerminalWithSession(terminal: Terminal, sessionId: string, shellIntegrationQuality: ShellIntegrationQuality): Promise<void> {
+	async associateTerminalWithSession(
+		terminal: Terminal,
+		sessionId: string,
+		shellIntegrationQuality: ShellIntegrationQuality
+	): Promise<void> {
 		// Store the association
 		if (!this.sessionTerminals.has(sessionId)) {
 			this.sessionTerminals.set(sessionId, new Set());
@@ -391,5 +448,7 @@ export class TerminalServiceImpl implements ITerminalService {
  * Check if a thing is an ITerminalService
  */
 export function isTerminalService(thing: unknown): thing is ITerminalService {
-	return thing !== null && typeof thing === 'object' && typeof (thing as ITerminalService).createTerminal === 'function';
+	return (
+		thing !== null && typeof thing === "object" && typeof (thing as ITerminalService).createTerminal === "function"
+	);
 }

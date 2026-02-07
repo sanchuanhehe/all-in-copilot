@@ -33,52 +33,52 @@ const terminalPermissionService = createTerminalPermissionService({
 		// File destruction patterns
 		{
 			pattern: /\brm\s+-rf\b/i,
-			reason: 'Recursive force delete - can permanently remove files',
-			severity: 'critical'
+			reason: "Recursive force delete - can permanently remove files",
+			severity: "critical",
 		},
 		{
 			pattern: /\brm\s+-[rR]\b/i,
-			reason: 'Recursive delete - can remove entire directories',
-			severity: 'high'
+			reason: "Recursive delete - can remove entire directories",
+			severity: "high",
 		},
 		{
 			pattern: /\bdel\b.*\/[pq]/i,
-			reason: 'Pattern matching delete - may delete unexpected files',
-			severity: 'high'
+			reason: "Pattern matching delete - may delete unexpected files",
+			severity: "high",
 		},
 		// System modification patterns
 		{
 			pattern: /\bsudo\b.*(chmod|chown|mkfs|mount|umount)/i,
-			reason: 'System-level permission changes',
-			severity: 'critical'
+			reason: "System-level permission changes",
+			severity: "critical",
 		},
 		// Git dangerous operations
 		{
 			pattern: /\bgit\s+push\s+--force\b/i,
-			reason: 'Force push - can overwrite remote history',
-			severity: 'high'
+			reason: "Force push - can overwrite remote history",
+			severity: "high",
 		},
 		{
 			pattern: /\bgit\s+push\s+-f\b/i,
-			reason: 'Force push - can overwrite remote history',
-			severity: 'high'
+			reason: "Force push - can overwrite remote history",
+			severity: "high",
 		},
 		{
 			pattern: /\bgit\s+reset\s+--hard\b/i,
-			reason: 'Hard reset - permanently discards local changes',
-			severity: 'high'
+			reason: "Hard reset - permanently discards local changes",
+			severity: "high",
 		},
 		{
 			pattern: /\bgit\s+clean\s+-fd\b/i,
-			reason: 'Clean - removes untracked files and directories',
-			severity: 'high'
+			reason: "Clean - removes untracked files and directories",
+			severity: "high",
 		},
 		{
 			pattern: /\bgit\s+push\s+origin\s+--delete\b/i,
-			reason: 'Remote branch deletion',
-			severity: 'high'
+			reason: "Remote branch deletion",
+			severity: "high",
 		},
-	]
+	],
 });
 
 // Common installation paths for OpenCode
@@ -159,7 +159,13 @@ const clientCallbacks: ClientCallbacks = {
 	 * Uses ACP Terminal Adapter for consistent VS Code Copilot-like experience.
 	 * Shows confirmation dialog for potentially dangerous commands.
 	 */
-	async createTerminal(sessionId: string, command: string, args?: string[], cwd?: string, env?: Array<{ name: string; value: string }>): Promise<IVsCodeTerminal> {
+	async createTerminal(
+		sessionId: string,
+		command: string,
+		args?: string[],
+		cwd?: string,
+		env?: Array<{ name: string; value: string }>
+	): Promise<IVsCodeTerminal> {
 		// Ensure terminal adapter is initialized
 		if (!terminalCallbacks) {
 			initializeTerminalAdapter();
@@ -180,7 +186,7 @@ const clientCallbacks: ClientCallbacks = {
 		// Request user confirmation for potentially dangerous commands
 		const permissionResult = await terminalPermissionService.requestTerminalConfirmation(confirmationDetails);
 
-		if (permissionResult !== 'allow') {
+		if (permissionResult !== "allow") {
 			throw new Error(`Command execution denied by user: ${command}`);
 		}
 
@@ -192,7 +198,10 @@ const clientCallbacks: ClientCallbacks = {
 	 * Gets terminal output for the specified terminal.
 	 * Uses ACP Terminal Adapter for consistent buffer access with byte limits.
 	 */
-	async getTerminalOutput(sessionId: string, terminalId: string): Promise<{ output: string; truncated: boolean; exitStatus?: { exitCode?: number; signal?: string } }> {
+	async getTerminalOutput(
+		sessionId: string,
+		terminalId: string
+	): Promise<{ output: string; truncated: boolean; exitStatus?: { exitCode?: number; signal?: string } }> {
 		if (!terminalCallbacks) {
 			return { output: "", truncated: false, exitStatus: { exitCode: 0 } };
 		}
@@ -332,10 +341,17 @@ ${content}
 	/**
 	 * Handles permission requests from the agent.
 	 */
-	async requestPermission(sessionId: string, request: {
-		toolCall: { toolCallId: string; title: string; description?: string };
-		options: Array<{ optionId: string; name: string; kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always' }>;
-	}): Promise<string> {
+	async requestPermission(
+		sessionId: string,
+		request: {
+			toolCall: { toolCallId: string; title: string; description?: string };
+			options: Array<{
+				optionId: string;
+				name: string;
+				kind: "allow_once" | "allow_always" | "reject_once" | "reject_always";
+			}>;
+		}
+	): Promise<string> {
 		// Auto-approve safe operations
 		const safePatterns = [
 			/replace_string_in_file/i,
@@ -349,7 +365,7 @@ ${content}
 		for (const pattern of safePatterns) {
 			if (pattern.test(request.toolCall.title)) {
 				// Find the allow_once option or use first option
-				const allowOnce = request.options.find(opt => opt.kind === 'allow_once');
+				const allowOnce = request.options.find((opt) => opt.kind === "allow_once");
 				return allowOnce?.optionId ?? request.options[0]?.optionId ?? "approved";
 			}
 		}
@@ -369,7 +385,7 @@ ${content}
 
 		if (!selection) {
 			// Find reject_once option or throw
-			const rejectOnce = request.options.find(opt => opt.kind === 'reject_once');
+			const rejectOnce = request.options.find((opt) => opt.kind === "reject_once");
 			if (rejectOnce) {
 				return rejectOnce.optionId;
 			}
@@ -498,18 +514,21 @@ export function getRuntimeConnection(): { hostname: string; port: number } {
  * Convert AgentConfig to ACPClientConfig for SDK usage
  * For OpenCode, we use stdio transport - the process stdin/stdout is used for ACP protocol
  */
-export function toACPClientConfig(config: AgentConfig, options?: {
-	extensionContext?: {
-		extensionUri: string;
-		secrets: {
-			get(key: string): Promise<string | undefined>;
-			store(key: string, value: string): Promise<void>;
-			delete(key: string): Promise<void>;
+export function toACPClientConfig(
+	config: AgentConfig,
+	options?: {
+		extensionContext?: {
+			extensionUri: string;
+			secrets: {
+				get(key: string): Promise<string | undefined>;
+				store(key: string, value: string): Promise<void>;
+				delete(key: string): Promise<void>;
+			};
 		};
-	};
-	shellPath?: string;
-	shellArgs?: string[];
-}): ACPClientConfig {
+		shellPath?: string;
+		shellArgs?: string[];
+	}
+): ACPClientConfig {
 	return {
 		transport: "stdio",
 		agentPath: config.command,

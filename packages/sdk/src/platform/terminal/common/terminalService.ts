@@ -5,12 +5,22 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, TerminalExecutedCommand, TerminalShellIntegrationChangeEvent, TerminalShellExecutionEndEvent, TerminalDataWriteEvent, TerminalOptions, ExtensionTerminalOptions, Event, Uri } from 'vscode';
+import type {
+	Terminal,
+	TerminalExecutedCommand,
+	TerminalShellIntegrationChangeEvent,
+	TerminalShellExecutionEndEvent,
+	TerminalDataWriteEvent,
+	TerminalOptions,
+	ExtensionTerminalOptions,
+	Event,
+	Uri,
+} from "vscode";
 
 /**
  * Service identifier for ITerminalService
  */
-export const ITerminalService = Symbol('ITerminalService');
+export const ITerminalService = Symbol("ITerminalService");
 
 /**
  * Interface for terminal management service
@@ -144,7 +154,11 @@ export interface ITerminalService {
 	 * @param sessionId The session identifier
 	 * @param shellIntegrationQuality The quality of shell integration
 	 */
-	associateTerminalWithSession(terminal: Terminal, sessionId: string, shellIntegrationQuality: ShellIntegrationQuality): Promise<void>;
+	associateTerminalWithSession(
+		terminal: Terminal,
+		sessionId: string,
+		shellIntegrationQuality: ShellIntegrationQuality
+	): Promise<void>;
 
 	/**
 	 * Clean up resources
@@ -156,9 +170,9 @@ export interface ITerminalService {
  * Terminal shell integration quality levels
  */
 export const enum ShellIntegrationQuality {
-	None = 'none',
-	Basic = 'basic',
-	Rich = 'rich',
+	None = "none",
+	Basic = "basic",
+	Rich = "rich",
 }
 
 /**
@@ -172,7 +186,12 @@ export interface IKnownTerminal extends Terminal {
  * Check if a thing is an ITerminalService
  */
 export function isTerminalService(thing: unknown): thing is ITerminalService {
-	return thing !== null && typeof thing === 'object' && 'createTerminal' in thing && typeof thing.createTerminal === 'function';
+	return (
+		thing !== null &&
+		typeof thing === "object" &&
+		"createTerminal" in thing &&
+		typeof thing.createTerminal === "function"
+	);
 }
 
 /**
@@ -183,13 +202,13 @@ export class NullTerminalService implements ITerminalService {
 
 	private readonly _disposables: { dispose(): void }[] = [];
 
-	readonly terminalBuffer = '';
+	readonly terminalBuffer = "";
 
 	readonly terminalLastCommand: TerminalExecutedCommand | undefined = undefined;
 
-	readonly terminalSelection = '';
+	readonly terminalSelection = "";
 
-	readonly terminalShellType = '';
+	readonly terminalShellType = "";
 
 	get onDidChangeTerminalShellIntegration(): Event<TerminalShellIntegrationChangeEvent> {
 		return (_listener: (e: TerminalShellIntegrationChangeEvent) => void) => {
@@ -227,18 +246,23 @@ export class NullTerminalService implements ITerminalService {
 	}
 
 	getBufferForTerminal(): string {
-		return '';
+		return "";
 	}
 
 	async getBufferWithPid(_pid?: number, _maxChars?: number): Promise<string> {
-		return '';
+		return "";
 	}
 
 	getLastCommandForTerminal(): TerminalExecutedCommand | undefined {
 		return undefined;
 	}
 
-	contributePath(_contributor?: string, _pathLocation?: string, _description?: string | { command: string }, _prepend?: boolean): void {
+	contributePath(
+		_contributor?: string,
+		_pathLocation?: string,
+		_description?: string | { command: string },
+		_prepend?: boolean
+	): void {
 		// No-op for null service
 	}
 
@@ -254,7 +278,11 @@ export class NullTerminalService implements ITerminalService {
 		return [];
 	}
 
-	async associateTerminalWithSession(_terminal?: Terminal, _sessionId?: string, _shellIntegrationQuality?: ShellIntegrationQuality): Promise<void> {
+	async associateTerminalWithSession(
+		_terminal?: Terminal,
+		_sessionId?: string,
+		_shellIntegrationQuality?: ShellIntegrationQuality
+	): Promise<void> {
 		// No-op for null service
 	}
 

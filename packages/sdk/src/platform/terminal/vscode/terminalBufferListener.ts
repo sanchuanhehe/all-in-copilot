@@ -5,12 +5,12 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, window } from 'vscode';
-import { basename } from 'path';
+import { Terminal, window } from "vscode";
+import { basename } from "path";
 
 // Import proposed API types (these are defined in vscode.proposed.d.ts)
 // @ts-expect-error - TerminalExecutedCommand is a proposed API
-import type { TerminalExecutedCommand } from '../../../vscode/vscode.proposed';
+import type { TerminalExecutedCommand } from "../../../vscode/vscode.proposed";
 
 /**
  * Maps terminals to their output buffers
@@ -43,11 +43,11 @@ function appendLimitedWindow<T>(target: T[], data: T): void {
  */
 export function getActiveTerminalBuffer(): string {
 	// Use window.terminals.find() to avoid deprecated window.activeTerminal
-	const activeTerminal = window.terminals.find(t => t === window.activeTerminal);
+	const activeTerminal = window.terminals.find((t) => t === window.activeTerminal);
 	if (activeTerminal === undefined) {
-		return '';
+		return "";
 	}
-	return terminalBuffers.get(activeTerminal)?.join('') || '';
+	return terminalBuffers.get(activeTerminal)?.join("") || "";
 }
 
 /**
@@ -57,14 +57,14 @@ export function getActiveTerminalBuffer(): string {
  */
 export function getBufferForTerminal(terminal?: Terminal, maxChars = 16000): string {
 	if (!terminal) {
-		return '';
+		return "";
 	}
 
 	const buffer = terminalBuffers.get(terminal);
 	if (!buffer) {
-		return '';
+		return "";
 	}
-	const joined = buffer.join('');
+	const joined = buffer.join("");
 	const start = Math.max(0, joined.length - maxChars);
 	return joined.slice(start);
 }
@@ -74,14 +74,14 @@ export function getBufferForTerminal(terminal?: Terminal, maxChars = 16000): str
  */
 export function getActiveTerminalSelection(): string {
 	// Use window.terminals.find() to avoid deprecated window.activeTerminal
-	const activeTerminal = window.terminals.find(t => t === window.activeTerminal);
+	const activeTerminal = window.terminals.find((t) => t === window.activeTerminal);
 	try {
 		// Note: terminal selection is a proposed API and may not be available
 		// @ts-expect-error - selection property may not exist in all VS Code versions
-		return activeTerminal?.selection ?? '';
+		return activeTerminal?.selection ?? "";
 	} catch {
 		// In case the API isn't available
-		return '';
+		return "";
 	}
 }
 
@@ -98,7 +98,7 @@ export function getLastCommandForTerminal(terminal: Terminal): TerminalExecutedC
  */
 export function getActiveTerminalLastCommand(): TerminalExecutedCommand | undefined {
 	// Use window.terminals.find() to avoid deprecated window.activeTerminal
-	const activeTerminal = window.terminals.find(t => t === window.activeTerminal);
+	const activeTerminal = window.terminals.find((t) => t === window.activeTerminal);
 	if (activeTerminal === undefined) {
 		return undefined;
 	}
@@ -110,30 +110,30 @@ export function getActiveTerminalLastCommand(): TerminalExecutedCommand | undefi
  */
 export function getActiveTerminalShellType(): string {
 	// Use window.terminals.find() to avoid deprecated window.activeTerminal
-	const activeTerminal = window.terminals.find(t => t === window.activeTerminal);
+	const activeTerminal = window.terminals.find((t) => t === window.activeTerminal);
 
 	// Prefer the state object as it's the most reliable
 	if (activeTerminal?.state.shell) {
 		return activeTerminal.state.shell;
 	}
 
-	if (activeTerminal && 'shellPath' in activeTerminal.creationOptions) {
+	if (activeTerminal && "shellPath" in activeTerminal.creationOptions) {
 		const shellPath = (activeTerminal.creationOptions as { shellPath?: string }).shellPath;
 		if (shellPath) {
 			let candidateShellType: string | undefined;
 			const shellFile = basename(shellPath);
 
 			// Detect git bash specially as it depends on the .exe
-			if (shellFile === 'bash.exe') {
-				candidateShellType = 'Git Bash';
+			if (shellFile === "bash.exe") {
+				candidateShellType = "Git Bash";
 			} else {
-				const shellFileWithoutExtension = shellFile.replace(/\..+/, '');
+				const shellFileWithoutExtension = shellFile.replace(/\..+/, "");
 				switch (shellFileWithoutExtension) {
-					case 'pwsh':
-					case 'powershell':
-						candidateShellType = 'powershell';
+					case "pwsh":
+					case "powershell":
+						candidateShellType = "powershell";
 						break;
-					case '':
+					case "":
 						break;
 					default:
 						candidateShellType = shellFileWithoutExtension;
@@ -152,7 +152,7 @@ export function getActiveTerminalShellType(): string {
 	}
 
 	// Fall back to bash or PowerShell based on platform
-	return process.platform === 'win32' ? 'powershell' : 'bash';
+	return process.platform === "win32" ? "powershell" : "bash";
 }
 
 /**
@@ -164,8 +164,8 @@ export function installTerminalBufferListeners(): { dispose(): void }[] {
 
 	// Listen for terminal state changes to track shell type
 	disposables.push(
-		window.onDidChangeTerminalState(t => {
-			const activeTerminal = window.terminals.find(term => term === window.activeTerminal);
+		window.onDidChangeTerminalState((t) => {
+			const activeTerminal = window.terminals.find((term) => term === window.activeTerminal);
 			if (activeTerminal && t.processId === activeTerminal.processId) {
 				const newShellType = t.state.shell;
 				if (newShellType && newShellType !== lastDetectedShellType) {
@@ -199,7 +199,7 @@ export function installTerminalBufferListeners(): { dispose(): void }[] {
 
 	// Listen for terminal close to clean up buffers and commands
 	disposables.push(
-		window.onDidCloseTerminal(e => {
+		window.onDidCloseTerminal((e) => {
 			terminalBuffers.delete(e);
 			terminalCommands.delete(e);
 		})

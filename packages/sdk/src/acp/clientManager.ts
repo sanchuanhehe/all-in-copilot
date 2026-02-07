@@ -267,7 +267,7 @@ export interface TerminalExitResult {
 /**
  * Permission option kind (ACP protocol)
  */
-export type PermissionOptionKind = 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
+export type PermissionOptionKind = "allow_once" | "allow_always" | "reject_once" | "reject_always";
 
 /**
  * Callbacks for client implementation.
@@ -337,10 +337,13 @@ export interface ClientCallbacks {
 	 * @param sessionId The session ID for context
 	 * @param request The permission request details
 	 */
-	requestPermission?: (sessionId: string, request: {
-		toolCall: { toolCallId: string; title: string; description?: string };
-		options: Array<{ optionId: string; name: string; kind: PermissionOptionKind }>;
-	}) => Promise<string>;
+	requestPermission?: (
+		sessionId: string,
+		request: {
+			toolCall: { toolCallId: string; title: string; description?: string };
+			options: Array<{ optionId: string; name: string; kind: PermissionOptionKind }>;
+		}
+	) => Promise<string>;
 
 	/**
 	 * Handles extension method requests from the agent.
@@ -568,10 +571,7 @@ export class ACPClientManager {
 	 * @param methodId The authentication method ID to use
 	 * @returns Success status or error message
 	 */
-	async authenticate(
-		client: ClientSideConnection,
-		methodId: string
-	): Promise<AuthenticateResult> {
+	async authenticate(client: ClientSideConnection, methodId: string): Promise<AuthenticateResult> {
 		try {
 			// Check if authenticate is available
 			if (typeof client.authenticate !== "function") {
@@ -715,10 +715,7 @@ export class ACPClientManager {
 	 * @param client The ACP client connection
 	 * @param sessionId The session ID to cancel
 	 */
-	async cancelSession(
-		client: ClientSideConnection,
-		sessionId: string
-	): Promise<{ success: boolean; error?: string }> {
+	async cancelSession(client: ClientSideConnection, sessionId: string): Promise<{ success: boolean; error?: string }> {
 		try {
 			// Check if cancel is available
 			if (typeof client.cancel !== "function") {
@@ -781,14 +778,16 @@ export class ACPClientManager {
 			});
 
 			// Convert SDK SessionModeState to our LoadSessionResult format
-			const modes = result.modes ? {
-				currentModeId: result.modes.currentModeId,
-				availableModes: result.modes.availableModes.map((mode) => ({
-					id: mode.id,
-					name: mode.name,
-					description: mode.description ?? undefined,
-				})),
-			} : undefined;
+			const modes = result.modes
+				? {
+						currentModeId: result.modes.currentModeId,
+						availableModes: result.modes.availableModes.map((mode) => ({
+							id: mode.id,
+							name: mode.name,
+							description: mode.description ?? undefined,
+						})),
+					}
+				: undefined;
 
 			return {
 				success: true,
@@ -845,14 +844,16 @@ export class ACPClientManager {
 			});
 
 			// Convert SDK SessionModeState to our ResumeSessionResult format
-			const modes = result.modes ? {
-				currentModeId: result.modes.currentModeId,
-				availableModes: result.modes.availableModes.map((mode) => ({
-					id: mode.id,
-					name: mode.name,
-					description: mode.description ?? undefined,
-				})),
-			} : undefined;
+			const modes = result.modes
+				? {
+						currentModeId: result.modes.currentModeId,
+						availableModes: result.modes.availableModes.map((mode) => ({
+							id: mode.id,
+							name: mode.name,
+							description: mode.description ?? undefined,
+						})),
+					}
+				: undefined;
 
 			return {
 				success: true,
@@ -889,7 +890,9 @@ export class ACPClientManager {
 				};
 			}
 
-			await (client as { unstable_setSessionModel: (args: { sessionId: string; modelId: string }) => Promise<unknown> }).unstable_setSessionModel({
+			await (
+				client as { unstable_setSessionModel: (args: { sessionId: string; modelId: string }) => Promise<unknown> }
+			).unstable_setSessionModel({
 				sessionId,
 				modelId,
 			});
@@ -914,11 +917,7 @@ export class ACPClientManager {
 	 * @param modeId The mode ID to set (e.g., 'agent', 'plan', 'ask')
 	 * @returns Success status or error message
 	 */
-	async setSessionMode(
-		client: ClientSideConnection,
-		sessionId: string,
-		modeId: string
-	): Promise<SetSessionModeResult> {
+	async setSessionMode(client: ClientSideConnection, sessionId: string, modeId: string): Promise<SetSessionModeResult> {
 		try {
 			// Check if setSessionMode is available
 			if (typeof client.setSessionMode !== "function") {
@@ -1057,7 +1056,10 @@ export class ACPClientManager {
 	 */
 	private createClientImplementation(config: ACPClientConfig) {
 		const callbacks = config.callbacks ?? {};
-		const terminalIdToHandle = new Map<string, { name: string; command: string; args?: string[]; cwd?: string; env?: Array<EnvVariable> }>();
+		const terminalIdToHandle = new Map<
+			string,
+			{ name: string; command: string; args?: string[]; cwd?: string; env?: Array<EnvVariable> }
+		>();
 
 		// Capture reference to sessionUpdateListeners for use in callbacks
 		const sessionUpdateListeners = this.sessionUpdateListeners;
@@ -1200,9 +1202,12 @@ export class ACPClientManager {
 				// Convert bigint to number if needed (ACP protocol uses u64 but JS callbacks use number)
 				// Also handle null values from protocol
 				const rawLimit = params.outputByteLimit;
-				const outputByteLimit = rawLimit !== undefined && rawLimit !== null
-					? (typeof rawLimit === 'bigint' ? Number(rawLimit) : rawLimit)
-					: undefined;
+				const outputByteLimit =
+					rawLimit !== undefined && rawLimit !== null
+						? typeof rawLimit === "bigint"
+							? Number(rawLimit)
+							: rawLimit
+						: undefined;
 
 				if (callbacks.createTerminal) {
 					console.log(`[ACP Client] Using callbacks.createTerminal for: ${params.command}`);

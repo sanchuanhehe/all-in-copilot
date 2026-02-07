@@ -175,10 +175,7 @@ export function getTerminalById(terminalId: string): Terminal | undefined {
 /**
  * Mark terminal as completed with exit status
  */
-export function markTerminalCompleted(
-	terminal: Terminal,
-	exitStatus?: { exitCode?: number; signal?: string }
-): void {
+export function markTerminalCompleted(terminal: Terminal, exitStatus?: { exitCode?: number; signal?: string }): void {
 	const buffer = terminalBuffers.get(terminal);
 	if (!buffer) {
 		return;
@@ -246,9 +243,7 @@ export function isTerminalCompleted(terminal: Terminal): boolean {
 /**
  * Get terminal exit status
  */
-export function getTerminalExitStatus(
-	terminal: Terminal
-): { exitCode?: number; signal?: string } | undefined {
+export function getTerminalExitStatus(terminal: Terminal): { exitCode?: number; signal?: string } | undefined {
 	const buffer = terminalBuffers.get(terminal);
 	return buffer?.exitStatus;
 }

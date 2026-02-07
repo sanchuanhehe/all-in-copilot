@@ -25,4 +25,9 @@ export { ROLE, buildRequest, ensureValidMessageOrder } from "./providerHelpers";
 export * from "./streaming";
 
 // Send chat request (complete HTTP request/response handling)
-export { sendChatRequest, sendChatRequestWithProvider, type SendChatRequestConfig, type ChatResponseCallbacks } from "./sendChatRequest";
+export {
+	sendChatRequest,
+	sendChatRequestWithProvider,
+	type SendChatRequestConfig,
+	type ChatResponseCallbacks,
+} from "./sendChatRequest";
