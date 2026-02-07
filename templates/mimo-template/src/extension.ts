@@ -120,6 +120,10 @@ class ExtensionProvider implements LanguageModelChatProvider {
 			throw new Error("API key not configured");
 		}
 
+		// Convert CancellationToken to AbortSignal (SDK expects AbortSignal)
+		const abortController = new AbortController();
+		token.onCancellationRequested(() => abortController.abort());
+
 		// Use SDK's sendChatRequestWithProvider for complete request/response handling
 		await sendChatRequestWithProvider(
 			{
@@ -141,7 +145,7 @@ class ExtensionProvider implements LanguageModelChatProvider {
 					progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
 				},
 			},
-			token
+			abortController.signal
 		);
 	}
 

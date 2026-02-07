@@ -120,6 +120,10 @@ class ExtensionProvider implements LanguageModelChatProvider {
 			throw new Error("API key not configured");
 		}
 
+		// Convert CancellationToken to AbortSignal (SDK expects AbortSignal)
+		const abortController = new AbortController();
+		token.onCancellationRequested(() => abortController.abort());
+
 		// Determine which API format to use
 		const apiMode =
 			PROVIDER_CONFIG.apiMode === "gemini" || PROVIDER_CONFIG.apiMode === "ollama" ? "openai" : PROVIDER_CONFIG.apiMode;
@@ -145,7 +149,7 @@ class ExtensionProvider implements LanguageModelChatProvider {
 					progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
 				},
 			},
-			token
+			abortController.signal
 		);
 	}
 
