@@ -296,4 +296,77 @@ describe("buildRequest", () => {
 		expect(result.system).toBe("You are a helpful assistant.");
 		expect(result.messages as unknown[]).toHaveLength(1);
 	});
+
+	it("should preserve tool_use blocks in Anthropic format (regression)", () => {
+		const messages = [
+			{ role: ROLE.User, content: [{ value: "What is the weather?" }] },
+			{
+				role: ROLE.Assistant,
+				content: [{ callId: "call_123", name: "get_weather", input: { city: "Beijing" } }],
+			},
+			{
+				role: ROLE.User,
+				content: [{ callId: "call_123", content: [{ value: "Sunny, 25°C" }] }],
+			},
+		];
+		const result = buildRequest("anthropic", "claude-3-5-sonnet", messages, undefined, 4096);
+
+		const resultMessages = result.messages as Array<{ role: string; content: unknown[] }>;
+
+		// Find the assistant message with tool_use
+		const assistantMsg = resultMessages.find((m) => m.role === "assistant");
+		expect(assistantMsg).toBeDefined();
+		const toolUseBlock = (assistantMsg!.content as Array<{ type: string; id?: string }>).find(
+			(b) => b.type === "tool_use"
+		);
+		expect(toolUseBlock).toBeDefined();
+		expect(toolUseBlock!.id).toBe("call_123");
+
+		// Find the user message with tool_result
+		const userMsgs = resultMessages.filter((m) => m.role === "user");
+		const lastUserMsg = userMsgs[userMsgs.length - 1];
+		const toolResultBlock = (lastUserMsg.content as Array<{ type: string; tool_use_id?: string }>).find(
+			(b) => b.type === "tool_result"
+		);
+		expect(toolResultBlock).toBeDefined();
+		expect(toolResultBlock!.tool_use_id).toBe("call_123");
+	});
+
+	it("should not produce empty tool_use_id in Anthropic format (regression)", () => {
+		const messages = [
+			{ role: ROLE.User, content: [{ value: "Hello" }] },
+			{
+				role: ROLE.Assistant,
+				content: [{ callId: "toolu_abc", name: "read_file", input: { path: "/tmp/test.txt" } }],
+			},
+			{
+				role: ROLE.User,
+				content: [{ callId: "toolu_abc", content: [{ value: "file contents here" }] }],
+			},
+			{ role: ROLE.User, content: [{ value: "Now summarize it" }] },
+		];
+		const result = buildRequest("anthropic", "claude-3-5-sonnet", messages, undefined, 4096);
+
+		const resultMessages = result.messages as Array<{ role: string; content: unknown[] }>;
+
+		// Verify every tool_result has a non-empty tool_use_id
+		for (const msg of resultMessages) {
+			for (const block of msg.content as Array<{ type: string; tool_use_id?: string }>) {
+				if (block.type === "tool_result") {
+					expect(block.tool_use_id).toBeTruthy();
+					expect(block.tool_use_id).not.toBe("");
+				}
+			}
+		}
+
+		// Verify every tool_use has a non-empty id
+		for (const msg of resultMessages) {
+			for (const block of msg.content as Array<{ type: string; id?: string }>) {
+				if (block.type === "tool_use") {
+					expect(block.id).toBeTruthy();
+					expect(block.id).not.toBe("");
+				}
+			}
+		}
+	});
 });

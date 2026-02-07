@@ -5,7 +5,7 @@
 
 import type { VsCodeMessage } from "./types";
 import { OpenAIMessage } from "./types";
-import { convertToOpenAI } from "./convert";
+import { convertToOpenAI, convertToAnthropic } from "./convert";
 import { convertToolsToOpenAI, convertToolsToAnthropic } from "../toolConverter";
 
 // Re-export streaming functions
@@ -193,34 +193,18 @@ export function buildRequest(
 	maxTokens: number
 ): Record<string, unknown> {
 	if (provider === "anthropic") {
-		const systemMessage = messages.find((m) => m.role === ROLE.System);
-		const nonSystemMessages = messages.filter((m) => m.role !== ROLE.System);
-
-		// Convert to Anthropic intermediate format and validate order
-		const anthropicMessages = convertToOpenAI(nonSystemMessages).map((m) => ({
-			role: m.role as "user" | "assistant",
-			content: typeof m.content === "string" ? [{ type: "text" as const, text: m.content }] : [],
-		}));
-
-		const orderedMessages = ensureValidMessageOrder(anthropicMessages);
+		// Use the proper Anthropic converter that handles tool_use and tool_result blocks
+		const { system, messages: anthropicMessages } = convertToAnthropic(messages);
 
 		const request: Record<string, unknown> = {
 			model,
-			messages: orderedMessages.map((m) => ({
-				role: m.role,
-				content: m.content.map((c) => ({ type: c.type, [c.type]: c.text })),
-			})),
+			messages: anthropicMessages,
 			stream: true,
 			max_tokens: maxTokens,
 		};
 
-		if (systemMessage) {
-			const text =
-				systemMessage.content
-					?.filter(isTextPart)
-					.map((p) => p.value)
-					.join("\n") ?? "";
-			request.system = text;
+		if (system) {
+			request.system = system;
 		}
 
 		if (tools && tools.length > 0) {
