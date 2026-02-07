@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 1
+
 declare module 'vscode' {
 
 	export interface ChatParticipant {
@@ -264,6 +266,42 @@ declare module 'vscode' {
 		output: McpToolInvocationContentData[];
 	}
 
+	export enum ChatTodoStatus {
+		NotStarted = 1,
+		InProgress = 2,
+		Completed = 3
+	}
+
+	export interface ChatTodoToolInvocationData {
+		todoList: Array<{
+			id: number;
+			title: string;
+			status: ChatTodoStatus;
+		}>;
+	}
+
+	/**
+	 * Generic tool result data that displays input and output in collapsible sections.
+	 */
+	export interface ChatSimpleToolResultData {
+		/**
+		 * The input to display.
+		 */
+		input: string;
+		/**
+		 * The output to display.
+		 */
+		output: string;
+	}
+
+
+	export interface ChatToolResourcesInvocationData {
+		/**
+		 * Array of file URIs or locations to display as a collapsible list
+		 */
+		values: Array<Uri | Location>;
+	}
+
 	export class ChatToolInvocationPart {
 		toolName: string;
 		toolCallId: string;
@@ -273,7 +311,7 @@ declare module 'vscode' {
 		pastTenseMessage?: string | MarkdownString;
 		isConfirmed?: boolean;
 		isComplete?: boolean;
-		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData;
+		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData | ChatTodoToolInvocationData | ChatSimpleToolResultData | ChatToolResourcesInvocationData;
 		subAgentInvocationId?: string;
 		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
@@ -346,7 +384,7 @@ declare module 'vscode' {
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart | ChatResponseQuestionCarouselPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart | ChatResponseQuestionCarouselPart | ChatResponseHookPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -373,6 +411,31 @@ declare module 'vscode' {
 		 * @param task A task that will emit thinking parts during its execution
 		 */
 		constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>);
+	}
+
+	/**
+	 * A progress part representing the execution result of a hook.
+	 * Hooks are user-configured scripts that run at specific points during chat processing.
+	 * If {@link stopReason} is set, the hook blocked/denied the operation.
+	 */
+	export class ChatResponseHookPart {
+		/** The type of hook that was executed */
+		hookType: ChatHookType;
+		/** If set, the hook blocked processing. This message is shown to the user. */
+		stopReason?: string;
+		/** Warning/system message from the hook, shown to the user */
+		systemMessage?: string;
+		/** Optional metadata associated with the hook execution */
+		metadata?: { readonly [key: string]: unknown };
+
+		/**
+		 * Creates a new hook progress part.
+		 * @param hookType The type of hook that was executed
+		 * @param stopReason Message shown when processing was stopped
+		 * @param systemMessage Warning/system message from the hook
+		 * @param metadata Optional metadata
+		 */
+		constructor(hookType: ChatHookType, stopReason?: string, systemMessage?: string, metadata?: { readonly [key: string]: unknown });
 	}
 
 	export class ChatResponseReferencePart2 {
@@ -450,12 +513,16 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponsePullRequestPart {
-		readonly uri: Uri;
+		/**
+		 * @deprecated use `command` instead
+		 */
+		readonly uri?: Uri;
+		readonly command: Command;
 		readonly linkTag: string;
 		readonly title: string;
 		readonly description: string;
 		readonly author: string;
-		constructor(uri: Uri, title: string, description: string, author: string, linkTag: string);
+		constructor(uriOrCommand: Uri | Command, title: string, description: string, author: string, linkTag: string);
 	}
 
 	export interface ChatResponseStream {
@@ -471,6 +538,14 @@ declare module 'vscode' {
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
 		thinkingProgress(thinkingDelta: ThinkingDelta): void;
+
+		/**
+		 * Push a hook execution result to this stream.
+		 * @param hookType The type of hook that was executed
+		 * @param stopReason If set, the hook blocked processing. This message is shown to the user.
+		 * @param systemMessage Warning/system message from the hook
+		 */
+		hookProgress(hookType: ChatHookType, stopReason?: string, systemMessage?: string): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
