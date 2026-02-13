@@ -478,7 +478,7 @@ export class ACPUnifiedProvider implements vscode.LanguageModelChatProvider {
 					}
 
 					// Create ChatToolInvocationPart (reuse same object for updates)
-					const toolPart = new vscode.ChatToolInvocationPart(toolName, toolCallId, false);
+					const toolPart = new vscode.ChatToolInvocationPart(toolName, toolCallId, "");
 					toolPart.isConfirmed = false;
 					toolPart.isComplete = false;
 
