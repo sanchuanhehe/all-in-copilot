@@ -6,7 +6,7 @@
 export * from "./toolConverter";
 
 // Token counting
-export { estimateTokens } from "./tokenCounter";
+export { estimateTokens, estimateUnknownTokens } from "./tokenCounter";
 
 // Format utilities (type guards, message conversion, streaming)
 export * from "./format";

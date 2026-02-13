@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateTokens, estimateMessagesTokens } from "./tokenCounter";
+import { estimateTokens, estimateMessagesTokens, estimateUnknownTokens } from "./tokenCounter";
 
 describe("estimateTokens", () => {
 	it("should return 0 for empty string", () => {
@@ -82,5 +82,41 @@ describe("estimateMessagesTokens", () => {
 
 	it("should handle empty messages array", () => {
 		expect(estimateMessagesTokens([])).toBe(0);
+	});
+});
+
+describe("estimateUnknownTokens", () => {
+	it("should estimate string input", () => {
+		expect(estimateUnknownTokens("hello world")).toBe(3);
+	});
+
+	it("should estimate VS Code style message text parts", () => {
+		const message = {
+			role: "user",
+			content: [{ value: "Hello" }, { value: " World" }],
+		};
+		// role: user(1)+delimiter(1)=2, content: "Hello"(2)+" World"(2)=4 => 6
+		expect(estimateUnknownTokens(message)).toBe(6);
+	});
+
+	it("should ignore binary payload inflation and count mimeType only", () => {
+		const message = {
+			role: "user",
+			content: [
+				{ value: "look" },
+				{ mimeType: "image/png", data: new Uint8Array(10_000) },
+			],
+		};
+		// role(2) + "look"(1) + mimeType("image/png" => 3)
+		expect(estimateUnknownTokens(message)).toBe(6);
+	});
+
+	it("should estimate tool call input from structured object", () => {
+		const message = {
+			role: "assistant",
+			content: [{ callId: "1", name: "search", input: { q: "typescript" } }],
+		};
+		const expected = 4 + estimateTokens("search") + estimateTokens(JSON.stringify({ q: "typescript" }));
+		expect(estimateUnknownTokens(message)).toBe(expected);
 	});
 });

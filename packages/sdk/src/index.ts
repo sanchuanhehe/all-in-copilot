@@ -84,7 +84,7 @@ export {
 } from "./acp";
 
 // Utilities
-export { estimateTokens, estimateMessagesTokens } from "./utils/tokenCounter";
+export { estimateTokens, estimateMessagesTokens, estimateUnknownTokens } from "./utils/tokenCounter";
 
 // Model fetching
 export { fetchModelsFromAPI } from "./core/modelFetcher";

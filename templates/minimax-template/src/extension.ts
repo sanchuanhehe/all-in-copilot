@@ -18,7 +18,7 @@ import {
 	type VsCodeMessage,
 	sendChatRequestWithProvider,
 	fetchModelsFromAPI,
-	estimateTokens,
+	estimateUnknownTokens,
 } from "@all-in-copilot/sdk";
 import { PROVIDER_CONFIG, FALLBACK_MODELS, filterModels } from "./config";
 
@@ -99,10 +99,7 @@ class ExtensionProvider implements LanguageModelChatProvider {
 		text: string | LanguageModelChatRequestMessage,
 		_token: vscode.CancellationToken
 	): Promise<number> {
-		if (typeof text === "string") {
-			return estimateTokens(text);
-		}
-		return estimateTokens(JSON.stringify(text));
+		return estimateUnknownTokens(text);
 	}
 
 	/**

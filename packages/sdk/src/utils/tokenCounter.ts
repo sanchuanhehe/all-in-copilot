@@ -14,6 +14,96 @@ export function estimateTokens(text: string): number {
 	return Math.ceil(text.length / 4);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object";
+}
+
+function safeStringify(value: unknown): string {
+	try {
+		return JSON.stringify(value) ?? "";
+	} catch {
+		return "";
+	}
+}
+
+function estimatePartTokens(part: unknown): number {
+	if (typeof part === "string") {
+		return estimateTokens(part);
+	}
+
+	if (!isRecord(part)) {
+		return 0;
+	}
+
+	// VS Code text part: { value: string }
+	if (typeof part.value === "string") {
+		return estimateTokens(part.value);
+	}
+
+	// OpenAI text part: { type: "text", text: string }
+	if (part.type === "text" && typeof part.text === "string") {
+		return estimateTokens(part.text);
+	}
+
+	// Tool call part: include tool name and input payload
+	if (typeof part.name === "string" && "input" in part) {
+		return estimateTokens(part.name) + estimateTokens(safeStringify(part.input));
+	}
+
+	// Tool result part: recurse into content
+	if ("content" in part) {
+		return estimateUnknownTokens(part.content);
+	}
+
+	// Binary/data parts (e.g. image bytes) are intentionally not expanded
+	if ("mimeType" in part && "data" in part) {
+		return typeof part.mimeType === "string" ? estimateTokens(part.mimeType) : 0;
+	}
+
+	return estimateTokens(safeStringify(part));
+}
+
+/**
+ * Estimate tokens for unknown input (string, VS Code message, message parts, arrays)
+ */
+export function estimateUnknownTokens(input: unknown): number {
+	if (typeof input === "string") {
+		return estimateTokens(input);
+	}
+
+	if (Array.isArray(input)) {
+		return input.reduce((sum, item) => sum + estimatePartTokens(item), 0);
+	}
+
+	if (!isRecord(input)) {
+		return 0;
+	}
+
+	let total = 0;
+
+	if (typeof input.role === "string") {
+		total += estimateTokens(input.role) + 1;
+	}
+
+	if (typeof input.name === "string") {
+		total += estimateTokens(input.name) + 1;
+	}
+
+	if ("content" in input) {
+		total += estimateUnknownTokens(input.content);
+	}
+
+	if ("input" in input && !("content" in input)) {
+		total += estimateUnknownTokens(input.input);
+	}
+
+	if (total > 0) {
+		return total;
+	}
+
+	return estimateTokens(safeStringify(input));
+}
+
 /**
  * Estimate token count for messages
  * Counts content, role, and name overhead
@@ -28,7 +118,6 @@ export function estimateMessagesTokens(
 	let total = 0;
 
 	for (const message of messages) {
-		// Count content
 		const content =
 			typeof message.content === "string"
 				? message.content
