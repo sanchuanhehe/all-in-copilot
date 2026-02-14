@@ -99,6 +99,15 @@ describe("estimateUnknownTokens", () => {
 		expect(estimateUnknownTokens(message)).toBe(6);
 	});
 
+	it("should estimate VS Code numeric role messages", () => {
+		const message = {
+			role: 1,
+			content: [{ value: "hello" }],
+		};
+		// role 1 => user(1)+delimiter(1)=2, content hello(2) => 4
+		expect(estimateUnknownTokens(message)).toBe(4);
+	});
+
 	it("should ignore binary payload inflation and count mimeType only", () => {
 		const message = {
 			role: "user",

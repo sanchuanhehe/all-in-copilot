@@ -18,6 +18,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object";
 }
 
+function estimateRoleTokens(role: unknown): number {
+	if (typeof role === "string") {
+		return estimateTokens(role) + 1;
+	}
+
+	// VS Code LanguageModelChatMessageRole enum values
+	if (typeof role === "number") {
+		switch (role) {
+			case 1: // User
+				return estimateTokens("user") + 1;
+			case 2: // Assistant
+				return estimateTokens("assistant") + 1;
+			case 3: // System
+				return estimateTokens("system") + 1;
+			default:
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
 function safeStringify(value: unknown): string {
 	try {
 		return JSON.stringify(value) ?? "";
@@ -81,9 +103,7 @@ export function estimateUnknownTokens(input: unknown): number {
 
 	let total = 0;
 
-	if (typeof input.role === "string") {
-		total += estimateTokens(input.role) + 1;
-	}
+	total += estimateRoleTokens(input.role);
 
 	if (typeof input.name === "string") {
 		total += estimateTokens(input.name) + 1;
