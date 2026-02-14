@@ -35,11 +35,11 @@ export const PROVIDER_CONFIG: ProviderConfig = {
 
 	// Capabilities
 	supportsTools: true,
-	supportsVision: true,
+	supportsVision: false,
 
 	// Token limits
-	defaultMaxOutputTokens: 8192,
-	defaultContextLength: 128000,
+	defaultMaxOutputTokens: 16000,
+	defaultContextLength: 186752,
 
 	// Dynamic model fetching (only works with OpenAI mode)
 	dynamicModels: true,
@@ -51,34 +51,26 @@ export const PROVIDER_CONFIG: ProviderConfig = {
  */
 export const FALLBACK_MODELS: ModelConfig[] = [
 	{
-		id: "glm-4-plus",
-		name: "GLM-4 Plus",
-		maxInputTokens: 120000,
-		maxOutputTokens: 8192,
+		id: "glm-4.7-flash",
+		name: "GLM-4.7 Flash",
+		maxInputTokens: 186752,
+		maxOutputTokens: 16000,
 		supportsTools: true,
-		supportsVision: true,
+		supportsVision: false,
 	},
 	{
-		id: "glm-4",
-		name: "GLM-4",
-		maxInputTokens: 128000,
-		maxOutputTokens: 8192,
+		id: "glm-4.7",
+		name: "GLM-4.7",
+		maxInputTokens: 186752,
+		maxOutputTokens: 16000,
 		supportsTools: true,
-		supportsVision: true,
+		supportsVision: false,
 	},
 	{
-		id: "glm-4v",
-		name: "GLM-4V (Vision)",
-		maxInputTokens: 8000,
-		maxOutputTokens: 4096,
-		supportsTools: false,
-		supportsVision: true,
-	},
-	{
-		id: "glm-3-turbo",
-		name: "GLM-3 Turbo",
-		maxInputTokens: 16000,
-		maxOutputTokens: 4096,
+		id: "glm-5",
+		name: "GLM-5",
+		maxInputTokens: 186752,
+		maxOutputTokens: 16000,
 		supportsTools: true,
 		supportsVision: false,
 	},
