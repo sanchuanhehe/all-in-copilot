@@ -273,7 +273,7 @@ jobs:
           npm pack --pack-destination ../../artifacts
           FILE=$(ls ../../artifacts/*.tgz | head -n 1)
           BASENAME=$(basename "$FILE")
-          echo "file=$FILE" >> $GITHUB_OUTPUT
+          echo "file=artifacts/$BASENAME" >> $GITHUB_OUTPUT
           echo "name=$BASENAME" >> $GITHUB_OUTPUT
 
       - name: Upload SDK artifact
