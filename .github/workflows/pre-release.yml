@@ -9,12 +9,15 @@ on:
   workflow_dispatch:
     inputs:
       template:
-        description: 'Template to pre-release (or "all" for all templates)'
+        description: 'Component to pre-release ("sdk", a template, or "all")'
         required: true
         default: "all"
         type: choice
         options:
+          - sdk
           - all
+          - acp-template
+          - base-template
           - glm-template
           - minimax-template
           - kimi-template
@@ -33,6 +36,8 @@ on:
 
 jobs:
   build-sdk:
+    if: ${{ needs.determine-templates.outputs.requires_sdk_build == 'true' }}
+    needs: [determine-templates]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,30 +63,74 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       templates: ${{ steps.set-templates.outputs.templates }}
+      component: ${{ steps.set-templates.outputs.component }}
+      requires_sdk_build: ${{ steps.set-templates.outputs.requires_sdk_build }}
     steps:
       - name: Determine templates to build
         id: set-templates
         run: |
+          map_template() {
+            local name="$1"
+            case "$name" in
+              acp) echo "acp-template" ;;
+              base) echo "base-template" ;;
+              glm) echo "glm-template" ;;
+              minimax) echo "minimax-template" ;;
+              kimi) echo "kimi-template" ;;
+              kimi-coding) echo "kimi-coding-template" ;;
+              mimo) echo "mimo-template" ;;
+              acp-template|base-template|glm-template|minimax-template|kimi-template|kimi-coding-template|mimo-template)
+                echo "$name"
+                ;;
+              *)
+                echo ""
+                ;;
+            esac
+          }
+
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            # Branch-based pre-release - extract template from branch name
+            # Branch-based pre-release - extract component from branch name
             BRANCH="${{ github.ref_name }}"
-            # Format: pre-release/template-name or beta/template-name
-            TEMPLATE="${BRANCH#*/}"
-            if [[ "$TEMPLATE" == "all" ]] || [[ -z "$TEMPLATE" ]] || [[ "$TEMPLATE" == "$BRANCH" ]]; then
-              echo 'templates=["glm-template","minimax-template","kimi-template","mimo-template"]' >> $GITHUB_OUTPUT
+            # Format: pre-release/component-name or beta/component-name
+            TARGET="${BRANCH#*/}"
+
+            if [[ "$TARGET" == "sdk" ]]; then
+              echo 'component=sdk' >> $GITHUB_OUTPUT
+              echo 'templates=[]' >> $GITHUB_OUTPUT
+              echo 'requires_sdk_build=true' >> $GITHUB_OUTPUT
+            elif [[ "$TARGET" == "all" ]] || [[ -z "$TARGET" ]] || [[ "$TARGET" == "$BRANCH" ]]; then
+              echo 'component=templates' >> $GITHUB_OUTPUT
+              echo 'templates=["acp-template","base-template","glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template"]' >> $GITHUB_OUTPUT
+              echo 'requires_sdk_build=true' >> $GITHUB_OUTPUT
             else
+              TEMPLATE=$(map_template "$TARGET")
+              if [[ -z "$TEMPLATE" ]]; then
+                echo "Unsupported pre-release target: $TARGET"
+                exit 1
+              fi
+              echo 'component=templates' >> $GITHUB_OUTPUT
               echo "templates=[\"$TEMPLATE\"]" >> $GITHUB_OUTPUT
+              echo 'requires_sdk_build=true' >> $GITHUB_OUTPUT
             fi
           else
             # Manual dispatch
-            if [[ "${{ inputs.template }}" == "all" ]]; then
-              echo 'templates=["glm-template","minimax-template","kimi-template","mimo-template"]' >> $GITHUB_OUTPUT
+            if [[ "${{ inputs.template }}" == "sdk" ]]; then
+              echo 'component=sdk' >> $GITHUB_OUTPUT
+              echo 'templates=[]' >> $GITHUB_OUTPUT
+              echo 'requires_sdk_build=true' >> $GITHUB_OUTPUT
+            elif [[ "${{ inputs.template }}" == "all" ]]; then
+              echo 'component=templates' >> $GITHUB_OUTPUT
+              echo 'templates=["acp-template","base-template","glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template"]' >> $GITHUB_OUTPUT
+              echo 'requires_sdk_build=true' >> $GITHUB_OUTPUT
             else
+              echo 'component=templates' >> $GITHUB_OUTPUT
               echo "templates=[\"${{ inputs.template }}\"]" >> $GITHUB_OUTPUT
+              echo 'requires_sdk_build=true' >> $GITHUB_OUTPUT
             fi
           fi
 
   package-and-publish:
+    if: ${{ needs.determine-templates.outputs.component == 'templates' }}
     runs-on: ubuntu-latest
     needs: [build-sdk, determine-templates]
     strategy:
@@ -132,3 +181,38 @@ jobs:
           VSIX_FILE=$(ls *.vsix | head -n 1)
           echo "Publishing pre-release: $VSIX_FILE"
           npx @vscode/vsce publish --pat ${{ secrets.VSCE_PAT }} --packagePath "$VSIX_FILE" --pre-release
+
+  package-sdk-prerelease:
+    if: ${{ needs.determine-templates.outputs.component == 'sdk' }}
+    runs-on: ubuntu-latest
+    needs: [build-sdk, determine-templates]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - run: pnpm install
+
+      - name: Download SDK dist
+        uses: actions/download-artifact@v4
+        with:
+          name: sdk-dist
+          path: packages/sdk/dist
+
+      - name: Pack SDK tarball (pre-release artifact)
+        run: |
+          mkdir -p artifacts
+          cd packages/sdk
+          npm pack --pack-destination ../../artifacts
+
+      - name: Upload SDK pre-release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-pre-package
+          path: artifacts/*.tgz
