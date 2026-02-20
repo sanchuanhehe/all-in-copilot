@@ -16,10 +16,19 @@ This VS Code extension integrates with the **OpenCode** CLI agent via the Agent 
 
 ## Requirements
 
+- **VS Code Insiders**: Required for proposed API support ([Download](https://code.visualstudio.com/insiders/))
 - **OpenCode CLI**: [Installation Guide](https://github.com/sanchuanhehe/opencode-cli)
 - **Node.js**: 18.0 or higher
-- **VS Code**: 1.104.0 or higher
 - **pnpm**: 9.0 or higher
+
+### Why VS Code Insiders?
+
+This extension uses **proposed VS Code APIs** for enhanced functionality:
+- `chatParticipantAdditions` - Rich tool invocation UI and terminal rendering
+- `terminalDataWriteEvent` - Real-time terminal output capture
+- `chatParticipantPrivate` - Extended chat participant features
+
+These APIs are not yet stable and only available in VS Code Insiders. See [PROPOSED_API_ANALYSIS.md](./PROPOSED_API_ANALYSIS.md) for detailed analysis and alternative approaches.
 
 ## Installation
 
