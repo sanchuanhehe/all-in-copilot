@@ -84,6 +84,8 @@ class ExtensionProvider implements LanguageModelChatProvider {
 			version: "1.0.0",
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
+			detail: PROVIDER_CONFIG.name, // 尾随小字厂商名称
+			tooltip: `${model.name} is contributed via the ${PROVIDER_CONFIG.name} provider.`, // 悬停提示
 			capabilities: {
 				imageInput: model.supportsVision,
 				toolCalling: model.supportsTools,

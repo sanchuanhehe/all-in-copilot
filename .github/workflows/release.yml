@@ -18,6 +18,7 @@ on:
           - kimi-template
           - kimi-coding-template
           - mimo-template
+          - aliyun-coding-template
       pre_release:
         description: "Pre-release version"
         required: false
@@ -33,11 +34,12 @@ on:
       - "kimi-v*"
       - "kimi-coding-v*"
       - "mimo-v*"
+      - "aliyun-coding-v*"
       - "v*"
       - "*-v*"
 
 env:
-  TEMPLATES: acp-template base-template glm-template minimax-template kimi-template kimi-coding-template mimo-template
+  TEMPLATES: acp-template base-template glm-template minimax-template kimi-template kimi-coding-template mimo-template aliyun-coding-template
 
 jobs:
   build-sdk:
@@ -85,7 +87,7 @@ jobs:
             elif [[ "$TAG" == v* ]]; then
               # Global tag like v1.0.0 - build all
               echo 'component=templates' >> $GITHUB_OUTPUT
-              echo 'templates=["acp-template","base-template","glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template"]' >> $GITHUB_OUTPUT
+              echo 'templates=["acp-template","base-template","glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template","aliyun-coding-template"]' >> $GITHUB_OUTPUT
               echo 'requires_sdk_build=true' >> $GITHUB_OUTPUT
             else
               # Template-specific tags:
@@ -100,7 +102,8 @@ jobs:
                 kimi) TEMPLATE="kimi-template" ;;
                 kimi-coding) TEMPLATE="kimi-coding-template" ;;
                 mimo) TEMPLATE="mimo-template" ;;
-                acp-template|base-template|glm-template|minimax-template|kimi-template|kimi-coding-template|mimo-template)
+                aliyun-coding) TEMPLATE="aliyun-coding-template" ;;
+                acp-template|base-template|glm-template|minimax-template|kimi-template|kimi-coding-template|mimo-template|aliyun-coding-template)
                   TEMPLATE="$BASE_TEMPLATE"
                   ;;
                 *)
@@ -120,7 +123,7 @@ jobs:
               echo 'requires_sdk_build=true' >> $GITHUB_OUTPUT
             elif [[ "${{ inputs.template }}" == "all" ]]; then
               echo 'component=templates' >> $GITHUB_OUTPUT
-              echo 'templates=["acp-template","base-template","glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template"]' >> $GITHUB_OUTPUT
+              echo 'templates=["acp-template","base-template","glm-template","minimax-template","kimi-template","kimi-coding-template","mimo-template","aliyun-coding-template"]' >> $GITHUB_OUTPUT
               echo 'requires_sdk_build=true' >> $GITHUB_OUTPUT
             else
               echo 'component=templates' >> $GITHUB_OUTPUT
