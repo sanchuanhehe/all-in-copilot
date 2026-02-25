@@ -72,7 +72,7 @@ export const FALLBACK_MODELS: ModelConfig[] = [
 		supportsVision: false,
 	},
 	{
-		id: "MiniMax-M2.5",
+		id: "minimax-m2.5",
 		name: "MiniMax M2.5",
 		maxInputTokens: 196608,
 		maxOutputTokens: 65536,
