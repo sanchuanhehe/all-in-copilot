@@ -8,7 +8,7 @@
 
 ### What is Aliyun Model Studio Coding Plan Copilot?
 
-Aliyun Model Studio Coding Plan Copilot is a VS Code extension that integrates Alibaba Cloud's **Model Studio Coding Plan** into GitHub Copilot Chat. This version uses the dedicated coding API endpoint (`coding.dashscope.aliyuncs.com`) optimized for programming tasks.
+Aliyun Model Studio Coding Plan Copilot is a VS Code extension that integrates Alibaba Cloud's **Aliyun Model Studio Coding Plan** into GitHub Copilot Chat. This version uses the dedicated coding API endpoint (`coding.dashscope.aliyuncs.com`) optimized for programming tasks.
 
 ### Features
 
@@ -25,7 +25,7 @@ Aliyun Model Studio Coding Plan Copilot is a VS Code extension that integrates A
 2. Get your API key from [Aliyun Model Studio](https://bailian.console.aliyun.com/)
 3. Open **GitHub Copilot Chat** panel (`Ctrl+Alt+I` / `Cmd+Alt+I`)
 4. Click the **model selector** dropdown at the bottom of the chat panel
-5. Select a **Model Studio Coding Plan** model from the list
+5. Select an **Aliyun Model Studio Coding Plan** model from the list
 6. Enter your API key when prompted (first time only)
 
 > 📖 See [GitHub Copilot Docs: Adding models](https://docs.github.com/en/copilot/how-tos/use-ai-models/change-the-chat-model?tool=vscode#adding-models) for more details.
@@ -66,7 +66,7 @@ Aliyun Model Studio Coding Plan Copilot 是一个 VS Code 扩展，将阿里云�
 2. 从[阿里云百炼控制台](https://bailian.console.aliyun.com/)获取 API 密钥
 3. 打开 **GitHub Copilot Chat** 面板（`Ctrl+Alt+I` / `Cmd+Alt+I`）
 4. 点击聊天面板底部的**模型选择器**下拉菜单
-5. 从列表中选择一个 **Model Studio Coding Plan** 模型
+5. 从列表中选择一个 **Aliyun Model Studio Coding Plan** 模型
 6. 首次使用时输入你的 API 密钥
 
 > 📖 详见 [GitHub Copilot 文档：添加模型](https://docs.github.com/en/copilot/how-tos/use-ai-models/change-the-chat-model?tool=vscode#adding-models)

@@ -15,7 +15,7 @@ import type { ProviderConfig, ModelConfig } from "@all-in-copilot/sdk";
 export const PROVIDER_CONFIG: ProviderConfig = {
 	// Provider identity
 	id: "aliyun-coding-plan",
-	name: "Model Studio Coding Plan",
+	name: "Aliyun Model Studio Coding Plan",
 	family: "aliyun-coding-plan",
 
 	// API configuration - Anthropic compatible endpoint

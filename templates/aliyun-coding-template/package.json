@@ -1,7 +1,7 @@
 {
 	"name": "aliyun-coding-copilot",
 	"publisher": "sanchuan",
-	"displayName": "Model Studio Coding Plan",
+	"displayName": "Aliyun Model Studio Coding Plan",
 	"description": "Aliyun Model Studio Coding Plan provider for VS Code Chat",
 	"icon": "assets/logo.png",
 	"repository": {
@@ -65,14 +65,14 @@
 		"languageModelChatProviders": [
 			{
 				"vendor": "aliyun-coding-plan",
-				"displayName": "Model Studio Coding Plan",
+				"displayName": "Aliyun Model Studio Coding Plan",
 				"managementCommand": "aliyun-coding-plan.manage"
 			}
 		],
 		"commands": [
 			{
 				"command": "aliyun-coding-plan.manage",
-				"title": "Configure Model Studio Coding Plan"
+				"title": "Configure Aliyun Model Studio Coding Plan"
 			}
 		]
 	}
