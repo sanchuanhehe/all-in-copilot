@@ -4,7 +4,14 @@
 		"module": "preserve",
 		"moduleResolution": "bundler",
 		"lib": ["ES2022"],
-		"types": ["./src/vscode/vscode.d.ts"],
+		"types": [
+			"./vscode.d.ts",
+			"./vscode.proposed.chatParticipantAdditions.d.ts",
+			"./vscode.proposed.chatParticipantPrivate.d.ts",
+			"./vscode.proposed.defaultChatParticipant.d.ts",
+			"./vscode.proposed.terminalDataWriteEvent.d.ts",
+			"./vscode.proposed.terminalExecuteCommandEvent.d.ts"
+		],
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"strict": true,

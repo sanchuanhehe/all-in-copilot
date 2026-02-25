@@ -31,7 +31,8 @@ all-in-copilot/
 │ ├── glm-template/ # GLM (智谱AI) example
 │ ├── minimax-template/ # MiniMax example
 │ ├── kimi-template/ # Kimi K2 (Moonshot) example
-│ └── mimo-template/ # Xiaomi MiMo example
+│ ├── mimo-template/ # Xiaomi MiMo example
+│ └── aliyun-coding-template/ # Aliyun Model Studio Coding Plan example
 │
 └── cli/ # Project generator CLI
 └── src/
@@ -256,6 +257,7 @@ git push origin pre-release/glm-template
 | **MiniMax** | `https://api.minimaxi.com/anthropic/v1/messages`        | Anthropic        | ❌             |
 | **Kimi**    | `https://api.moonshot.cn/anthropic`                     | Anthropic        | ❌             |
 | **MiMo**    | `https://api.xiaomimimo.com/anthropic/v1/messages`      | Anthropic        | ❌             |
+| **Aliyun Coding Plan** | `https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages` | Anthropic | ❌ |
 | **Base**    | Custom                                                  | OpenAI/Anthropic | ✅             |
 
 ### How Dynamic Model Fetching Works
@@ -305,7 +307,8 @@ all-in-copilot/
 │ ├── glm-template/ # GLM (智谱AI) 示例
 │ ├── minimax-template/ # MiniMax 示例
 │ ├── kimi-template/ # Kimi K2 (月之暗面) 示例
-│ └── mimo-template/ # 小米 MiMo 示例
+│ ├── mimo-template/ # 小米 MiMo 示例
+│ └── aliyun-coding-template/ # 阿里云百炼编程计划示例
 │
 └── cli/ # 项目生成 CLI
 └── src/
@@ -530,6 +533,7 @@ git push origin pre-release/glm-template
 | **MiniMax** | `https://api.minimaxi.com/anthropic/v1/messages`        | Anthropic        | ❌       |
 | **Kimi**    | `https://api.moonshot.cn/anthropic`                     | Anthropic        | ❌       |
 | **MiMo**    | `https://api.xiaomimimo.com/anthropic/v1/messages`      | Anthropic        | ❌       |
+| **Aliyun Coding Plan** | `https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages` | Anthropic | ❌ |
 | **Base**    | 自定义                                                  | OpenAI/Anthropic | ✅       |
 
 ### 动态模型获取工作原理

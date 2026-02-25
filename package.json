@@ -23,7 +23,7 @@
 		"build": "pnpm --filter @all-in-copilot/sdk build && pnpm --filter @all-in-copilot/cli build",
 		"build:sdk": "pnpm --filter @all-in-copilot/sdk build",
 		"build:cli": "pnpm --filter @all-in-copilot/cli build",
-		"build:templates": "cd templates/acp-template && pnpm compile && cd ../base-template && pnpm compile && cd ../glm-template && pnpm compile && cd ../minimax-template && pnpm compile && cd ../kimi-template && pnpm compile && cd ../mimo-template && pnpm compile && cd ../kimi-coding-template && pnpm compile",
+		"build:templates": "cd templates/acp-template && pnpm compile && cd ../base-template && pnpm compile && cd ../glm-template && pnpm compile && cd ../minimax-template && pnpm compile && cd ../kimi-template && pnpm compile && cd ../mimo-template && pnpm compile && cd ../kimi-coding-template && pnpm compile && cd ../aliyun-coding-template && pnpm compile",
 		"build:all": "pnpm build && pnpm build:templates",
 		"watch": "pnpm --filter @all-in-copilot/sdk watch",
 		"watch:cli": "pnpm --filter @all-in-copilot/cli watch",
@@ -37,10 +37,11 @@
 		"package:glm": "cd templates/glm-template && npx @vscode/vsce package --no-dependencies",
 		"package:kimi": "cd templates/kimi-template && npx @vscode/vsce package --no-dependencies",
 		"package:kimi-coding": "cd templates/kimi-coding-template && npx @vscode/vsce package --no-dependencies",
+		"package:aliyun-coding": "cd templates/aliyun-coding-template && npx @vscode/vsce package --no-dependencies",
 		"package:mimo": "cd templates/mimo-template && npx @vscode/vsce package --no-dependencies",
 		"package:minimax": "cd templates/minimax-template && npx @vscode/vsce package --no-dependencies",
 		"package:acp": "cd templates/acp-template && npx @vscode/vsce package --no-dependencies",
-		"package:all": "pnpm package:acp && pnpm package:base && pnpm package:glm && pnpm package:kimi && pnpm package:kimi-coding && pnpm package:mimo && pnpm package:minimax",
+		"package:all": "pnpm package:acp && pnpm package:base && pnpm package:glm && pnpm package:kimi && pnpm package:kimi-coding && pnpm package:aliyun-coding && pnpm package:mimo && pnpm package:minimax",
 		"build-and-package": "pnpm build:all && pnpm package:all"
 	},
 	"devDependencies": {

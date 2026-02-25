@@ -116,6 +116,52 @@ importers:
         specifier: ^8.39.0
         version: 8.54.0(eslint@9.39.2)(typescript@5.9.3)
 
+  templates/aliyun-coding-template:
+    dependencies:
+      '@all-in-copilot/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.13.0
+        version: 9.39.2
+      '@stylistic/eslint-plugin':
+        specifier: ^2.9.0
+        version: 2.13.0(eslint@9.39.2)(typescript@5.9.3)
+      '@types/mocha':
+        specifier: ^10.0.6
+        version: 10.0.10
+      '@types/node':
+        specifier: ^22
+        version: 22.19.9
+      '@vscode/dts':
+        specifier: ^0.4.1
+        version: 0.4.1
+      '@vscode/test-cli':
+        specifier: ^0.0.11
+        version: 0.0.11
+      '@vscode/test-electron':
+        specifier: ^2.5.2
+        version: 2.5.2
+      '@vscode/vsce':
+        specifier: ^3.7.1
+        version: 3.7.1
+      esbuild:
+        specifier: ^0.24.2
+        version: 0.24.2
+      eslint:
+        specifier: ^9.13.0
+        version: 9.39.2
+      prettier:
+        specifier: ^3.1.0
+        version: 3.8.1
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.39.0
+        version: 8.54.0(eslint@9.39.2)(typescript@5.9.3)
+
   templates/base-template:
     dependencies:
       '@all-in-copilot/sdk':
