@@ -136,11 +136,33 @@ async function addProviderFlow(providerManager: ProviderManager): Promise<UserPr
 		return undefined;
 	}
 
-	const initialModelsInput = await vscode.window.showInputBox({
-		prompt: "Initial model IDs (optional, comma separated)",
-		placeHolder: "gpt-4o-mini, deepseek-chat",
-		ignoreFocusOut: true,
-	});
+	// Immediately try to fetch models with the entered credentials
+	let fetchedModels: ModelConfig[] | undefined;
+	await vscode.window.withProgress(
+		{ location: vscode.ProgressLocation.Notification, title: `Fetching models from ${name}...`, cancellable: false },
+		async () => {
+			try {
+				const tmpSdkConfig = {
+					id: "__tmp__",
+					name,
+					family: apiMode,
+					baseUrl,
+					apiKeySecret: "__tmp_key__",
+					apiMode,
+					supportsTools: true,
+					supportsVision: false,
+					defaultMaxOutputTokens: 4096,
+					defaultContextLength: 200000,
+					dynamicModels: true,
+					modelsCacheTTL: 0,
+				};
+				const tmpCache = { models: null as ModelConfig[] | null, lastFetch: 0 };
+				fetchedModels = await fetchModelsFromAPI(baseUrl, apiKey, tmpSdkConfig as any, tmpCache, 15000);
+			} catch {
+				// Fall through to manual entry
+			}
+		}
+	);
 
 	const provider = await providerManager.addProvider({
 		name,
@@ -149,13 +171,45 @@ async function addProviderFlow(providerManager: ProviderManager): Promise<UserPr
 		apiKey,
 	});
 
-	const initialModels = (initialModelsInput ?? "")
-		.split(",")
-		.map((item) => item.trim())
-		.filter((item, index, arr) => item.length > 0 && arr.indexOf(item) === index);
+	if (fetchedModels && fetchedModels.length > 0) {
+		const items = fetchedModels.map((m) => ({
+			label: m.name || m.id,
+			description: m.id !== (m.name || m.id) ? m.id : undefined,
+			detail: `Context: ${formatTokenCount(m.maxInputTokens + m.maxOutputTokens)}  |  Max output: ${formatTokenCount(m.maxOutputTokens)}`,
+			picked: false,
+			model: m,
+		}));
 
-	for (const modelId of initialModels) {
-		await providerManager.addManualModel(provider.id, { id: modelId, name: modelId });
+		const selected = await vscode.window.showQuickPick(items, {
+			placeHolder: `Select models to add (${fetchedModels.length} available, Space to select multiple)`,
+			canPickMany: true,
+			ignoreFocusOut: true,
+		});
+
+		for (const item of selected ?? []) {
+			await providerManager.addManualModel(provider.id, {
+				id: item.model.id,
+				name: item.model.name,
+				maxInputTokens: item.model.maxInputTokens,
+				maxOutputTokens: item.model.maxOutputTokens,
+			});
+		}
+	} else {
+		// API fetch failed — fall back to manual text entry
+		const initialModelsInput = await vscode.window.showInputBox({
+			prompt: "Could not fetch models automatically. Enter model IDs manually (optional, comma separated)",
+			placeHolder: "gpt-4o-mini, deepseek-chat",
+			ignoreFocusOut: true,
+		});
+
+		const initialModels = (initialModelsInput ?? "")
+			.split(",")
+			.map((item) => item.trim())
+			.filter((item, index, arr) => item.length > 0 && arr.indexOf(item) === index);
+
+		for (const modelId of initialModels) {
+			await providerManager.addManualModel(provider.id, { id: modelId, name: modelId });
+		}
 	}
 
 	return provider;
