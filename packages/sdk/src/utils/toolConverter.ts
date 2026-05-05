@@ -243,17 +243,42 @@ export function convertToolsToOpenAI(
 		return undefined;
 	}
 
-	return tools.map((tool: unknown) => {
-		const t = tool as { name: string; description?: string; inputSchema?: Record<string, unknown> };
-		return {
-			type: "function" as const,
-			function: {
-				name: sanitizeFunctionName(t.name),
-				description: t.description,
-				parameters: t.inputSchema,
-			},
-		};
-	});
+	const converted = tools
+		.map((tool: unknown) => {
+			const t = tool as {
+				name?: string;
+				description?: string;
+				inputSchema?: Record<string, unknown>;
+				function?: { name?: string; description?: string; parameters?: Record<string, unknown> };
+			};
+
+			const rawName = t.name ?? t.function?.name ?? "tool";
+			const name = sanitizeFunctionName(rawName);
+			const rawDescription = t.description ?? t.function?.description;
+			const description = typeof rawDescription === "string" && rawDescription.trim() ? rawDescription : undefined;
+			const rawParameters = t.inputSchema ?? t.function?.parameters;
+			const parameters = sanitizeSchema(rawParameters);
+
+			const result: {
+				type: "function";
+				function: { name: string; description?: string; parameters: Record<string, unknown> };
+			} = {
+				type: "function",
+				function: {
+					name,
+					parameters,
+				},
+			};
+
+			if (description) {
+				result.function.description = description;
+			}
+
+			return result;
+		})
+		.filter((item) => typeof item.function.name === "string" && item.function.name.length > 0 && item.function.parameters);
+
+	return converted.length > 0 ? converted : undefined;
 }
 
 /**
