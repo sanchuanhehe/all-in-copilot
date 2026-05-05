@@ -33,6 +33,8 @@ export async function processOpenAIStream(
 	const decoder = new TextDecoder();
 	let buffer = "";
 	const toolCallBuffers = new Map<number, ToolCallBuffer>();
+	let thinkBuffer = "";
+	let insideThink = false;
 
 	const flushToolCalls = () => {
 		for (const [, tc] of toolCallBuffers) {
@@ -80,7 +82,34 @@ export async function processOpenAIStream(
 					const delta = chunk.choices?.[0]?.delta;
 
 					if (delta?.content) {
-						onText(delta.content);
+						let text: string = delta.content;
+						let output = "";
+						let i = 0;
+						while (i < text.length) {
+							if (!insideThink) {
+								const openIdx = text.indexOf("<think>", i);
+								if (openIdx === -1) {
+									output += text.slice(i);
+									break;
+								}
+								output += text.slice(i, openIdx);
+								insideThink = true;
+								thinkBuffer = "";
+								i = openIdx + "<think>".length;
+							} else {
+								const closeIdx = text.indexOf("</think>", i);
+								if (closeIdx === -1) {
+									thinkBuffer += text.slice(i);
+									break;
+								}
+								thinkBuffer = "";
+								insideThink = false;
+								i = closeIdx + "</think>".length;
+							}
+						}
+						if (output) {
+							onText(output);
+						}
 					}
 
 					if (delta?.tool_calls) {
